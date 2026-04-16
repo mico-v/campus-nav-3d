@@ -18,7 +18,7 @@ app.innerHTML = `
         <div>
           <p class="eyebrow">GitHub Pages 友好的静态 3D 原型</p>
           <h1>${campusData.name}</h1>
-          <p class="subtitle">依据参考拓扑图重新校准建筑与分区位置的可浏览 3D 视图，便于后续继续微调建筑高度、位置与路线。</p>
+          <p class="subtitle">基于下载的 OSM 校园几何重建主路与建筑落位，保留轻量级、数据驱动的 Three.js 原型结构，方便继续微调。</p>
         </div>
         <div class="hero-badges">
           <span>Three.js</span>
@@ -48,8 +48,8 @@ app.innerHTML = `
         <h2>功能说明</h2>
         <ul class="feature-list">
           <li>分区：西部学院区、西区宿舍区、中央教学行政区、图书馆东区过渡带、东区宿舍生活区、南部教学生活区、运动休闲带</li>
-          <li>可见：建筑体块、道路、水体、操场、POI 标记、路线高亮</li>
-          <li>编辑入口：<code>src/data/campusData.ts</code></li>
+          <li>可见：OSM 派生道路、建筑体块/建筑轮廓、水体、操场、POI 标记、路线高亮</li>
+          <li>编辑入口：<code>src/data/campusData.ts</code> + <code>src/data/osmDerivedData.ts</code></li>
         </ul>
       </section>
       <section>
@@ -340,23 +340,51 @@ function createBuildingMesh(building: Building) {
   const color = building.color ?? buildingColorByCategory[building.category] ?? '#cbd5e1'
   const baseHeight = building.height
 
-  const body = new THREE.Mesh(
-    new THREE.BoxGeometry(building.size[0], baseHeight, building.size[1]),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.08 }),
-  )
-  body.position.y = baseHeight / 2
-  body.castShadow = true
-  body.receiveShadow = true
-  group.add(body)
-
-  if (baseHeight > 8) {
-    const roof = new THREE.Mesh(
-      new THREE.BoxGeometry(building.size[0] * 0.82, Math.max(1.2, baseHeight * 0.06), building.size[1] * 0.82),
-      new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.85 }),
+  if (building.footprint && building.footprint.length >= 3) {
+    const shape = new THREE.Shape(
+      building.footprint.map(([x, z]) => new THREE.Vector2(x - building.position[0], z - building.position[1])),
     )
-    roof.position.y = baseHeight + 0.8
-    roof.castShadow = true
+
+    const bodyGeometry = new THREE.ExtrudeGeometry(shape, {
+      depth: baseHeight,
+      bevelEnabled: false,
+    })
+    bodyGeometry.rotateX(-Math.PI / 2)
+
+    const body = new THREE.Mesh(
+      bodyGeometry,
+      new THREE.MeshStandardMaterial({ color, roughness: 0.76, metalness: 0.06 }),
+    )
+    body.castShadow = true
+    body.receiveShadow = true
+    group.add(body)
+
+    const roof = new THREE.Mesh(
+      new THREE.ShapeGeometry(shape),
+      new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.88, transparent: true, opacity: 0.92 }),
+    )
+    roof.rotation.x = -Math.PI / 2
+    roof.position.y = baseHeight + 0.06
     group.add(roof)
+  } else {
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(building.size[0], baseHeight, building.size[1]),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.08 }),
+    )
+    body.position.y = baseHeight / 2
+    body.castShadow = true
+    body.receiveShadow = true
+    group.add(body)
+
+    if (baseHeight > 8) {
+      const roof = new THREE.Mesh(
+        new THREE.BoxGeometry(building.size[0] * 0.82, Math.max(1.2, baseHeight * 0.06), building.size[1] * 0.82),
+        new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.85 }),
+      )
+      roof.position.y = baseHeight + 0.8
+      roof.castShadow = true
+      group.add(roof)
+    }
   }
 
   if (building.category === 'library') {
