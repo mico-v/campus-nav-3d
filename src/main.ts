@@ -18,7 +18,7 @@ app.innerHTML = `
         <div>
           <p class="eyebrow">GitHub Pages 友好的静态 3D 原型</p>
           <h1>${campusData.name}</h1>
-          <p class="subtitle">依据校园地图语义关系制作的可浏览 3D 视图，便于后续手工调整建筑高度、位置与路线。</p>
+          <p class="subtitle">依据参考拓扑图重新校准建筑与分区位置的可浏览 3D 视图，便于后续继续微调建筑高度、位置与路线。</p>
         </div>
         <div class="hero-badges">
           <span>Three.js</span>
@@ -47,7 +47,7 @@ app.innerHTML = `
       <section>
         <h2>功能说明</h2>
         <ul class="feature-list">
-          <li>分区：西区宿舍/运动、中央教学行政、图书馆湖区、东区宿舍、南区组团</li>
+          <li>分区：西部学院区、西区宿舍区、中央教学行政区、图书馆东区过渡带、东区宿舍生活区、南部教学生活区、运动休闲带</li>
           <li>可见：建筑体块、道路、水体、操场、POI 标记、路线高亮</li>
           <li>编辑入口：<code>src/data/campusData.ts</code></li>
         </ul>
@@ -56,7 +56,7 @@ app.innerHTML = `
         <h2>图例</h2>
         <div class="legend">
           <div><span class="swatch route"></span>导航路线</div>
-          <div><span class="swatch lake"></span>主景观湖</div>
+          <div><span class="swatch lake"></span>景观水景</div>
           <div><span class="swatch sports"></span>运动设施</div>
           <div><span class="swatch academic"></span>教学/行政</div>
           <div><span class="swatch dorm"></span>宿舍/生活区</div>
