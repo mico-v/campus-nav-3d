@@ -2,21 +2,14 @@ import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import {
-  buildingCategoryOptions,
-  campusData,
-  cloneCampusData,
   createDefaultCampusData,
   type Building,
   type CampusData,
   type PoiMarker,
-  type Road,
 } from './data/campusData'
-
-const STORAGE_KEY = 'campus-nav-3d-map'
 
 type Selection =
   | { kind: 'building'; index: number }
-  | { kind: 'road'; index: number }
   | null
 
 const app = document.querySelector<HTMLDivElement>('#app')
@@ -32,17 +25,17 @@ app.innerHTML = `
         <div>
           <p class="eyebrow">GitHub Pages 友好的静态 3D 原型</p>
           <h1 id="hero-title"></h1>
-          <p class="subtitle">单一地图数据文件 + 浏览器内编辑。保留 OSM 风格道路与建筑落位、POI、路线高亮，并支持本地保存、导入导出与重置。</p>
+          <p class="subtitle">以 graph 地点位置为基准，叠加 OpenStreetMap 可确认建筑轮廓，支持从建筑列表快速定位。</p>
         </div>
         <div class="hero-badges">
           <span>Three.js</span>
           <span>Vite + TypeScript</span>
-          <span>场景内可选中编辑</span>
+          <span>建筑快速定位</span>
         </div>
       </div>
       <div id="scene"></div>
       <div id="label-layer"></div>
-      <div class="scene-help">拖拽旋转 / 滚轮缩放 / 右键平移 / 点击建筑或道路选中</div>
+      <div class="scene-help">拖拽旋转 / 滚轮缩放 / 右键平移 / 点击建筑选中</div>
       <div class="selection-toast" id="selection-toast">未选择对象</div>
     </div>
     <aside class="panel">
@@ -56,50 +49,8 @@ app.innerHTML = `
         <div class="chip-list" id="route-landmarks"></div>
       </section>
       <section>
-        <h2>编辑器</h2>
-        <div class="editor-toolbar">
-          <button type="button" class="button button-primary" id="save-browser">保存到浏览器</button>
-          <button type="button" class="button" id="reset-defaults">重置默认</button>
-        </div>
-        <div class="editor-toolbar compact">
-          <button type="button" class="button" id="export-json">导出 JSON</button>
-          <button type="button" class="button" id="import-json">导入 JSON</button>
-        </div>
-        <textarea id="import-export-json" class="json-box" spellcheck="false" placeholder="这里会显示导出的地图 JSON，也可以粘贴 JSON 后点击“导入 JSON”。"></textarea>
-        <p class="status-line" id="editor-status">已加载默认地图数据。</p>
-      </section>
-      <section>
-        <h2>对象列表</h2>
-        <div class="entity-switch">
-          <button type="button" class="segmented active" data-entity-tab="buildings">建筑</button>
-          <button type="button" class="segmented" data-entity-tab="roads">道路</button>
-        </div>
+        <h2>建筑信息列表</h2>
         <div id="entity-list" class="entity-list"></div>
-      </section>
-      <section>
-        <h2>属性编辑</h2>
-        <div id="selection-details" class="selection-details"></div>
-      </section>
-      <section>
-        <h2>功能说明</h2>
-        <ul class="feature-list">
-          <li>单一数据入口：<code>src/data/campusData.ts</code></li>
-          <li>支持列表选择与场景点击选择建筑/道路</li>
-          <li>建筑可编辑名称、位置、尺寸、高度、分类、颜色、分区与 footprint JSON</li>
-          <li>道路可编辑名称、宽度、颜色、points JSON</li>
-          <li>可保存到 localStorage、导出/导入 JSON、重置到 bundled defaults</li>
-        </ul>
-      </section>
-      <section>
-        <h2>图例</h2>
-        <div class="legend">
-          <div><span class="swatch route"></span>导航路线</div>
-          <div><span class="swatch lake"></span>景观水景</div>
-          <div><span class="swatch sports"></span>运动设施</div>
-          <div><span class="swatch academic"></span>教学/行政</div>
-          <div><span class="swatch dorm"></span>宿舍/生活区</div>
-          <div><span class="swatch selected"></span>当前选中</div>
-        </div>
       </section>
     </aside>
   </div>
@@ -112,15 +63,7 @@ const routeName = document.querySelector<HTMLParagraphElement>('#route-name')!
 const routeSteps = document.querySelector<HTMLOListElement>('#route-steps')!
 const routeLandmarks = document.querySelector<HTMLDivElement>('#route-landmarks')!
 const entityList = document.querySelector<HTMLDivElement>('#entity-list')!
-const selectionDetails = document.querySelector<HTMLDivElement>('#selection-details')!
-const statusLine = document.querySelector<HTMLParagraphElement>('#editor-status')!
 const selectionToast = document.querySelector<HTMLDivElement>('#selection-toast')!
-const importExportBox = document.querySelector<HTMLTextAreaElement>('#import-export-json')!
-const saveBrowserButton = document.querySelector<HTMLButtonElement>('#save-browser')!
-const resetDefaultsButton = document.querySelector<HTMLButtonElement>('#reset-defaults')!
-const exportJsonButton = document.querySelector<HTMLButtonElement>('#export-json')!
-const importJsonButton = document.querySelector<HTMLButtonElement>('#import-json')!
-const segmentedButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-entity-tab]'))
 
 if (
   !sceneHost ||
@@ -130,14 +73,7 @@ if (
   !routeSteps ||
   !routeLandmarks ||
   !entityList ||
-  !selectionDetails ||
-  !statusLine ||
-  !selectionToast ||
-  !importExportBox ||
-  !saveBrowserButton ||
-  !resetDefaultsButton ||
-  !exportJsonButton ||
-  !importJsonButton
+  !selectionToast
 ) {
   throw new Error('UI root missing')
 }
@@ -145,24 +81,21 @@ if (
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 renderer.shadowMap.enabled = true
-renderer.shadowMap.type = THREE.PCFSoftShadowMap
+renderer.shadowMap.type = THREE.PCFShadowMap
 renderer.outputColorSpace = THREE.SRGBColorSpace
 sceneHost.appendChild(renderer.domElement)
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color('#dceefc')
-scene.fog = new THREE.Fog('#dceefc', 220, 420)
 
-const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
-camera.position.set(-120, 155, 185)
+const camera = new THREE.PerspectiveCamera(45, 1, 5, 5000)
 
 const controls = new OrbitControls(camera, renderer.domElement)
 controls.enableDamping = true
 controls.dampingFactor = 0.06
 controls.maxPolarAngle = Math.PI / 2.08
-controls.minDistance = 90
-controls.maxDistance = 360
-controls.target.set(5, 10, -4)
+controls.minDistance = 35
+controls.maxDistance = 4200
 
 const ambient = new THREE.HemisphereLight('#ffffff', '#86a7c2', 1.6)
 scene.add(ambient)
@@ -172,23 +105,15 @@ sun.position.set(-120, 180, 80)
 sun.castShadow = true
 sun.shadow.mapSize.set(2048, 2048)
 sun.shadow.camera.near = 1
-sun.shadow.camera.far = 500
-sun.shadow.camera.left = -220
-sun.shadow.camera.right = 220
-sun.shadow.camera.top = 220
-sun.shadow.camera.bottom = -220
+sun.shadow.camera.far = 4000
+sun.shadow.camera.left = -1400
+sun.shadow.camera.right = 1400
+sun.shadow.camera.top = 1400
+sun.shadow.camera.bottom = -1400
 scene.add(sun)
 
 const campusGroup = new THREE.Group()
 scene.add(campusGroup)
-
-const axesShadow = new THREE.Mesh(
-  new THREE.PlaneGeometry(campusData.bounds.width + 20, campusData.bounds.depth + 20),
-  new THREE.ShadowMaterial({ opacity: 0.15 }),
-)
-axesShadow.rotation.x = -Math.PI / 2
-axesShadow.position.y = 0.01
-scene.add(axesShadow)
 
 const buildingColorByCategory: Record<string, string> = {
   dorm: '#c4b5fd',
@@ -207,11 +132,11 @@ const markerGeometry = new THREE.CylinderGeometry(0.9, 0.9, 7, 12)
 const raycaster = new THREE.Raycaster()
 const pointer = new THREE.Vector2()
 const tempVector = new THREE.Vector3()
-const clock = new THREE.Clock()
+const timer = new THREE.Timer()
+timer.connect(document)
 
-let currentData = loadCampusData()
+let currentData = createDefaultCampusData()
 let selection: Selection = currentData.buildings.length > 0 ? { kind: 'building', index: 0 } : null
-let activeEntityTab: 'buildings' | 'roads' = 'buildings'
 let clickableObjects: THREE.Object3D[] = []
 let labelTargets: { marker: PoiMarker; element: HTMLDivElement }[] = []
 let routeGlowMaterial: THREE.MeshBasicMaterial | null = null
@@ -219,51 +144,10 @@ let routeStart: THREE.Group | null = null
 let routeEnd: THREE.Group | null = null
 let routePulse: THREE.Mesh | null = null
 let routeCurve: THREE.CatmullRomCurve3 | null = null
+let routePulsePoints: THREE.Vector3[] = []
 
-renderAll('已加载地图。')
-
-segmentedButtons.forEach((button) => {
-  button.addEventListener('click', () => {
-    const nextTab = button.dataset.entityTab === 'roads' ? 'roads' : 'buildings'
-    activeEntityTab = nextTab
-    renderEntityList()
-    updateSegmentedButtons()
-  })
-})
-
-saveBrowserButton.addEventListener('click', () => {
-  persistCurrentData()
-  setStatus('已保存到浏览器 localStorage。')
-})
-
-resetDefaultsButton.addEventListener('click', () => {
-  currentData = createDefaultCampusData()
-  selection = currentData.buildings.length > 0 ? { kind: 'building', index: 0 } : null
-  activeEntityTab = 'buildings'
-  persistCurrentData()
-  renderAll('已重置为 bundled 默认地图。')
-})
-
-exportJsonButton.addEventListener('click', () => {
-  const text = JSON.stringify(currentData, null, 2)
-  importExportBox.value = text
-  downloadTextFile('campus-map.json', text)
-  setStatus('已导出当前地图 JSON。')
-})
-
-importJsonButton.addEventListener('click', () => {
-  try {
-    const parsed = JSON.parse(importExportBox.value)
-    currentData = normalizeCampusData(parsed)
-    selection = currentData.buildings.length > 0 ? { kind: 'building', index: 0 } : currentData.roads.length > 0 ? { kind: 'road', index: 0 } : null
-    activeEntityTab = currentData.buildings.length > 0 ? 'buildings' : 'roads'
-    persistCurrentData()
-    renderAll('已导入并替换当前浏览器内地图。')
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '未知 JSON 错误'
-    setStatus(`导入失败：${message}`)
-  }
-})
+setOverviewCamera()
+renderAll()
 
 entityList.addEventListener('click', (event) => {
   const target = event.target
@@ -276,45 +160,14 @@ entityList.addEventListener('click', (event) => {
     return
   }
 
-  const kind = item.dataset.kind === 'road' ? 'road' : 'building'
   const index = Number(item.dataset.index)
   if (!Number.isInteger(index)) {
     return
   }
 
-  selection = { kind, index }
-  activeEntityTab = kind === 'road' ? 'roads' : 'buildings'
-  renderAll(`${kind === 'road' ? '已选中道路' : '已选中建筑'}。`)
-})
-
-selectionDetails.addEventListener('change', (event) => {
-  const target = event.target
-  if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement)) {
-    return
-  }
-
-  if (!selection) {
-    return
-  }
-
-  const field = target.name
-  const value = target.value
-
-  try {
-    if (selection.kind === 'building') {
-      updateBuildingField(selection.index, field, value)
-      persistCurrentData()
-      renderAll('建筑修改已应用。')
-    } else {
-      updateRoadField(selection.index, field, value)
-      persistCurrentData()
-      renderAll('道路修改已应用。')
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '更新失败'
-    setStatus(message)
-    renderSelectionEditor()
-  }
+  selection = { kind: 'building', index }
+  renderAll()
+  focusBuilding(index)
 })
 
 renderer.domElement.addEventListener('click', (event) => {
@@ -333,10 +186,10 @@ renderer.domElement.addEventListener('click', (event) => {
     return
   }
 
-  const data = hit.object.userData as { kind: 'building' | 'road'; index: number }
+  const data = hit.object.userData as { kind: 'building'; index: number }
   selection = { kind: data.kind, index: data.index }
-  activeEntityTab = data.kind === 'road' ? 'roads' : 'buildings'
-  renderAll(`${data.kind === 'road' ? '已从场景中选中道路' : '已从场景中选中建筑'}。`)
+  renderAll()
+  focusBuilding(data.index)
 })
 
 const resize = () => {
@@ -350,8 +203,9 @@ const resize = () => {
 resize()
 window.addEventListener('resize', resize)
 
-const animate = () => {
-  const elapsed = clock.getElapsedTime()
+const animate = (timestamp?: number) => {
+  timer.update(timestamp)
+  const elapsed = timer.getElapsed()
   controls.update()
 
   if (routeGlowMaterial) {
@@ -367,8 +221,8 @@ const animate = () => {
   }
 
   if (routeCurve && routePulse) {
-    const progress = (elapsed * 0.08) % 1
-    const pulsePoint = routeCurve.getPointAt(progress)
+    const progress = Math.min((elapsed * 0.08) % 1, 0.999)
+    const pulsePoint = samplePolylinePoint(routePulsePoints, progress)
     routePulse.position.copy(pulsePoint)
     routePulse.scale.setScalar(0.8 + (Math.sin(elapsed * 5.5) + 1) * 0.12)
   }
@@ -378,20 +232,15 @@ const animate = () => {
   requestAnimationFrame(animate)
 }
 
-animate()
+requestAnimationFrame(animate)
 
-function renderAll(statusMessage?: string) {
+function renderAll() {
   ensureSelectionInBounds()
   heroTitle.textContent = currentData.name
   renderRouteInfo()
   renderEntityList()
-  renderSelectionEditor()
-  updateSegmentedButtons()
   renderScene()
   updateSelectionToast()
-  if (statusMessage) {
-    setStatus(statusMessage)
-  }
 }
 
 function renderRouteInfo() {
@@ -409,32 +258,16 @@ function renderRouteInfo() {
 }
 
 function renderEntityList() {
-  if (activeEntityTab === 'buildings') {
-    entityList.innerHTML = currentData.buildings
-      .map((building, index) => {
-        const selected = selection?.kind === 'building' && selection.index === index
-        return `
-          <button type="button" class="entity-item${selected ? ' selected' : ''}" data-kind="building" data-index="${index}">
-            <span>
-              <strong>${escapeHtml(building.name || building.id || `建筑 ${index + 1}`)}</strong>
-              <small>${escapeHtml(building.id)} · ${escapeHtml(building.category)}</small>
-            </span>
-            <span class="pill">${index + 1}</span>
-          </button>
-        `
-      })
-      .join('')
-    return
-  }
-
-  entityList.innerHTML = currentData.roads
-    .map((road, index) => {
-      const selected = selection?.kind === 'road' && selection.index === index
+  entityList.innerHTML = currentData.buildings
+    .map((building, index) => {
+      const selected = selection?.kind === 'building' && selection.index === index
+      const zoneName = currentData.zones.find((zone) => zone.id === building.zoneId)?.name ?? building.zoneId
       return `
-        <button type="button" class="entity-item${selected ? ' selected' : ''}" data-kind="road" data-index="${index}">
+        <button type="button" class="entity-item${selected ? ' selected' : ''}" data-kind="building" data-index="${index}">
           <span>
-            <strong>${escapeHtml(road.id || `道路 ${index + 1}`)}</strong>
-            <small>${road.points.length} 点 · 宽度 ${road.width}</small>
+            <strong>${escapeHtml(building.name || building.id || `建筑 ${index + 1}`)}</strong>
+            <small>${escapeHtml(building.category)} · ${escapeHtml(zoneName)}</small>
+            <small>X ${formatCoordinate(building.position[0])} / Z ${formatCoordinate(building.position[1])} · 高 ${formatCoordinate(building.height)}</small>
           </span>
           <span class="pill">${index + 1}</span>
         </button>
@@ -443,106 +276,88 @@ function renderEntityList() {
     .join('')
 }
 
-function renderSelectionEditor() {
-  if (!selection) {
-    selectionDetails.innerHTML = '<p class="empty-state">请选择一个建筑或道路。</p>'
+function focusBuilding(index: number) {
+  const building = currentData.buildings[index]
+  if (!building) {
     return
   }
 
-  if (selection.kind === 'building') {
-    const building = currentData.buildings[selection.index]
-    if (!building) {
-      selectionDetails.innerHTML = '<p class="empty-state">当前建筑不存在。</p>'
-      return
-    }
+  const target = new THREE.Vector3(
+    building.position[0],
+    Math.max(8, building.height * 0.55),
+    building.position[1],
+  )
+  const footprintSize = Math.max(building.size[0], building.size[1])
+  const distance = Math.max(110, footprintSize * 4.5)
 
-    selectionDetails.innerHTML = `
-      <div class="editor-grid">
-        <label>
-          <span>名称</span>
-          <input name="name" value="${escapeAttribute(building.name)}" />
-        </label>
-        <label>
-          <span>ID（只读）</span>
-          <input value="${escapeAttribute(building.id)}" disabled />
-        </label>
-        <label>
-          <span>X</span>
-          <input type="number" step="0.1" name="positionX" value="${building.position[0]}" />
-        </label>
-        <label>
-          <span>Z</span>
-          <input type="number" step="0.1" name="positionZ" value="${building.position[1]}" />
-        </label>
-        <label>
-          <span>宽度</span>
-          <input type="number" step="0.1" min="0.1" name="sizeWidth" value="${building.size[0]}" />
-        </label>
-        <label>
-          <span>进深</span>
-          <input type="number" step="0.1" min="0.1" name="sizeDepth" value="${building.size[1]}" />
-        </label>
-        <label>
-          <span>高度</span>
-          <input type="number" step="0.1" min="0.1" name="height" value="${building.height}" />
-        </label>
-        <label>
-          <span>颜色</span>
-          <input name="color" value="${escapeAttribute(building.color ?? '')}" placeholder="#93c5fd" />
-        </label>
-        <label>
-          <span>分类</span>
-          <select name="category">
-            ${buildingCategoryOptions
-              .map((category) => `<option value="${category}"${building.category === category ? ' selected' : ''}>${category}</option>`)
-              .join('')}
-          </select>
-        </label>
-        <label>
-          <span>分区</span>
-          <select name="zoneId">
-            ${currentData.zones
-              .map((zone) => `<option value="${zone.id}"${building.zoneId === zone.id ? ' selected' : ''}>${escapeHtml(zone.name)}</option>`)
-              .join('')}
-          </select>
-        </label>
-      </div>
-      <label class="stacked-label">
-        <span>Footprint JSON（可选）</span>
-        <textarea name="footprint">${escapeTextarea(JSON.stringify(building.footprint ?? [], null, 2))}</textarea>
-      </label>
-      <p class="field-hint">footprint 留空或 [] 时将使用规则体块；填写 [[x,z], ...] 可恢复不规则轮廓。</p>
-    `
-    return
+  controls.target.copy(target)
+  camera.position.set(target.x - distance * 0.7, target.y + distance * 0.8, target.z + distance)
+  camera.updateProjectionMatrix()
+  controls.update()
+}
+
+function setOverviewCamera() {
+  const bounds = computeMapBounds(currentData, 160)
+  const maxDimension = Math.max(bounds.width, bounds.depth)
+  const target = new THREE.Vector3(bounds.center[0], 0, bounds.center[1])
+
+  controls.target.copy(target)
+  camera.position.set(
+    target.x - maxDimension * 0.72,
+    maxDimension * 0.42,
+    target.z + maxDimension * 0.68,
+  )
+  camera.near = 5
+  camera.far = Math.max(5000, maxDimension * 4)
+  camera.updateProjectionMatrix()
+  controls.update()
+}
+
+function computeMapBounds(data: CampusData, padding = 0) {
+  const xs: number[] = []
+  const zs: number[] = []
+
+  data.buildings.forEach((building) => {
+    xs.push(building.position[0])
+    zs.push(building.position[1])
+    building.footprint?.forEach(([x, z]) => {
+      xs.push(x)
+      zs.push(z)
+    })
+  })
+
+  data.roads.forEach((road) => {
+    road.points.forEach(([x, z]) => {
+      xs.push(x)
+      zs.push(z)
+    })
+  })
+
+  data.zones.forEach((zone) => {
+    xs.push(zone.center[0] - zone.size[0] / 2, zone.center[0] + zone.size[0] / 2)
+    zs.push(zone.center[1] - zone.size[1] / 2, zone.center[1] + zone.size[1] / 2)
+  })
+
+  data.waters.forEach((water) => {
+    xs.push(water.center[0] - water.size[0] / 2, water.center[0] + water.size[0] / 2)
+    zs.push(water.center[1] - water.size[1] / 2, water.center[1] + water.size[1] / 2)
+  })
+
+  data.fields.forEach((field) => {
+    xs.push(field.center[0] - field.size[0] / 2, field.center[0] + field.size[0] / 2)
+    zs.push(field.center[1] - field.size[1] / 2, field.center[1] + field.size[1] / 2)
+  })
+
+  const minX = Math.min(...xs) - padding
+  const maxX = Math.max(...xs) + padding
+  const minZ = Math.min(...zs) - padding
+  const maxZ = Math.max(...zs) + padding
+
+  return {
+    center: [(minX + maxX) / 2, (minZ + maxZ) / 2] as [number, number],
+    width: Math.max(1, maxX - minX),
+    depth: Math.max(1, maxZ - minZ),
   }
-
-  const road = currentData.roads[selection.index]
-  if (!road) {
-    selectionDetails.innerHTML = '<p class="empty-state">当前道路不存在。</p>'
-    return
-  }
-
-  selectionDetails.innerHTML = `
-    <div class="editor-grid">
-      <label>
-        <span>名称 / ID</span>
-        <input name="id" value="${escapeAttribute(road.id)}" />
-      </label>
-      <label>
-        <span>宽度</span>
-        <input type="number" step="0.1" min="0.1" name="width" value="${road.width}" />
-      </label>
-      <label class="full-width">
-        <span>颜色</span>
-        <input name="color" value="${escapeAttribute(road.color ?? '')}" placeholder="#9ca3af" />
-      </label>
-    </div>
-    <label class="stacked-label">
-      <span>Points JSON</span>
-      <textarea name="points">${escapeTextarea(JSON.stringify(road.points, null, 2))}</textarea>
-    </label>
-    <p class="field-hint">points 需为 [[x,z], ...]，至少 2 个点。</p>
-  `
 }
 
 function renderScene() {
@@ -555,53 +370,54 @@ function renderScene() {
   routeEnd = null
   routePulse = null
   routeCurve = null
+  routePulsePoints = []
 
+  const mapBounds = computeMapBounds(currentData, 140)
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(currentData.bounds.width, currentData.bounds.depth),
+    new THREE.PlaneGeometry(mapBounds.width, mapBounds.depth),
     new THREE.MeshStandardMaterial({ color: '#c8ddb0', roughness: 0.98, metalness: 0 }),
   )
   ground.rotation.x = -Math.PI / 2
+  ground.position.set(mapBounds.center[0], -0.01, mapBounds.center[1])
   ground.receiveShadow = true
   campusGroup.add(ground)
 
-  for (const zone of currentData.zones) {
-    const tile = new THREE.Mesh(
-      new THREE.PlaneGeometry(zone.size[0], zone.size[1]),
-      new THREE.MeshStandardMaterial({
-        color: zone.color,
-        transparent: true,
-        opacity: 0.92,
-        roughness: 1,
-        metalness: 0,
-      }),
-    )
-    tile.rotation.x = -Math.PI / 2
-    tile.position.set(zone.center[0], 0.06, zone.center[1])
-    campusGroup.add(tile)
-  }
+	  for (const zone of currentData.zones) {
+	    const tile = new THREE.Mesh(
+	      new THREE.PlaneGeometry(zone.size[0], zone.size[1]),
+	      new THREE.MeshStandardMaterial({
+	        color: zone.color,
+	        transparent: true,
+	        opacity: 0.55,
+	        roughness: 1,
+	        metalness: 0,
+	        depthWrite: false,
+	      }),
+	    )
+	    tile.rotation.x = -Math.PI / 2
+	    tile.position.set(zone.center[0], 0.025, zone.center[1])
+	    campusGroup.add(tile)
+	  }
 
-  currentData.roads.forEach((road, index) => {
+  currentData.roads.forEach((road) => {
     if (road.points.length < 2) {
       return
     }
 
     const shape = buildRoadShape(road.points, road.width)
-    const selected = selection?.kind === 'road' && selection.index === index
     const mesh = new THREE.Mesh(
       new THREE.ShapeGeometry(shape),
       new THREE.MeshStandardMaterial({
-        color: selected ? '#f97316' : road.color ?? '#9ca3af',
+        color: road.color ?? '#9ca3af',
         roughness: 0.95,
         metalness: 0,
-        emissive: selected ? '#f59e0b' : '#000000',
-        emissiveIntensity: selected ? 0.22 : 0,
+        emissive: '#000000',
+        emissiveIntensity: 0,
       }),
     )
     mesh.rotation.x = -Math.PI / 2
-    mesh.position.y = selected ? 0.16 : 0.12
+    mesh.position.y = 0.12
     mesh.receiveShadow = true
-    mesh.userData = { kind: 'road', index }
-    clickableObjects.push(mesh)
     campusGroup.add(mesh)
   })
 
@@ -693,7 +509,8 @@ function renderScene() {
 
   const activeRoute = currentData.routes[0]
   if (activeRoute && activeRoute.points.length >= 2) {
-    routeCurve = new THREE.CatmullRomCurve3(activeRoute.points.map((point) => new THREE.Vector3(...point)))
+    routePulsePoints = activeRoute.points.map((point) => new THREE.Vector3(...point))
+    routeCurve = new THREE.CatmullRomCurve3(routePulsePoints)
     const routeGeometry = new THREE.TubeGeometry(routeCurve, 220, 1.55, 20, false)
     const routeMesh = new THREE.Mesh(
       routeGeometry,
@@ -887,88 +704,33 @@ function updateLabels() {
   }
 }
 
-function updateBuildingField(index: number, field: string, value: string) {
-  const building = currentData.buildings[index]
-  if (!building) {
-    throw new Error('建筑不存在。')
+function samplePolylinePoint(points: THREE.Vector3[], progress: number) {
+  if (points.length === 0) {
+    return new THREE.Vector3()
+  }
+  if (points.length === 1) {
+    return points[0].clone()
   }
 
-  switch (field) {
-    case 'name':
-      building.name = value
-      syncPoiWithBuilding(building)
-      return
-    case 'positionX':
-      building.position[0] = parseNumber(value, '建筑 X')
-      syncPoiWithBuilding(building)
-      return
-    case 'positionZ':
-      building.position[1] = parseNumber(value, '建筑 Z')
-      syncPoiWithBuilding(building)
-      return
-    case 'sizeWidth':
-      building.size[0] = parsePositiveNumber(value, '建筑宽度')
-      return
-    case 'sizeDepth':
-      building.size[1] = parsePositiveNumber(value, '建筑进深')
-      return
-    case 'height':
-      building.height = parsePositiveNumber(value, '建筑高度')
-      syncPoiWithBuilding(building)
-      return
-    case 'color':
-      building.color = value.trim() || undefined
-      syncPoiWithBuilding(building)
-      return
-    case 'category':
-      building.category = value as Building['category']
-      return
-    case 'zoneId':
-      building.zoneId = value
-      return
-    case 'footprint':
-      building.footprint = parseOptionalPointArray(value, '建筑 footprint')
-      return
-    default:
-      throw new Error(`未知建筑字段：${field}`)
-  }
-}
-
-function updateRoadField(index: number, field: string, value: string) {
-  const road = currentData.roads[index]
-  if (!road) {
-    throw new Error('道路不存在。')
+  let totalLength = 0
+  const segmentLengths: number[] = []
+  for (let index = 1; index < points.length; index += 1) {
+    const length = points[index - 1].distanceTo(points[index])
+    segmentLengths.push(length)
+    totalLength += length
   }
 
-  switch (field) {
-    case 'id':
-      road.id = value
-      return
-    case 'width':
-      road.width = parsePositiveNumber(value, '道路宽度')
-      return
-    case 'color':
-      road.color = value.trim() || undefined
-      return
-    case 'points':
-      road.points = parseRequiredPointArray(value, '道路 points', 2)
-      return
-    default:
-      throw new Error(`未知道路字段：${field}`)
-  }
-}
-
-function syncPoiWithBuilding(building: Building) {
-  currentData.pois.forEach((poi) => {
-    if (poi.sourceBuildingId !== building.id) {
-      return
+  let targetDistance = totalLength * progress
+  for (let index = 0; index < segmentLengths.length; index += 1) {
+    const length = segmentLengths[index]
+    if (targetDistance <= length || index === segmentLengths.length - 1) {
+      const ratio = length > 0 ? targetDistance / length : 0
+      return points[index].clone().lerp(points[index + 1], Math.max(0, Math.min(1, ratio)))
     }
-    poi.name = building.name
-    poi.position = [building.position[0], building.height + 2, building.position[1]]
-    if (building.color) {
-      poi.color = building.color
-    }
-  })
+    targetDistance -= length
+  }
+
+  return points[points.length - 1].clone()
 }
 
 function resolvePois(data: CampusData) {
@@ -996,11 +758,7 @@ function ensureSelectionInBounds() {
   }
 
   if (selection.kind === 'building' && !currentData.buildings[selection.index]) {
-    selection = currentData.buildings.length > 0 ? { kind: 'building', index: 0 } : currentData.roads.length > 0 ? { kind: 'road', index: 0 } : null
-  }
-
-  if (selection?.kind === 'road' && !currentData.roads[selection.index]) {
-    selection = currentData.roads.length > 0 ? { kind: 'road', index: 0 } : currentData.buildings.length > 0 ? { kind: 'building', index: 0 } : null
+    selection = currentData.buildings.length > 0 ? { kind: 'building', index: 0 } : null
   }
 }
 
@@ -1010,191 +768,8 @@ function updateSelectionToast() {
     return
   }
 
-  if (selection.kind === 'building') {
-    const building = currentData.buildings[selection.index]
-    selectionToast.textContent = building ? `已选中建筑：${building.name}` : '未选择对象'
-    return
-  }
-
-  const road = currentData.roads[selection.index]
-  selectionToast.textContent = road ? `已选中道路：${road.id}` : '未选择对象'
-}
-
-function persistCurrentData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData))
-}
-
-function loadCampusData(): CampusData {
-  const stored = localStorage.getItem(STORAGE_KEY)
-  if (!stored) {
-    return cloneCampusData(campusData)
-  }
-
-  try {
-    return normalizeCampusData(JSON.parse(stored))
-  } catch {
-    return cloneCampusData(campusData)
-  }
-}
-
-function normalizeCampusData(input: unknown): CampusData {
-  if (!input || typeof input !== 'object') {
-    throw new Error('地图 JSON 不是对象。')
-  }
-
-  const source = input as Partial<CampusData>
-  if (!Array.isArray(source.buildings) || !Array.isArray(source.roads)) {
-    throw new Error('地图 JSON 缺少 buildings 或 roads。')
-  }
-
-  const defaults = createDefaultCampusData()
-  return {
-    name: typeof source.name === 'string' ? source.name : defaults.name,
-    bounds: source.bounds && typeof source.bounds.width === 'number' && typeof source.bounds.depth === 'number'
-      ? { width: source.bounds.width, depth: source.bounds.depth }
-      : defaults.bounds,
-    zones: Array.isArray(source.zones) ? cloneCampusData({ ...defaults, zones: source.zones }).zones : defaults.zones,
-    buildings: source.buildings.map((building, index) => normalizeBuilding(building, defaults.buildings[index] ?? defaults.buildings[0])),
-    roads: source.roads.map((road, index) => normalizeRoad(road, defaults.roads[index] ?? defaults.roads[0])),
-    waters: Array.isArray(source.waters) ? cloneCampusData({ ...defaults, waters: source.waters }).waters : defaults.waters,
-    fields: Array.isArray(source.fields) ? cloneCampusData({ ...defaults, fields: source.fields }).fields : defaults.fields,
-    trees: Array.isArray(source.trees) ? source.trees.map((point) => normalizePointPair(point, 'tree')) : defaults.trees,
-    pois: Array.isArray(source.pois) ? source.pois.map((poi) => normalizePoi(poi)) : defaults.pois,
-    routes: Array.isArray(source.routes) ? source.routes.map((route) => normalizeRoute(route)) : defaults.routes,
-  }
-}
-
-function normalizeBuilding(input: unknown, fallback?: Building): Building {
-  if (!input || typeof input !== 'object') {
-    if (fallback) {
-      return cloneCampusData({ ...createDefaultCampusData(), buildings: [fallback] }).buildings[0]
-    }
-    throw new Error('建筑条目无效。')
-  }
-
-  const source = input as Partial<Building>
-  const base = fallback ?? createDefaultCampusData().buildings[0]
-  return {
-    id: typeof source.id === 'string' ? source.id : base.id,
-    name: typeof source.name === 'string' ? source.name : base.name,
-    category: typeof source.category === 'string' ? source.category as Building['category'] : base.category,
-    position: normalizePointPair(source.position, 'building.position'),
-    size: normalizePointPair(source.size, 'building.size'),
-    height: typeof source.height === 'number' ? source.height : base.height,
-    color: typeof source.color === 'string' ? source.color : undefined,
-    zoneId: typeof source.zoneId === 'string' ? source.zoneId : base.zoneId,
-    footprint: Array.isArray(source.footprint) ? source.footprint.map((point) => normalizePointPair(point, 'building.footprint')) : undefined,
-  }
-}
-
-function normalizeRoad(input: unknown, fallback?: Road): Road {
-  if (!input || typeof input !== 'object') {
-    if (fallback) {
-      return { ...fallback, points: fallback.points.map((point) => [...point] as [number, number]) }
-    }
-    throw new Error('道路条目无效。')
-  }
-
-  const source = input as Partial<Road>
-  const base = fallback ?? createDefaultCampusData().roads[0]
-  return {
-    id: typeof source.id === 'string' ? source.id : base.id,
-    width: typeof source.width === 'number' ? source.width : base.width,
-    color: typeof source.color === 'string' ? source.color : undefined,
-    points: Array.isArray(source.points) ? source.points.map((point) => normalizePointPair(point, 'road.points')) : base.points,
-  }
-}
-
-function normalizePoi(input: unknown): PoiMarker {
-  if (!input || typeof input !== 'object') {
-    throw new Error('POI 条目无效。')
-  }
-
-  const source = input as Partial<PoiMarker>
-  if (typeof source.id !== 'string' || typeof source.name !== 'string' || !Array.isArray(source.position)) {
-    throw new Error('POI 缺少必要字段。')
-  }
-
-  return {
-    id: source.id,
-    name: source.name,
-    kind: source.kind === 'service' || source.kind === 'gate' ? source.kind : 'landmark',
-    position: normalizePointTriple(source.position, 'poi.position'),
-    color: typeof source.color === 'string' ? source.color : undefined,
-    sourceBuildingId: typeof source.sourceBuildingId === 'string' ? source.sourceBuildingId : undefined,
-  }
-}
-
-function normalizeRoute(input: unknown) {
-  if (!input || typeof input !== 'object') {
-    throw new Error('路线条目无效。')
-  }
-  const source = input as CampusData['routes'][number]
-  return {
-    id: typeof source.id === 'string' ? source.id : 'route',
-    name: typeof source.name === 'string' ? source.name : '路线',
-    points: Array.isArray(source.points) ? source.points.map((point) => normalizePointTriple(point, 'route.points')) : [],
-    steps: Array.isArray(source.steps) ? source.steps.filter((step): step is string => typeof step === 'string') : [],
-    landmarks: Array.isArray(source.landmarks) ? source.landmarks.filter((item): item is string => typeof item === 'string') : [],
-  }
-}
-
-function normalizePointPair(value: unknown, label: string): [number, number] {
-  if (!Array.isArray(value) || value.length < 2) {
-    throw new Error(`${label} 需要两个数字。`)
-  }
-  const [x, z] = value
-  if (typeof x !== 'number' || typeof z !== 'number') {
-    throw new Error(`${label} 需要数字。`)
-  }
-  return [x, z]
-}
-
-function normalizePointTriple(value: unknown, label: string): [number, number, number] {
-  if (!Array.isArray(value) || value.length < 3) {
-    throw new Error(`${label} 需要三个数字。`)
-  }
-  const [x, y, z] = value
-  if (typeof x !== 'number' || typeof y !== 'number' || typeof z !== 'number') {
-    throw new Error(`${label} 需要数字。`)
-  }
-  return [x, y, z]
-}
-
-function parseNumber(value: string, label: string) {
-  const result = Number(value)
-  if (!Number.isFinite(result)) {
-    throw new Error(`${label} 不是有效数字。`)
-  }
-  return result
-}
-
-function parsePositiveNumber(value: string, label: string) {
-  const result = parseNumber(value, label)
-  if (result <= 0) {
-    throw new Error(`${label} 需要大于 0。`)
-  }
-  return result
-}
-
-function parseOptionalPointArray(value: string, label: string) {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return undefined
-  }
-  const parsed = JSON.parse(trimmed) as unknown
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    return undefined
-  }
-  return parsed.map((point) => normalizePointPair(point, label))
-}
-
-function parseRequiredPointArray(value: string, label: string, minimum: number) {
-  const parsed = JSON.parse(value) as unknown
-  if (!Array.isArray(parsed) || parsed.length < minimum) {
-    throw new Error(`${label} 至少需要 ${minimum} 个点。`)
-  }
-  return parsed.map((point) => normalizePointPair(point, label))
+  const building = currentData.buildings[selection.index]
+  selectionToast.textContent = building ? `已选中建筑：${building.name}` : '未选择对象'
 }
 
 function disposeChildren(group: THREE.Group) {
@@ -1218,26 +793,6 @@ function disposeObject(object: THREE.Object3D) {
   })
 }
 
-function setStatus(message: string) {
-  statusLine.textContent = message
-}
-
-function updateSegmentedButtons() {
-  segmentedButtons.forEach((button) => {
-    button.classList.toggle('active', button.dataset.entityTab === activeEntityTab)
-  })
-}
-
-function downloadTextFile(filename: string, text: string) {
-  const blob = new Blob([text], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
 function escapeHtml(value: string) {
   return value
     .replaceAll('&', '&amp;')
@@ -1247,10 +802,6 @@ function escapeHtml(value: string) {
     .replaceAll("'", '&#39;')
 }
 
-function escapeAttribute(value: string) {
-  return escapeHtml(value)
-}
-
-function escapeTextarea(value: string) {
-  return escapeHtml(value)
+function formatCoordinate(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }

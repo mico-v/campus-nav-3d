@@ -256,19 +256,6 @@ h1 {
 .swatch.dorm { background: #c4b5fd; }
 .swatch.selected { background: #fb7185; }
 
-.editor-toolbar {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-
-.editor-toolbar.compact {
-  margin-top: -2px;
-}
-
-.button,
-.segmented,
 .entity-item {
   appearance: none;
   border-radius: 12px;
@@ -276,71 +263,15 @@ h1 {
   transition: 0.18s ease;
 }
 
-.button,
-.segmented {
-  padding: 0.62rem 0.85rem;
-  background: #f8fafc;
-  color: #1e293b;
-}
-
-.button:hover,
-.segmented:hover,
 .entity-item:hover {
   border-color: rgba(59, 130, 246, 0.5);
   transform: translateY(-1px);
 }
 
-.button-primary,
-.segmented.active {
-  background: linear-gradient(135deg, #2563eb, #4f46e5);
-  color: white;
-  border-color: transparent;
-}
-
-.json-box,
-.selection-details textarea,
-.selection-details input,
-.selection-details select {
-  width: 100%;
-  border-radius: 12px;
-  background: #fff;
-  color: #0f172a;
-}
-
-.json-box,
-.selection-details textarea {
-  min-height: 140px;
-  padding: 0.85rem 0.95rem;
-  resize: vertical;
-}
-
-.selection-details input,
-.selection-details select {
-  padding: 0.7rem 0.78rem;
-}
-
-.status-line,
-.field-hint,
-.empty-state {
-  margin: 8px 0 0;
-  color: #475569;
-  font-size: 0.86rem;
-}
-
-.entity-switch {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.entity-switch .segmented {
-  flex: 1;
-}
-
 .entity-list {
   display: grid;
   gap: 8px;
-  max-height: 280px;
+  max-height: 430px;
   overflow-y: auto;
 }
 
@@ -348,10 +279,15 @@ h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   text-align: left;
   width: 100%;
   padding: 0.75rem 0.8rem;
   background: #f8fafc;
+}
+
+.entity-item > span:first-child {
+  min-width: 0;
 }
 
 .entity-item strong,
@@ -359,36 +295,21 @@ h1 {
   display: block;
 }
 
+.entity-item strong {
+  overflow-wrap: anywhere;
+}
+
 .entity-item small {
   color: #64748b;
+}
+
+.entity-item small + small {
+  margin-top: 2px;
 }
 
 .entity-item.selected {
   border-color: rgba(244, 63, 94, 0.55);
   background: #fff1f2;
-}
-
-.selection-details {
-  display: grid;
-  gap: 12px;
-}
-
-.editor-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.editor-grid label,
-.stacked-label {
-  display: grid;
-  gap: 6px;
-  color: #334155;
-  font-size: 0.88rem;
-}
-
-.full-width {
-  grid-column: 1 / -1;
 }
 
 @media (max-width: 1200px) {
@@ -433,8 +354,7 @@ h1 {
     padding: 14px;
   }
 
-  .legend,
-  .editor-grid {
+  .legend {
     grid-template-columns: 1fr;
   }
 }
