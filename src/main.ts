@@ -143,7 +143,7 @@ let routeGlowMaterial: THREE.MeshBasicMaterial | null = null
 let routeStart: THREE.Group | null = null
 let routeEnd: THREE.Group | null = null
 let routePulse: THREE.Mesh | null = null
-let routeCurve: THREE.CatmullRomCurve3 | null = null
+let routeCurve: THREE.CurvePath<THREE.Vector3> | null = null
 let routePulsePoints: THREE.Vector3[] = []
 
 setOverviewCamera()
@@ -382,29 +382,40 @@ function renderScene() {
   ground.receiveShadow = true
   campusGroup.add(ground)
 
-	  for (const zone of currentData.zones) {
-	    const tile = new THREE.Mesh(
-	      new THREE.PlaneGeometry(zone.size[0], zone.size[1]),
-	      new THREE.MeshStandardMaterial({
-	        color: zone.color,
-	        transparent: true,
-	        opacity: 0.55,
-	        roughness: 1,
-	        metalness: 0,
-	        depthWrite: false,
-	      }),
-	    )
-	    tile.rotation.x = -Math.PI / 2
-	    tile.position.set(zone.center[0], 0.025, zone.center[1])
-	    campusGroup.add(tile)
-	  }
+  for (const zone of currentData.zones) {
+    const tileGeometry = zone.footprint && zone.footprint.length >= 3
+      ? createFootprintGeometry(zone.footprint)
+      : new THREE.PlaneGeometry(zone.size[0], zone.size[1])
+    const tile = new THREE.Mesh(
+      tileGeometry,
+      new THREE.MeshStandardMaterial({
+        color: zone.color,
+        transparent: true,
+        opacity: 0.55,
+        roughness: 1,
+        metalness: 0,
+        depthWrite: false,
+      }),
+    )
+    if (!zone.footprint || zone.footprint.length < 3) {
+      tile.rotation.x = -Math.PI / 2
+      tile.position.set(zone.center[0], 0.025, zone.center[1])
+    } else {
+      tile.position.y = 0.025
+    }
+    campusGroup.add(tile)
+  }
 
   currentData.roads.forEach((road) => {
     if (road.points.length < 2) {
       return
     }
 
-    const shape = buildRoadShape(road.points, road.width)
+    if (road.id.startsWith('graph-road-')) {
+      return
+    }
+
+    const shape = buildRoadShape(road.points, getRoadRenderWidth(road))
     const mesh = new THREE.Mesh(
       new THREE.ShapeGeometry(shape),
       new THREE.MeshStandardMaterial({
@@ -422,17 +433,35 @@ function renderScene() {
   })
 
   for (const water of currentData.waters) {
+    const waterGeometry = water.footprint && water.footprint.length >= 3
+      ? createFootprintGeometry(water.footprint)
+      : new THREE.CircleGeometry(1, 48)
     const mesh = new THREE.Mesh(
-      new THREE.CircleGeometry(1, 48),
+      waterGeometry,
       new THREE.MeshStandardMaterial({ color: water.color ?? '#60a5fa', transparent: true, opacity: 0.88, roughness: 0.18, metalness: 0.1 }),
     )
-    mesh.scale.set(water.size[0] / 2, water.size[1] / 2, 1)
-    mesh.rotation.x = -Math.PI / 2
-    mesh.position.set(water.center[0], 0.18, water.center[1])
+    if (!water.footprint || water.footprint.length < 3) {
+      mesh.scale.set(water.size[0] / 2, water.size[1] / 2, 1)
+      mesh.rotation.x = -Math.PI / 2
+      mesh.position.set(water.center[0], 0.18, water.center[1])
+    } else {
+      mesh.position.y = 0.18
+    }
     campusGroup.add(mesh)
   }
 
   for (const field of currentData.fields) {
+    if (field.footprint && field.footprint.length >= 3) {
+      const mesh = new THREE.Mesh(
+        createFootprintGeometry(field.footprint),
+        new THREE.MeshStandardMaterial({ color: field.color ?? '#22c55e', roughness: 1, transparent: true, opacity: 0.88 }),
+      )
+      mesh.position.y = 0.135
+      mesh.receiveShadow = true
+      campusGroup.add(mesh)
+      continue
+    }
+
     const fieldGroup = new THREE.Group()
     const base = new THREE.Mesh(
       new THREE.PlaneGeometry(field.size[0], field.size[1]),
@@ -510,7 +539,7 @@ function renderScene() {
   const activeRoute = currentData.routes[0]
   if (activeRoute && activeRoute.points.length >= 2) {
     routePulsePoints = activeRoute.points.map((point) => new THREE.Vector3(...point))
-    routeCurve = new THREE.CatmullRomCurve3(routePulsePoints)
+    routeCurve = createPolylineCurve(routePulsePoints)
     const routeGeometry = new THREE.TubeGeometry(routeCurve, 220, 1.55, 20, false)
     const routeMesh = new THREE.Mesh(
       routeGeometry,
@@ -557,7 +586,7 @@ function createBuildingMesh(building: Building, selected = false) {
 
   if (building.footprint && building.footprint.length >= 3) {
     const shape = new THREE.Shape(
-      building.footprint.map(([x, z]) => new THREE.Vector2(x - building.position[0], z - building.position[1])),
+      building.footprint.map(([x, z]) => mapXzToShapePoint(x - building.position[0], z - building.position[1])),
     )
 
     const bodyGeometry = new THREE.ExtrudeGeometry(shape, {
@@ -663,6 +692,37 @@ function createRouteBeacon(color: string) {
   return group
 }
 
+function createPolylineCurve(points: THREE.Vector3[]) {
+  const path = new THREE.CurvePath<THREE.Vector3>()
+
+  for (let index = 1; index < points.length; index += 1) {
+    path.add(new THREE.LineCurve3(points[index - 1], points[index]))
+  }
+
+  return path
+}
+
+function createFootprintGeometry(footprint: [number, number][]) {
+  const shape = new THREE.Shape(footprint.map(([x, z]) => mapXzToShapePoint(x, z)))
+  const geometry = new THREE.ShapeGeometry(shape)
+  geometry.rotateX(-Math.PI / 2)
+  return geometry
+}
+
+function mapXzToShapePoint(x: number, z: number) {
+  return new THREE.Vector2(x, -z)
+}
+
+function getRoadRenderWidth(road: { id: string; width: number }) {
+  if (road.id.startsWith('osm-canal-')) {
+    return road.width * 1.35
+  }
+  if (road.id.startsWith('osm-road-')) {
+    return Math.max(5.5, road.width * 2.2)
+  }
+  return road.width
+}
+
 function buildRoadShape(points: [number, number][], width: number) {
   const leftPoints: THREE.Vector2[] = []
   const rightPoints: THREE.Vector2[] = []
@@ -680,8 +740,8 @@ function buildRoadShape(points: [number, number][], width: number) {
     const tangent = Number.isFinite(dir.x) && Number.isFinite(dir.y) && dir.lengthSq() > 0 ? dir : fallback
     const normal = new THREE.Vector2(-tangent.y, tangent.x).normalize().multiplyScalar(width / 2)
 
-    leftPoints.push(new THREE.Vector2(current[0] + normal.x, current[1] + normal.y))
-    rightPoints.unshift(new THREE.Vector2(current[0] - normal.x, current[1] - normal.y))
+    leftPoints.push(mapXzToShapePoint(current[0] + normal.x, current[1] + normal.y))
+    rightPoints.unshift(mapXzToShapePoint(current[0] - normal.x, current[1] - normal.y))
   }
 
   const outline = [...leftPoints, ...rightPoints]
