@@ -6,11 +6,20 @@ import {
   type Building,
   type CampusData,
   type PoiMarker,
+  type RouteDefinition,
 } from './data/campusData'
 
 type Selection =
   | { kind: 'building'; index: number }
   | null
+
+type AnchorSource = 'footprint' | 'position'
+
+type BuildingAnchor = {
+  x: number
+  z: number
+  source: AnchorSource
+}
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
@@ -129,6 +138,11 @@ const buildingColorByCategory: Record<string, string> = {
 }
 
 const markerGeometry = new THREE.CylinderGeometry(0.9, 0.9, 7, 12)
+const FOOTPRINT_EPSILON = 1e-6
+const FOOTPRINT_MIN_AREA = 1e-8
+const ROAD_WIDTH_DEFAULT = 3.2
+const ROAD_ANCHOR_SNAP_DISTANCE = 35
+const ROAD_ANCHOR_SIGNIFICANCE = 1
 const raycaster = new THREE.Raycaster()
 const pointer = new THREE.Vector2()
 const tempVector = new THREE.Vector3()
@@ -145,6 +159,8 @@ let routeEnd: THREE.Group | null = null
 let routePulse: THREE.Mesh | null = null
 let routeCurve: THREE.CatmullRomCurve3 | null = null
 let routePulsePoints: THREE.Vector3[] = []
+let roadAnchorPairs: Array<{ source: [number, number]; anchor: [number, number] }> = []
+const roadAnchorBySource = new Map<string, [number, number]>()
 
 setOverviewCamera()
 renderAll()
@@ -235,6 +251,7 @@ const animate = (timestamp?: number) => {
 requestAnimationFrame(animate)
 
 function renderAll() {
+  ensureRoadAnchorAlignment()
   ensureSelectionInBounds()
   heroTitle.textContent = currentData.name
   renderRouteInfo()
@@ -261,13 +278,14 @@ function renderEntityList() {
   entityList.innerHTML = currentData.buildings
     .map((building, index) => {
       const selected = selection?.kind === 'building' && selection.index === index
+      const anchor = resolveBuildingAnchor(building)
       const zoneName = currentData.zones.find((zone) => zone.id === building.zoneId)?.name ?? building.zoneId
       return `
         <button type="button" class="entity-item${selected ? ' selected' : ''}" data-kind="building" data-index="${index}">
           <span>
             <strong>${escapeHtml(building.name || building.id || `建筑 ${index + 1}`)}</strong>
             <small>${escapeHtml(building.category)} · ${escapeHtml(zoneName)}</small>
-            <small>X ${formatCoordinate(building.position[0])} / Z ${formatCoordinate(building.position[1])} · 高 ${formatCoordinate(building.height)}</small>
+            <small>X ${formatCoordinate(anchor.x)} / Z ${formatCoordinate(anchor.z)} · 高 ${formatCoordinate(building.height)}</small>
           </span>
           <span class="pill">${index + 1}</span>
         </button>
@@ -282,10 +300,12 @@ function focusBuilding(index: number) {
     return
   }
 
+  const anchor = resolveBuildingAnchor(building)
+
   const target = new THREE.Vector3(
-    building.position[0],
+    anchor.x,
     Math.max(8, building.height * 0.55),
-    building.position[1],
+    anchor.z,
   )
   const footprintSize = Math.max(building.size[0], building.size[1])
   const distance = Math.max(110, footprintSize * 4.5)
@@ -318,8 +338,9 @@ function computeMapBounds(data: CampusData, padding = 0) {
   const zs: number[] = []
 
   data.buildings.forEach((building) => {
-    xs.push(building.position[0])
-    zs.push(building.position[1])
+    const anchor = resolveBuildingAnchor(building)
+    xs.push(anchor.x)
+    zs.push(anchor.z)
     building.footprint?.forEach(([x, z]) => {
       xs.push(x)
       zs.push(z)
@@ -327,7 +348,15 @@ function computeMapBounds(data: CampusData, padding = 0) {
   })
 
   data.roads.forEach((road) => {
-    road.points.forEach(([x, z]) => {
+    road.points.forEach((point) => {
+      const snapped = applyRoadAnchorSnap(point)
+      xs.push(snapped[0])
+      zs.push(snapped[1])
+    })
+  })
+
+  data.routes.forEach((route) => {
+    resolveRoutePoints(route).forEach(([x, z]) => {
       xs.push(x)
       zs.push(z)
     })
@@ -404,7 +433,8 @@ function renderScene() {
       return
     }
 
-    const shape = buildRoadShape(road.points, road.width)
+    const routePoints = road.points.map((point) => applyRoadAnchorSnap(point))
+    const shape = buildRoadShape(routePoints, normalizeRoadWidth(road.width))
     const mesh = new THREE.Mesh(
       new THREE.ShapeGeometry(shape),
       new THREE.MeshStandardMaterial({
@@ -467,7 +497,8 @@ function renderScene() {
 
   currentData.buildings.forEach((building, index) => {
     const selected = selection?.kind === 'building' && selection.index === index
-    const mesh = createBuildingMesh(building, selected)
+    const anchor = resolveBuildingAnchor(building)
+    const mesh = createBuildingMesh(building, anchor, selected)
     mesh.userData = { kind: 'building', index }
     mesh.traverse((child) => {
       child.userData = { kind: 'building', index }
@@ -509,7 +540,8 @@ function renderScene() {
 
   const activeRoute = currentData.routes[0]
   if (activeRoute && activeRoute.points.length >= 2) {
-    routePulsePoints = activeRoute.points.map((point) => new THREE.Vector3(...point))
+    const resolvedRoute = resolveRoutePoints(activeRoute)
+    routePulsePoints = resolvedRoute.map((point) => new THREE.Vector3(...point))
     routeCurve = new THREE.CatmullRomCurve3(routePulsePoints)
     const routeGeometry = new THREE.TubeGeometry(routeCurve, 220, 1.55, 20, false)
     const routeMesh = new THREE.Mesh(
@@ -523,7 +555,7 @@ function renderScene() {
     const routeGlow = new THREE.Mesh(new THREE.TubeGeometry(routeCurve, 220, 3.1, 20, false), routeGlowMaterial)
     campusGroup.add(routeGlow)
 
-    for (const point of activeRoute.points.slice(1, -1)) {
+    for (const point of resolvedRoute.slice(1, -1)) {
       const node = new THREE.Mesh(
         new THREE.SphereGeometry(1.15, 14, 14),
         new THREE.MeshBasicMaterial({ color: '#ffffff' }),
@@ -539,54 +571,72 @@ function renderScene() {
     campusGroup.add(routePulse)
 
     routeStart = createRouteBeacon('#f97316')
-    routeStart.position.set(...activeRoute.points[0])
+    const routeStartPoint = resolvedRoute[0]
+    routeStart.position.set(routeStartPoint[0], routeStartPoint[1], routeStartPoint[2])
     routeStart.position.y = 6
     campusGroup.add(routeStart)
 
     routeEnd = createRouteBeacon('#fde047')
-    routeEnd.position.set(...activeRoute.points[activeRoute.points.length - 1])
+    const routeEndPoint = resolvedRoute[resolvedRoute.length - 1]
+    routeEnd.position.set(routeEndPoint[0], routeEndPoint[1], routeEndPoint[2])
     routeEnd.position.y = 6
     campusGroup.add(routeEnd)
   }
 }
 
-function createBuildingMesh(building: Building, selected = false) {
+function createBuildingMesh(building: Building, anchor: BuildingAnchor, selected = false) {
   const group = new THREE.Group()
   const color = selected ? '#fb7185' : building.color ?? buildingColorByCategory[building.category] ?? '#cbd5e1'
   const baseHeight = building.height
+  const displaySize = resolveBuildingDisplaySize(building)
 
   if (building.footprint && building.footprint.length >= 3) {
-    const shape = new THREE.Shape(
-      building.footprint.map(([x, z]) => new THREE.Vector2(x - building.position[0], z - building.position[1])),
-    )
+    const normalizedFootprint = normalizeFootprint(building.footprint)
+    if (normalizedFootprint) {
+      const shape = new THREE.Shape(
+        normalizedFootprint.map(([x, z]) => new THREE.Vector2(x - anchor.x, anchor.z - z)),
+      )
 
-    const bodyGeometry = new THREE.ExtrudeGeometry(shape, {
-      depth: baseHeight,
-      bevelEnabled: false,
-    })
-    bodyGeometry.rotateX(-Math.PI / 2)
+      const bodyGeometry = new THREE.ExtrudeGeometry(shape, {
+        depth: baseHeight,
+        bevelEnabled: false,
+      })
+      bodyGeometry.rotateX(-Math.PI / 2)
 
-    const body = new THREE.Mesh(
-      bodyGeometry,
-      new THREE.MeshStandardMaterial({
-        color,
-        roughness: 0.76,
-        metalness: 0.06,
-        emissive: selected ? '#fb7185' : '#000000',
-        emissiveIntensity: selected ? 0.18 : 0,
-      }),
-    )
-    body.castShadow = true
-    body.receiveShadow = true
-    group.add(body)
+      const body = new THREE.Mesh(
+        bodyGeometry,
+        new THREE.MeshStandardMaterial({
+          color,
+          roughness: 0.76,
+          metalness: 0.06,
+          emissive: selected ? '#fb7185' : '#000000',
+          emissiveIntensity: selected ? 0.18 : 0,
+        }),
+      )
+      body.castShadow = true
+      body.receiveShadow = true
+      group.add(body)
 
-    const roof = new THREE.Mesh(
-      new THREE.ShapeGeometry(shape),
-      new THREE.MeshStandardMaterial({ color: selected ? '#fff1f2' : '#f8fafc', roughness: 0.88, transparent: true, opacity: 0.92 }),
-    )
-    roof.rotation.x = -Math.PI / 2
-    roof.position.y = baseHeight + 0.06
-    group.add(roof)
+      const roof = new THREE.Mesh(
+        new THREE.ShapeGeometry(shape),
+        new THREE.MeshStandardMaterial({ color: selected ? '#fff1f2' : '#f8fafc', roughness: 0.88, transparent: true, opacity: 0.92 }),
+      )
+      roof.rotation.x = -Math.PI / 2
+      roof.position.y = baseHeight + 0.06
+      group.add(roof)
+
+      if (building.category === 'library') {
+        const accent = new THREE.Mesh(
+          new THREE.BoxGeometry(displaySize[0] * 0.22, baseHeight * 1.15, displaySize[1] * 0.25),
+          new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.6 }),
+        )
+        accent.position.set(0, baseHeight * 0.58, 0)
+        group.add(accent)
+      }
+
+      group.position.set(anchor.x, 0, anchor.z)
+      return group
+    }
   } else {
     const body = new THREE.Mesh(
       new THREE.BoxGeometry(building.size[0], baseHeight, building.size[1]),
@@ -616,14 +666,14 @@ function createBuildingMesh(building: Building, selected = false) {
 
   if (building.category === 'library') {
     const accent = new THREE.Mesh(
-      new THREE.BoxGeometry(building.size[0] * 0.22, baseHeight * 1.15, building.size[1] * 0.25),
+      new THREE.BoxGeometry(displaySize[0] * 0.22, baseHeight * 1.15, displaySize[1] * 0.25),
       new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.6 }),
     )
     accent.position.set(0, baseHeight * 0.58, 0)
     group.add(accent)
   }
 
-  group.position.set(building.position[0], 0, building.position[1])
+  group.position.set(anchor.x, 0, anchor.z)
   return group
 }
 
@@ -661,6 +711,170 @@ function createRouteBeacon(color: string) {
   orb.position.y = 1.2
   group.add(orb)
   return group
+}
+
+function resolveBuildingAnchor(building: Building): BuildingAnchor {
+  if (building.footprint && building.footprint.length >= 3) {
+    const normalizedFootprint = normalizeFootprint(building.footprint)
+    if (normalizedFootprint) {
+      const centroid = getFootprintCentroid(normalizedFootprint)
+      if (Number.isFinite(centroid[0]) && Number.isFinite(centroid[1])) {
+        return { x: centroid[0], z: centroid[1], source: 'footprint' }
+      }
+    }
+  }
+
+  return { x: building.position[0], z: building.position[1], source: 'position' }
+}
+
+function normalizeFootprint(points: [number, number][]): [number, number][] | null {
+  const normalized: [number, number][] = []
+  for (const point of points) {
+    const previous = normalized.at(-1)
+    if (!Number.isFinite(point[0]) || !Number.isFinite(point[1])) {
+      continue
+    }
+
+    if (!previous || Math.hypot(point[0] - previous[0], point[1] - previous[1]) > FOOTPRINT_EPSILON) {
+      normalized.push([point[0], point[1]])
+    }
+  }
+
+  if (normalized.length < 3) {
+    return null
+  }
+
+  const first = normalized[0]
+  const last = normalized[normalized.length - 1]
+  if (Math.hypot(first[0] - last[0], first[1] - last[1]) <= FOOTPRINT_EPSILON) {
+    normalized.pop()
+  }
+
+  return normalized.length >= 3 ? normalized : null
+}
+
+function getFootprintCentroid(points: [number, number][]): [number, number] {
+  let area2 = 0
+  let cx = 0
+  let cz = 0
+
+  for (let index = 0; index < points.length; index += 1) {
+    const [x1, z1] = points[index]
+    const [x2, z2] = points[(index + 1) % points.length]
+    const cross = x1 * z2 - x2 * z1
+    area2 += cross
+    cx += (x1 + x2) * cross
+    cz += (z1 + z2) * cross
+  }
+
+  if (Math.abs(area2) <= FOOTPRINT_MIN_AREA) {
+    let sx = 0
+    let sz = 0
+    for (const [x, z] of points) {
+      sx += x
+      sz += z
+    }
+    return [sx / points.length, sz / points.length]
+  }
+
+  const area = area2 * 0.5
+  return [cx / (6 * area), cz / (6 * area)]
+}
+
+function ensureRoadAnchorAlignment() {
+  if (roadAnchorPairs.length > 0) {
+    return
+  }
+
+  currentData.buildings.forEach((building) => {
+    const anchor = resolveBuildingAnchor(building)
+    const mismatch = Math.hypot(anchor.x - building.position[0], anchor.z - building.position[1])
+
+    if (mismatch <= ROAD_ANCHOR_SIGNIFICANCE) {
+      return
+    }
+
+    const source: [number, number] = [building.position[0], building.position[1]]
+    const target: [number, number] = [anchor.x, anchor.z]
+    roadAnchorPairs.push({ source, anchor: target })
+    roadAnchorBySource.set(`${source[0].toFixed(3)},${source[1].toFixed(3)}`, target)
+  })
+}
+
+function applyRoadAnchorSnap(point: [number, number]): [number, number] {
+  ensureRoadAnchorAlignment()
+
+  const key = `${point[0].toFixed(3)},${point[1].toFixed(3)}`
+  const exactMatch = roadAnchorBySource.get(key)
+  if (exactMatch) {
+    return exactMatch
+  }
+
+  let snapped: [number, number] = point
+  let minDistance = ROAD_ANCHOR_SNAP_DISTANCE
+
+  for (const pair of roadAnchorPairs) {
+    const distance = Math.hypot(point[0] - pair.source[0], point[1] - pair.source[1])
+    if (distance <= minDistance) {
+      snapped = pair.anchor
+      minDistance = distance
+    }
+  }
+
+  return snapped
+}
+
+function resolveRoutePoint(point: [number, number, number]): [number, number, number] {
+  const snapped = applyRoadAnchorSnap([point[0], point[2]])
+  return [snapped[0], point[1], snapped[1]]
+}
+
+function resolveRoutePoints(route: RouteDefinition): [number, number, number][] {
+  return route.points.map((point) => resolveRoutePoint(point))
+}
+
+function resolveBuildingDisplaySize(building: Building): [number, number] {
+  if (building.footprint && building.footprint.length >= 3) {
+    const size = getFootprintBounds(building.footprint)
+    if (size) {
+      return size
+    }
+  }
+
+  return building.size
+}
+
+function getFootprintBounds(points: [number, number][]): [number, number] | null {
+  const normalized = normalizeFootprint(points)
+  if (!normalized || normalized.length < 3) {
+    return null
+  }
+
+  let minX = Infinity
+  let maxX = -Infinity
+  let minZ = Infinity
+  let maxZ = -Infinity
+
+  for (const [x, z] of normalized) {
+    minX = Math.min(minX, x)
+    maxX = Math.max(maxX, x)
+    minZ = Math.min(minZ, z)
+    maxZ = Math.max(maxZ, z)
+  }
+
+  const width = maxX - minX
+  const depth = maxZ - minZ
+
+  if (!Number.isFinite(width) || !Number.isFinite(depth) || width <= 0 || depth <= 0) {
+    return null
+  }
+
+  return [width, depth]
+}
+
+function normalizeRoadWidth(width: number | undefined) {
+  const candidate = Number(width)
+  return Number.isFinite(candidate) && candidate > 0 ? candidate : ROAD_WIDTH_DEFAULT
 }
 
 function buildRoadShape(points: [number, number][], width: number) {
@@ -743,11 +957,12 @@ function resolvePois(data: CampusData) {
     if (!building) {
       return poi
     }
+    const anchor = resolveBuildingAnchor(building)
     return {
       ...poi,
       name: building.name,
       color: poi.color ?? building.color,
-      position: [building.position[0], building.height + 2, building.position[1]] as [number, number, number],
+      position: [anchor.x, building.height + 2, anchor.z] as [number, number, number],
     }
   })
 }
