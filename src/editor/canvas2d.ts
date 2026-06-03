@@ -775,8 +775,111 @@ export class Canvas2D {
     return polygonBounds(points)
   }
 
-  // implemented in the add/remove task
-  addEntityAtViewCenter(_type: string): void {}
+  private viewCenterWorld(): Point {
+    const rect = this.host.getBoundingClientRect()
+    const w = rect.width || 800
+    const h = rect.height || 600
+    return this.toWorld(w / 2, h / 2)
+  }
 
-  deleteSelected(): void {}
+  private uniqueId(prefix: string, existing: Set<string>): string {
+    let n = existing.size + 1
+    let id = `${prefix}-${n}`
+    while (existing.has(id)) {
+      n += 1
+      id = `${prefix}-${n}`
+    }
+    return id
+  }
+
+  addEntityAtViewCenter(type: string): void {
+    const [wx, wz] = this.viewCenterWorld()
+    let selection: Selection = null
+
+    this.store.mutate(`add-${type}`, (d) => {
+      switch (type) {
+        case 'building': {
+          const id = this.uniqueId('building', new Set(d.buildings.map((b) => b.id)))
+          d.buildings.push({
+            id,
+            name: '新建筑',
+            category: 'academic',
+            position: [wx, wz],
+            size: [20, 20],
+            height: 12,
+            zoneId: d.zones[0]?.id ?? '',
+          })
+          selection = { kind: 'building', index: d.buildings.length - 1 }
+          break
+        }
+        case 'road': {
+          const id = this.uniqueId('road', new Set(d.roads.map((r) => r.id)))
+          d.roads.push({ id, points: [[wx - 25, wz], [wx + 25, wz]], width: 3.2 })
+          selection = { kind: 'road', index: d.roads.length - 1 }
+          break
+        }
+        case 'zone': {
+          const id = this.uniqueId('zone', new Set(d.zones.map((z) => z.id)))
+          d.zones.push({ id, name: '新区域', category: 'academic', center: [wx, wz], size: [60, 60], color: '#93c5fd' })
+          selection = { kind: 'zone', index: d.zones.length - 1 }
+          break
+        }
+        case 'water': {
+          const id = this.uniqueId('water', new Set(d.waters.map((w) => w.id)))
+          d.waters.push({ id, name: '新水体', center: [wx, wz], size: [40, 30], color: '#60a5fa' })
+          selection = { kind: 'water', index: d.waters.length - 1 }
+          break
+        }
+        case 'field': {
+          const id = this.uniqueId('field', new Set(d.fields.map((f) => f.id)))
+          d.fields.push({ id, name: '新操场', center: [wx, wz], size: [80, 50], color: '#22c55e', stripeColor: '#86efac' })
+          selection = { kind: 'field', index: d.fields.length - 1 }
+          break
+        }
+        case 'poi': {
+          const id = this.uniqueId('poi', new Set(d.pois.map((p) => p.id)))
+          d.pois.push({ id, name: '新POI', kind: 'landmark', position: [wx, 12, wz], color: '#fbbf24' })
+          selection = { kind: 'poi', index: d.pois.length - 1 }
+          break
+        }
+        default:
+          break
+      }
+    })
+    if (selection) this.store.select(selection)
+  }
+
+  deleteSelected(): void {
+    const sel = this.store.selection
+    if (!sel) return
+    this.activeVertex = null
+    this.store.mutate('delete', (d) => {
+      switch (sel.kind) {
+        case 'building':
+          d.buildings.splice(sel.index, 1)
+          break
+        case 'road':
+          d.roads.splice(sel.index, 1)
+          break
+        case 'zone':
+          d.zones.splice(sel.index, 1)
+          break
+        case 'water':
+          d.waters.splice(sel.index, 1)
+          break
+        case 'field':
+          d.fields.splice(sel.index, 1)
+          break
+        case 'poi':
+          d.pois.splice(sel.index, 1)
+          break
+        case 'routePoint': {
+          const route = d.routes[sel.routeIndex]
+          if (route && route.points.length > 2) route.points.splice(sel.index, 1)
+          break
+        }
+      }
+    })
+    this.store.select(null)
+  }
 }
