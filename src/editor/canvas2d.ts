@@ -25,6 +25,29 @@ import {
 
 type AreaKind = 'zone' | 'water' | 'field'
 
+export interface MapBackdropConfig {
+  enabled: boolean
+  provider: 'arcgis-imagery' | 'bing-aerial'
+  latitude: number
+  longitude: number
+  zoom?: number
+  metersPerWorldUnit?: number
+  zToLatitude?: 1 | -1
+  bingApiKey?: string
+}
+
+type MapBoundsGeo = {
+  minLat: number
+  maxLat: number
+  minLon: number
+  maxLon: number
+}
+
+type MapBackdropRequest = {
+  imageUrl: string
+  provider: string
+}
+
 type DragState =
   | { kind: 'pan' }
   | { kind: 'bVertex'; b: number; v: number }
@@ -58,6 +81,14 @@ const VERTEX_HIT_PX = 9
 const EDGE_HIT_PX = 7
 const POINT_HIT_PX = 10
 const FIT_PAD = 40
+const DEFAULT_SATELLITE_ZOOM = 17
+const MIN_MAP_IMAGE_PX = 512
+const MAX_MAP_IMAGE_PX = 2048
+const FALLBACK_MAP_IMAGE_PX = 1000
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
+}
 
 function svg<K extends keyof SVGElementTagNameMap>(
   tag: K,
@@ -109,13 +140,23 @@ export class Canvas2D {
   protected store: EditorStore
   protected layers: LayerFlags = defaultLayerFlags()
   protected svgRoot: SVGSVGElement
+  protected mapBackdrop = document.createElement('img')
   protected view: ViewState = { scale: 1, offsetX: 0, offsetY: 0 }
   private viewInitialized = false
+  private mapBackdropConfig: MapBackdropConfig | null = null
+  private mapBackdropRequestId = 0
+  private mapBackdropRenderKey = ''
 
   constructor(host: HTMLElement, store: EditorStore) {
     this.host = host
     this.store = store
     this.svgRoot = svg('svg', {})
+    this.mapBackdrop.className = 'map-backdrop'
+    this.mapBackdrop.loading = 'eager'
+    this.mapBackdrop.draggable = false
+    this.mapBackdrop.style.display = 'none'
+    this.mapBackdrop.alt = 'satellite-map'
+    host.appendChild(this.mapBackdrop)
     host.appendChild(this.svgRoot)
     this.attachViewHandlers()
     const ro = new ResizeObserver(() => {
@@ -127,6 +168,19 @@ export class Canvas2D {
 
   setLayers(flags: LayerFlags): void {
     this.layers = flags
+    this.render()
+  }
+
+  setMapBackdrop(config: MapBackdropConfig | null): void {
+    if (!config || !config.enabled) {
+      this.mapBackdropConfig = null
+      this.mapBackdrop.style.display = 'none'
+      this.mapBackdrop.src = ''
+      this.mapBackdropRenderKey = ''
+      return
+    }
+    this.mapBackdropConfig = config
+    this.mapBackdropRenderKey = ''
     this.render()
   }
 
@@ -145,6 +199,7 @@ export class Canvas2D {
   protected toWorld(sx: number, sy: number): Point {
     return screenToWorld(this.view, sx, sy)
   }
+
 
   protected pointerToScreen(event: PointerEvent | WheelEvent): [number, number] {
     const rect = this.svgRoot.getBoundingClientRect()
@@ -536,10 +591,11 @@ export class Canvas2D {
     }
     const data = this.store.data
     const selection = this.store.selection
+    const bounds = computeDataBounds(data)
+    this.syncMapBackdrop(bounds)
     while (this.svgRoot.firstChild) this.svgRoot.removeChild(this.svgRoot.firstChild)
 
     const ground = this.layerGroup('ground')
-    const bounds = computeDataBounds(data)
     const [gx1, gy1] = this.toScreen(bounds.minX, bounds.minZ)
     const [gx2, gy2] = this.toScreen(bounds.maxX, bounds.maxZ)
     ground.appendChild(
@@ -759,6 +815,167 @@ export class Canvas2D {
         g.appendChild(this.handleMarker(sx, sy, '#fbbf24'))
       }
     }
+  }
+
+  private syncMapBackdrop(bounds: ViewBounds): void {
+    if (!this.mapBackdropConfig) {
+      this.mapBackdrop.style.display = 'none'
+      return
+    }
+
+    const [x1, y1] = this.toScreen(bounds.minX, bounds.minZ)
+    const [x2, y2] = this.toScreen(bounds.maxX, bounds.maxZ)
+    const left = Math.min(x1, x2)
+    const top = Math.min(y1, y2)
+    const width = Math.max(1, Math.abs(x2 - x1))
+    const height = Math.max(1, Math.abs(y2 - y1))
+
+    const zToLatitude = this.mapBackdropConfig.zToLatitude ?? 1
+    const configKey = `${bounds.minX.toFixed(2)},${bounds.maxX.toFixed(2)},${bounds.minZ.toFixed(2)},${bounds.maxZ.toFixed(2)},${this.mapBackdropConfig.provider},${this.mapBackdropConfig.zoom ?? DEFAULT_SATELLITE_ZOOM},${zToLatitude},${this.mapBackdropConfig.metersPerWorldUnit ?? 1}`
+
+    if (this.mapBackdropRenderKey !== configKey) {
+      this.mapBackdropRenderKey = configKey
+      this.fetchMapBackdropImage(bounds)
+    }
+
+    this.mapBackdrop.style.left = `${left}px`
+    this.mapBackdrop.style.top = `${top}px`
+    this.mapBackdrop.style.width = `${width}px`
+    this.mapBackdrop.style.height = `${height}px`
+    this.mapBackdrop.style.display = 'block'
+  }
+
+  private async fetchMapBackdropImage(bounds: ViewBounds): Promise<void> {
+    const config = this.mapBackdropConfig
+    if (!config) return
+    const requests = this.buildMapBackdropRequest(bounds, config)
+    if (requests.length === 0) {
+      this.mapBackdrop.style.display = 'none'
+      this.mapBackdrop.src = ''
+      return
+    }
+
+    const requestId = ++this.mapBackdropRequestId
+
+    this.mapBackdrop.style.display = 'none'
+    for (const request of requests) {
+      if (this.mapBackdropRequestId !== requestId) return
+
+      const loaded = await this.probeMapImage(request.imageUrl)
+      if (!loaded || this.mapBackdropRequestId !== requestId) continue
+
+      this.mapBackdrop.src = request.imageUrl
+      this.mapBackdrop.style.display = 'block'
+      return
+    }
+
+    if (this.mapBackdropRequestId === requestId) {
+      this.mapBackdrop.style.display = 'none'
+      this.mapBackdrop.src = ''
+      console.warn('Map backdrop image failed, tried providers:', requests.map((request) => request.provider).join(', '))
+    }
+  }
+
+  private async probeMapImage(url: string): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      const probe = new Image()
+      probe.onload = () => resolve(true)
+      probe.onerror = () => resolve(false)
+      probe.src = url
+    })
+  }
+
+  private buildWorldToGeo(bounds: ViewBounds, config: MapBackdropConfig): MapBoundsGeo {
+    const centerX = (bounds.minX + bounds.maxX) / 2
+    const centerZ = (bounds.minZ + bounds.maxZ) / 2
+    const zToLatitude = config.zToLatitude ?? 1
+    const metersPerUnit = config.metersPerWorldUnit ?? 1
+    const centerLat = config.latitude
+    const centerLon = config.longitude
+    const radiusLat = centerLat * (Math.PI / 180)
+    const metersPerLon = 111_320 * Math.cos(radiusLat)
+    const metersPerLat = 110_574
+
+    const minLat = centerLat + ((bounds.minZ - centerZ) * metersPerUnit * zToLatitude) / metersPerLat
+    const maxLat = centerLat + ((bounds.maxZ - centerZ) * metersPerUnit * zToLatitude) / metersPerLat
+    const minLon = centerLon + ((bounds.minX - centerX) * metersPerUnit) / metersPerLon
+    const maxLon = centerLon + ((bounds.maxX - centerX) * metersPerUnit) / metersPerLon
+
+    return {
+      minLat: clamp(Math.min(minLat, maxLat), -85, 85),
+      maxLat: clamp(Math.max(minLat, maxLat), -85, 85),
+      minLon: clamp(Math.min(minLon, maxLon), -180, 180),
+      maxLon: clamp(Math.max(minLon, maxLon), -180, 180),
+    }
+  }
+
+  private buildMapImageSize(bounds: ViewBounds, config: MapBackdropConfig): [number, number] {
+    const worldWidth = Math.max(1, bounds.maxX - bounds.minX) * (config.metersPerWorldUnit ?? 1)
+    const worldHeight = Math.max(1, bounds.maxZ - bounds.minZ) * (config.metersPerWorldUnit ?? 1)
+    const z = config.zoom ?? DEFAULT_SATELLITE_ZOOM
+    const metersPerPx = (156543.03392 * Math.cos((config.latitude * Math.PI) / 180)) / 2 ** z
+    const widthPx = Math.round(worldWidth / metersPerPx)
+    const heightPx = Math.round(worldHeight / metersPerPx)
+    return [
+      clamp(Math.max(MIN_MAP_IMAGE_PX, widthPx), MIN_MAP_IMAGE_PX, MAX_MAP_IMAGE_PX),
+      clamp(Math.max(MIN_MAP_IMAGE_PX, heightPx), MIN_MAP_IMAGE_PX, MAX_MAP_IMAGE_PX),
+    ]
+  }
+
+  private buildMapBackdropRequest(bounds: ViewBounds, config: MapBackdropConfig): MapBackdropRequest[] {
+    if (config.provider === 'arcgis-imagery') {
+      const geo = this.buildWorldToGeo(bounds, config)
+      const [width, height] = this.buildMapImageSize(bounds, config)
+      const altWidth = Math.max(MIN_MAP_IMAGE_PX, Math.round(width * 0.67))
+      const altHeight = Math.max(MIN_MAP_IMAGE_PX, Math.round(height * 0.67))
+      const smallWidth = Math.max(MIN_MAP_IMAGE_PX, Math.round(width * 0.5))
+      const smallHeight = Math.max(MIN_MAP_IMAGE_PX, Math.round(height * 0.5))
+      const worldImageParams = (sizeX: number, sizeY: number) =>
+        `bbox=${geo.minLon},${geo.minLat},${geo.maxLon},${geo.maxLat}&bboxSR=4326&size=${sizeX},${sizeY}&imageSR=4326&format=png&f=image`
+
+      const requests: MapBackdropRequest[] = [
+        {
+          imageUrl: `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?${worldImageParams(width, height)}`,
+          provider: 'arcgis-imagery/server',
+        },
+        {
+          imageUrl: `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?${worldImageParams(altWidth, altHeight)}`,
+          provider: 'arcgis-imagery/server-small',
+        },
+        {
+          imageUrl: `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?${worldImageParams(smallWidth, smallHeight)}`,
+          provider: 'arcgis-imagery/server-smaller',
+        },
+        {
+          imageUrl: `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?${worldImageParams(width, height)}`,
+          provider: 'arcgis-imagery/services',
+        },
+      ]
+
+      const fallbackWidth = clamp(Math.min(FALLBACK_MAP_IMAGE_PX, width), MIN_MAP_IMAGE_PX, FALLBACK_MAP_IMAGE_PX)
+      const fallbackHeight = clamp(Math.min(FALLBACK_MAP_IMAGE_PX, height), MIN_MAP_IMAGE_PX, FALLBACK_MAP_IMAGE_PX)
+      return [
+        ...requests,
+        {
+          imageUrl: `https://staticmap.openstreetmap.de/staticmap.php?center=${config.latitude},${config.longitude}&zoom=${config.zoom ?? DEFAULT_SATELLITE_ZOOM}&size=${fallbackWidth}x${fallbackHeight}&maptype=mapnik&markers=${config.latitude},${config.longitude},lightblue1`,
+          provider: 'openstreetmap-static',
+        },
+      ]
+    }
+
+    if (config.provider === 'bing-aerial') {
+      if (!config.bingApiKey) return []
+      const zoom = config.zoom ?? DEFAULT_SATELLITE_ZOOM
+      const [width, height] = this.buildMapImageSize(bounds, config)
+      const mapSize = `${Math.min(MAX_MAP_IMAGE_PX, Math.max(MIN_MAP_IMAGE_PX, width))},${Math.min(MAX_MAP_IMAGE_PX, Math.max(MIN_MAP_IMAGE_PX, height))}`
+      const baseUrl = 'https://dev.virtualearth.net/REST/v1/Imagery/Map/Aerial'
+      return [{
+        imageUrl: `${baseUrl}/${config.latitude},${config.longitude}/${zoom}?mapSize=${mapSize}&format=jpeg&dpi=1&pp=${config.latitude},${config.longitude};0;A&key=${encodeURIComponent(config.bingApiKey)}`,
+        provider: 'bing-aerial',
+      }]
+    }
+
+    return []
   }
 
   // ---- helpers reused by interaction (subclass / later task) -----------

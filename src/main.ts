@@ -21,6 +21,23 @@ type BuildingAnchor = {
   source: AnchorSource
 }
 
+type RoadAnchorPair = {
+  source: [number, number]
+  anchor: [number, number]
+}
+
+type WorldAlign = {
+  scale: number
+  rotation: number
+  translateX: number
+  translateZ: number
+}
+
+type RoadAlignmentState = {
+  pairs: RoadAnchorPair[]
+  transform: WorldAlign
+}
+
 const app = document.querySelector<HTMLDivElement>('#app')
 
 if (!app) {
@@ -141,8 +158,12 @@ const markerGeometry = new THREE.CylinderGeometry(0.9, 0.9, 7, 12)
 const FOOTPRINT_EPSILON = 1e-6
 const FOOTPRINT_MIN_AREA = 1e-8
 const ROAD_WIDTH_DEFAULT = 3.2
-const ROAD_ANCHOR_SNAP_DISTANCE = 35
+const ROAD_ALIGNMENT_RADIUS = 150
 const ROAD_ANCHOR_SIGNIFICANCE = 1
+const ROAD_ALIGNMENT_MIN_INLIERS = 3
+const ROAD_ALIGNMENT_OUTLIER_ITERS = 2
+const ROAD_ALIGNMENT_RESIDUAL_MAD_MULTIPLIER = 2.5
+const ROAD_ALIGNMENT_MIN_RESIDUAL_CUTOFF = 0.7
 const raycaster = new THREE.Raycaster()
 const pointer = new THREE.Vector2()
 const tempVector = new THREE.Vector3()
@@ -159,11 +180,22 @@ let routeEnd: THREE.Group | null = null
 let routePulse: THREE.Mesh | null = null
 let routeCurve: THREE.CatmullRomCurve3 | null = null
 let routePulsePoints: THREE.Vector3[] = []
-let roadAnchorPairs: Array<{ source: [number, number]; anchor: [number, number] }> = []
-const roadAnchorBySource = new Map<string, [number, number]>()
+let didInitializeCamera = false
+let currentRoadAlignment: RoadAlignmentState | null = null
+const defaultAlignment: WorldAlign = { scale: 1, rotation: 0, translateX: 0, translateZ: 0 }
 
-setOverviewCamera()
+currentRoadAlignment = buildRoadAlignmentState(currentData)
+setOverviewCamera(currentRoadAlignment)
 renderAll()
+
+function getActiveRoadAlignment(): RoadAlignmentState {
+  return currentRoadAlignment ?? { pairs: [], transform: defaultAlignment }
+}
+
+function resolveWorldPoint(x: number, z: number, roadAlignment: RoadAlignmentState): [number, number] {
+  const aligned = applyWorldAlign([x, z], roadAlignment.transform)
+  return aligned
+}
 
 entityList.addEventListener('click', (event) => {
   const target = event.target
@@ -251,12 +283,17 @@ const animate = (timestamp?: number) => {
 requestAnimationFrame(animate)
 
 function renderAll() {
-  ensureRoadAnchorAlignment()
+  const roadAlignment = buildRoadAlignmentState(currentData)
+  currentRoadAlignment = roadAlignment
+  if (!didInitializeCamera) {
+    setOverviewCamera(roadAlignment)
+    didInitializeCamera = true
+  }
   ensureSelectionInBounds()
   heroTitle.textContent = currentData.name
   renderRouteInfo()
   renderEntityList()
-  renderScene()
+  renderScene(roadAlignment)
   updateSelectionToast()
 }
 
@@ -278,7 +315,7 @@ function renderEntityList() {
   entityList.innerHTML = currentData.buildings
     .map((building, index) => {
       const selected = selection?.kind === 'building' && selection.index === index
-      const anchor = resolveBuildingAnchor(building)
+      const anchor = resolveBuildingRenderAnchor(building, getActiveRoadAlignment())
       const zoneName = currentData.zones.find((zone) => zone.id === building.zoneId)?.name ?? building.zoneId
       return `
         <button type="button" class="entity-item${selected ? ' selected' : ''}" data-kind="building" data-index="${index}">
@@ -300,7 +337,7 @@ function focusBuilding(index: number) {
     return
   }
 
-  const anchor = resolveBuildingAnchor(building)
+  const anchor = resolveBuildingRenderAnchor(building, getActiveRoadAlignment())
 
   const target = new THREE.Vector3(
     anchor.x,
@@ -316,8 +353,8 @@ function focusBuilding(index: number) {
   controls.update()
 }
 
-function setOverviewCamera() {
-  const bounds = computeMapBounds(currentData, 160)
+function setOverviewCamera(roadAlignment: RoadAlignmentState) {
+  const bounds = computeMapBounds(currentData, 160, roadAlignment)
   const maxDimension = Math.max(bounds.width, bounds.depth)
   const target = new THREE.Vector3(bounds.center[0], 0, bounds.center[1])
 
@@ -333,15 +370,16 @@ function setOverviewCamera() {
   controls.update()
 }
 
-function computeMapBounds(data: CampusData, padding = 0) {
+function computeMapBounds(data: CampusData, padding = 0, roadAlignment: RoadAlignmentState) {
   const xs: number[] = []
   const zs: number[] = []
+  const alignmentScale = Math.abs(roadAlignment.transform.scale)
 
   data.buildings.forEach((building) => {
-    const anchor = resolveBuildingAnchor(building)
+    const anchor = resolveBuildingRenderAnchor(building, roadAlignment)
     xs.push(anchor.x)
     zs.push(anchor.z)
-    building.footprint?.forEach(([x, z]) => {
+    getRenderedBuildingFootprint(building, roadAlignment)?.forEach(([x, z]) => {
       xs.push(x)
       zs.push(z)
     })
@@ -349,32 +387,41 @@ function computeMapBounds(data: CampusData, padding = 0) {
 
   data.roads.forEach((road) => {
     road.points.forEach((point) => {
-      const snapped = applyRoadAnchorSnap(point)
+      const snapped = resolveRoadPoint(point, roadAlignment)
       xs.push(snapped[0])
       zs.push(snapped[1])
     })
   })
 
   data.routes.forEach((route) => {
-    resolveRoutePoints(route).forEach(([x, z]) => {
+    resolveRoutePoints(route, roadAlignment).forEach(([x, z]) => {
       xs.push(x)
       zs.push(z)
     })
   })
 
   data.zones.forEach((zone) => {
-    xs.push(zone.center[0] - zone.size[0] / 2, zone.center[0] + zone.size[0] / 2)
-    zs.push(zone.center[1] - zone.size[1] / 2, zone.center[1] + zone.size[1] / 2)
+    const [centerX, centerZ] = resolveWorldPoint(zone.center[0], zone.center[1], roadAlignment)
+    const halfWidth = (zone.size[0] * alignmentScale) / 2
+    const halfDepth = (zone.size[1] * alignmentScale) / 2
+    xs.push(centerX - halfWidth, centerX + halfWidth)
+    zs.push(centerZ - halfDepth, centerZ + halfDepth)
   })
 
   data.waters.forEach((water) => {
-    xs.push(water.center[0] - water.size[0] / 2, water.center[0] + water.size[0] / 2)
-    zs.push(water.center[1] - water.size[1] / 2, water.center[1] + water.size[1] / 2)
+    const [centerX, centerZ] = resolveWorldPoint(water.center[0], water.center[1], roadAlignment)
+    const halfWidth = (water.size[0] * alignmentScale) / 2
+    const halfDepth = (water.size[1] * alignmentScale) / 2
+    xs.push(centerX - halfWidth, centerX + halfWidth)
+    zs.push(centerZ - halfDepth, centerZ + halfDepth)
   })
 
   data.fields.forEach((field) => {
-    xs.push(field.center[0] - field.size[0] / 2, field.center[0] + field.size[0] / 2)
-    zs.push(field.center[1] - field.size[1] / 2, field.center[1] + field.size[1] / 2)
+    const [centerX, centerZ] = resolveWorldPoint(field.center[0], field.center[1], roadAlignment)
+    const halfWidth = (field.size[0] * alignmentScale) / 2
+    const halfDepth = (field.size[1] * alignmentScale) / 2
+    xs.push(centerX - halfWidth, centerX + halfWidth)
+    zs.push(centerZ - halfDepth, centerZ + halfDepth)
   })
 
   const minX = Math.min(...xs) - padding
@@ -389,7 +436,7 @@ function computeMapBounds(data: CampusData, padding = 0) {
   }
 }
 
-function renderScene() {
+function renderScene(roadAlignment: RoadAlignmentState) {
   disposeChildren(campusGroup)
   labelLayer.innerHTML = ''
   clickableObjects = []
@@ -401,7 +448,7 @@ function renderScene() {
   routeCurve = null
   routePulsePoints = []
 
-  const mapBounds = computeMapBounds(currentData, 140)
+  const mapBounds = computeMapBounds(currentData, 140, roadAlignment)
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(mapBounds.width, mapBounds.depth),
     new THREE.MeshStandardMaterial({ color: '#c8ddb0', roughness: 0.98, metalness: 0 }),
@@ -411,30 +458,34 @@ function renderScene() {
   ground.receiveShadow = true
   campusGroup.add(ground)
 
-	  for (const zone of currentData.zones) {
-	    const tile = new THREE.Mesh(
-	      new THREE.PlaneGeometry(zone.size[0], zone.size[1]),
-	      new THREE.MeshStandardMaterial({
-	        color: zone.color,
-	        transparent: true,
-	        opacity: 0.55,
-	        roughness: 1,
-	        metalness: 0,
-	        depthWrite: false,
-	      }),
-	    )
-	    tile.rotation.x = -Math.PI / 2
-	    tile.position.set(zone.center[0], 0.025, zone.center[1])
-	    campusGroup.add(tile)
-	  }
+  for (const zone of currentData.zones) {
+    const [zoneCenterX, zoneCenterZ] = resolveWorldPoint(zone.center[0], zone.center[1], roadAlignment)
+    const zoneScale = Math.max(0.0001, roadAlignment.transform.scale)
+    const tile = new THREE.Mesh(
+      new THREE.PlaneGeometry(zone.size[0] * zoneScale, zone.size[1] * zoneScale),
+      new THREE.MeshStandardMaterial({
+        color: zone.color,
+        transparent: true,
+        opacity: 0.55,
+        roughness: 1,
+        metalness: 0,
+        depthWrite: false,
+      }),
+    )
+    tile.rotation.x = -Math.PI / 2
+    tile.position.set(zoneCenterX, 0.025, zoneCenterZ)
+    campusGroup.add(tile)
+  }
 
   currentData.roads.forEach((road) => {
     if (road.points.length < 2) {
       return
     }
 
-    const routePoints = road.points.map((point) => applyRoadAnchorSnap(point))
-    const shape = buildRoadShape(routePoints, normalizeRoadWidth(road.width))
+    const routePoints = road.points.map((point) => resolveRoadPoint(point, roadAlignment))
+    const roadScale = roadAlignment.transform.scale
+    const roadWidth = Math.max(0.0001, roadScale) * normalizeRoadWidth(road.width)
+    const shape = buildRoadShape(routePoints, roadWidth)
     const mesh = new THREE.Mesh(
       new THREE.ShapeGeometry(shape),
       new THREE.MeshStandardMaterial({
@@ -452,20 +503,24 @@ function renderScene() {
   })
 
   for (const water of currentData.waters) {
+    const [waterX, waterZ] = resolveWorldPoint(water.center[0], water.center[1], roadAlignment)
+    const waterScale = Math.max(0.0001, roadAlignment.transform.scale)
     const mesh = new THREE.Mesh(
       new THREE.CircleGeometry(1, 48),
       new THREE.MeshStandardMaterial({ color: water.color ?? '#60a5fa', transparent: true, opacity: 0.88, roughness: 0.18, metalness: 0.1 }),
     )
-    mesh.scale.set(water.size[0] / 2, water.size[1] / 2, 1)
+    mesh.scale.set((water.size[0] * waterScale) / 2, (water.size[1] * waterScale) / 2, 1)
     mesh.rotation.x = -Math.PI / 2
-    mesh.position.set(water.center[0], 0.18, water.center[1])
+    mesh.position.set(waterX, 0.18, waterZ)
     campusGroup.add(mesh)
   }
 
   for (const field of currentData.fields) {
+    const [fieldX, fieldZ] = resolveWorldPoint(field.center[0], field.center[1], roadAlignment)
+    const fieldScale = Math.max(0.0001, roadAlignment.transform.scale)
     const fieldGroup = new THREE.Group()
     const base = new THREE.Mesh(
-      new THREE.PlaneGeometry(field.size[0], field.size[1]),
+      new THREE.PlaneGeometry(field.size[0] * fieldScale, field.size[1] * fieldScale),
       new THREE.MeshStandardMaterial({ color: field.color ?? '#22c55e', roughness: 1 }),
     )
     base.rotation.x = -Math.PI / 2
@@ -474,16 +529,16 @@ function renderScene() {
 
     for (let i = -2; i <= 2; i += 1) {
       const stripe = new THREE.Mesh(
-        new THREE.PlaneGeometry(field.size[0], field.size[1] / 8),
+        new THREE.PlaneGeometry(field.size[0] * fieldScale, (field.size[1] / 8) * fieldScale),
         new THREE.MeshStandardMaterial({ color: field.stripeColor ?? '#86efac', transparent: true, opacity: 0.85 }),
       )
       stripe.rotation.x = -Math.PI / 2
-      stripe.position.set(0, 0.15, i * (field.size[1] / 5.4))
+      stripe.position.set(0, 0.15, i * ((field.size[1] / 5.4) * fieldScale))
       fieldGroup.add(stripe)
     }
 
     const track = new THREE.Mesh(
-      new THREE.RingGeometry(field.size[0] / 2 + 2, field.size[0] / 2 + 7, 48),
+      new THREE.RingGeometry((field.size[0] / 2 + 2) * fieldScale, (field.size[0] / 2 + 7) * fieldScale, 48),
       new THREE.MeshStandardMaterial({ color: '#f59e0b', roughness: 0.9 }),
     )
     track.scale.set(1, field.size[1] / field.size[0], 1)
@@ -491,14 +546,14 @@ function renderScene() {
     track.position.y = 0.13
     fieldGroup.add(track)
 
-    fieldGroup.position.set(field.center[0], 0, field.center[1])
+    fieldGroup.position.set(fieldX, 0, fieldZ)
     campusGroup.add(fieldGroup)
   }
 
   currentData.buildings.forEach((building, index) => {
     const selected = selection?.kind === 'building' && selection.index === index
-    const anchor = resolveBuildingAnchor(building)
-    const mesh = createBuildingMesh(building, anchor, selected)
+    const renderAnchor = resolveBuildingRenderAnchor(building, roadAlignment)
+    const mesh = createBuildingMesh(building, renderAnchor, roadAlignment, selected)
     mesh.userData = { kind: 'building', index }
     mesh.traverse((child) => {
       child.userData = { kind: 'building', index }
@@ -511,11 +566,12 @@ function renderScene() {
 
   for (const [x, z] of currentData.trees) {
     const tree = createTree()
-    tree.position.set(x, 0, z)
+    const [worldX, worldZ] = resolveWorldPoint(x, z, roadAlignment)
+    tree.position.set(worldX, 0, worldZ)
     campusGroup.add(tree)
   }
 
-  for (const poi of resolvePois(currentData)) {
+  for (const poi of resolvePois(currentData, roadAlignment)) {
     const marker = new THREE.Mesh(
       markerGeometry,
       new THREE.MeshStandardMaterial({ color: poi.color ?? '#ffffff', emissive: poi.color ?? '#ffffff', emissiveIntensity: 0.25 }),
@@ -540,7 +596,7 @@ function renderScene() {
 
   const activeRoute = currentData.routes[0]
   if (activeRoute && activeRoute.points.length >= 2) {
-    const resolvedRoute = resolveRoutePoints(activeRoute)
+    const resolvedRoute = resolveRoutePoints(activeRoute, roadAlignment)
     routePulsePoints = resolvedRoute.map((point) => new THREE.Vector3(...point))
     routeCurve = new THREE.CatmullRomCurve3(routePulsePoints)
     const routeGeometry = new THREE.TubeGeometry(routeCurve, 220, 1.55, 20, false)
@@ -584,62 +640,63 @@ function renderScene() {
   }
 }
 
-function createBuildingMesh(building: Building, anchor: BuildingAnchor, selected = false) {
+function createBuildingMesh(building: Building, anchor: BuildingAnchor, roadAlignment: RoadAlignmentState, selected = false) {
   const group = new THREE.Group()
   const color = selected ? '#fb7185' : building.color ?? buildingColorByCategory[building.category] ?? '#cbd5e1'
   const baseHeight = building.height
   const displaySize = resolveBuildingDisplaySize(building)
+  const alignedScale = Math.abs(roadAlignment.transform.scale)
+  const scaleX = displaySize[0] * alignedScale
+  const scaleZ = displaySize[1] * alignedScale
+  const renderedFootprint = getRenderedBuildingFootprint(building, roadAlignment)
 
-  if (building.footprint && building.footprint.length >= 3) {
-    const normalizedFootprint = normalizeFootprint(building.footprint)
-    if (normalizedFootprint) {
-      const shape = new THREE.Shape(
-        normalizedFootprint.map(([x, z]) => new THREE.Vector2(x - anchor.x, anchor.z - z)),
+  if (renderedFootprint) {
+    const shape = new THREE.Shape(
+      renderedFootprint.map(([x, z]) => new THREE.Vector2(x - anchor.x, anchor.z - z)),
+    )
+
+    const bodyGeometry = new THREE.ExtrudeGeometry(shape, {
+      depth: baseHeight,
+      bevelEnabled: false,
+    })
+    bodyGeometry.rotateX(-Math.PI / 2)
+
+    const body = new THREE.Mesh(
+      bodyGeometry,
+      new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.76,
+        metalness: 0.06,
+        emissive: selected ? '#fb7185' : '#000000',
+        emissiveIntensity: selected ? 0.18 : 0,
+      }),
+    )
+    body.castShadow = true
+    body.receiveShadow = true
+    group.add(body)
+
+    const roof = new THREE.Mesh(
+      new THREE.ShapeGeometry(shape),
+      new THREE.MeshStandardMaterial({ color: selected ? '#fff1f2' : '#f8fafc', roughness: 0.88, transparent: true, opacity: 0.92 }),
+    )
+    roof.rotation.x = -Math.PI / 2
+    roof.position.y = baseHeight + 0.06
+    group.add(roof)
+
+    if (building.category === 'library') {
+      const accent = new THREE.Mesh(
+        new THREE.BoxGeometry(scaleX * 0.22, baseHeight * 1.15, scaleZ * 0.25),
+        new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.6 }),
       )
-
-      const bodyGeometry = new THREE.ExtrudeGeometry(shape, {
-        depth: baseHeight,
-        bevelEnabled: false,
-      })
-      bodyGeometry.rotateX(-Math.PI / 2)
-
-      const body = new THREE.Mesh(
-        bodyGeometry,
-        new THREE.MeshStandardMaterial({
-          color,
-          roughness: 0.76,
-          metalness: 0.06,
-          emissive: selected ? '#fb7185' : '#000000',
-          emissiveIntensity: selected ? 0.18 : 0,
-        }),
-      )
-      body.castShadow = true
-      body.receiveShadow = true
-      group.add(body)
-
-      const roof = new THREE.Mesh(
-        new THREE.ShapeGeometry(shape),
-        new THREE.MeshStandardMaterial({ color: selected ? '#fff1f2' : '#f8fafc', roughness: 0.88, transparent: true, opacity: 0.92 }),
-      )
-      roof.rotation.x = -Math.PI / 2
-      roof.position.y = baseHeight + 0.06
-      group.add(roof)
-
-      if (building.category === 'library') {
-        const accent = new THREE.Mesh(
-          new THREE.BoxGeometry(displaySize[0] * 0.22, baseHeight * 1.15, displaySize[1] * 0.25),
-          new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.6 }),
-        )
-        accent.position.set(0, baseHeight * 0.58, 0)
-        group.add(accent)
-      }
-
-      group.position.set(anchor.x, 0, anchor.z)
-      return group
+      accent.position.set(0, baseHeight * 0.58, 0)
+      group.add(accent)
     }
+
+    group.position.set(anchor.x, 0, anchor.z)
+    return group
   } else {
     const body = new THREE.Mesh(
-      new THREE.BoxGeometry(building.size[0], baseHeight, building.size[1]),
+      new THREE.BoxGeometry(scaleX, baseHeight, scaleZ),
       new THREE.MeshStandardMaterial({
         color,
         roughness: 0.72,
@@ -655,7 +712,7 @@ function createBuildingMesh(building: Building, anchor: BuildingAnchor, selected
 
     if (baseHeight > 8) {
       const roof = new THREE.Mesh(
-        new THREE.BoxGeometry(building.size[0] * 0.82, Math.max(1.2, baseHeight * 0.06), building.size[1] * 0.82),
+        new THREE.BoxGeometry(scaleX * 0.82, Math.max(1.2, baseHeight * 0.06), scaleZ * 0.82),
         new THREE.MeshStandardMaterial({ color: selected ? '#fff1f2' : '#f8fafc', roughness: 0.85 }),
       )
       roof.position.y = baseHeight + 0.8
@@ -666,7 +723,7 @@ function createBuildingMesh(building: Building, anchor: BuildingAnchor, selected
 
   if (building.category === 'library') {
     const accent = new THREE.Mesh(
-      new THREE.BoxGeometry(displaySize[0] * 0.22, baseHeight * 1.15, displaySize[1] * 0.25),
+      new THREE.BoxGeometry(scaleX * 0.22, baseHeight * 1.15, scaleZ * 0.25),
       new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.6 }),
     )
     accent.position.set(0, baseHeight * 0.58, 0)
@@ -781,56 +838,210 @@ function getFootprintCentroid(points: [number, number][]): [number, number] {
   return [cx / (6 * area), cz / (6 * area)]
 }
 
-function ensureRoadAnchorAlignment() {
-  if (roadAnchorPairs.length > 0) {
-    return
+function resolveBuildingRenderAnchor(building: Building, roadAlignment: RoadAlignmentState): BuildingAnchor {
+  const sourceAnchor = resolveBuildingAnchor(building)
+  const [x, z] = applyWorldAlign([sourceAnchor.x, sourceAnchor.z], roadAlignment.transform)
+  return { ...sourceAnchor, x, z }
+}
+
+function getRenderedBuildingFootprint(building: Building, roadAlignment: RoadAlignmentState): [number, number][] | null {
+  if (building.footprint && building.footprint.length >= 3) {
+    const normalizedFootprint = normalizeFootprint(building.footprint)
+    if (normalizedFootprint) {
+      return normalizedFootprint.map((point) => applyWorldAlign(point, roadAlignment.transform))
+    }
   }
 
-  currentData.buildings.forEach((building) => {
+  const anchor = resolveBuildingRenderAnchor(building, roadAlignment)
+  const size = resolveBuildingDisplaySize(building)
+  const scale = Math.abs(roadAlignment.transform.scale)
+  const halfWidth = (size[0] * scale) / 2
+  const halfDepth = (size[1] * scale) / 2
+
+  return [
+    [anchor.x - halfWidth, anchor.z - halfDepth],
+    [anchor.x + halfWidth, anchor.z - halfDepth],
+    [anchor.x + halfWidth, anchor.z + halfDepth],
+    [anchor.x - halfWidth, anchor.z + halfDepth],
+  ]
+}
+
+function buildRoadAlignmentState(data: CampusData): RoadAlignmentState {
+  const pairs: RoadAnchorPair[] = []
+
+  for (const building of data.buildings) {
     const anchor = resolveBuildingAnchor(building)
     const mismatch = Math.hypot(anchor.x - building.position[0], anchor.z - building.position[1])
-
     if (mismatch <= ROAD_ANCHOR_SIGNIFICANCE) {
-      return
+      continue
     }
 
     const source: [number, number] = [building.position[0], building.position[1]]
     const target: [number, number] = [anchor.x, anchor.z]
-    roadAnchorPairs.push({ source, anchor: target })
-    roadAnchorBySource.set(`${source[0].toFixed(3)},${source[1].toFixed(3)}`, target)
-  })
-}
-
-function applyRoadAnchorSnap(point: [number, number]): [number, number] {
-  ensureRoadAnchorAlignment()
-
-  const key = `${point[0].toFixed(3)},${point[1].toFixed(3)}`
-  const exactMatch = roadAnchorBySource.get(key)
-  if (exactMatch) {
-    return exactMatch
+    pairs.push({ source, anchor: target })
   }
 
-  let snapped: [number, number] = point
-  let minDistance = ROAD_ANCHOR_SNAP_DISTANCE
+  const { transform, usedPairs } = buildRoadAlignmentResult(pairs)
+  return { pairs: usedPairs, transform }
+}
 
-  for (const pair of roadAnchorPairs) {
-    const distance = Math.hypot(point[0] - pair.source[0], point[1] - pair.source[1])
-    if (distance <= minDistance) {
-      snapped = pair.anchor
-      minDistance = distance
+function buildRoadAlignmentResult(pairs: RoadAnchorPair[]): { transform: WorldAlign, usedPairs: RoadAnchorPair[] } {
+  if (pairs.length < ROAD_ALIGNMENT_MIN_INLIERS) {
+    return { transform: defaultAlignment, usedPairs: pairs }
+  }
+
+  let candidatePairs: RoadAnchorPair[] = pairs
+  let transform: WorldAlign = defaultAlignment
+
+  for (let iteration = 0; iteration <= ROAD_ALIGNMENT_OUTLIER_ITERS; iteration += 1) {
+    const estimate = estimateWorldAlignTransform(candidatePairs)
+    if (!estimate) {
+      return { transform: defaultAlignment, usedPairs: candidatePairs }
     }
+    transform = estimate
+
+    const residuals = candidatePairs.map((pair) => measureAlignmentResidual(pair, transform))
+    if (residuals.length <= ROAD_ALIGNMENT_MIN_INLIERS) {
+      break
+    }
+
+    const threshold = computeRobustResidualCutoff(residuals)
+    const nextPairs = candidatePairs.filter((_, index) => residuals[index] <= threshold)
+    if (nextPairs.length === candidatePairs.length || nextPairs.length < ROAD_ALIGNMENT_MIN_INLIERS) {
+      break
+    }
+
+    candidatePairs = nextPairs
   }
 
-  return snapped
+  return { transform, usedPairs: candidatePairs }
 }
 
-function resolveRoutePoint(point: [number, number, number]): [number, number, number] {
-  const snapped = applyRoadAnchorSnap([point[0], point[2]])
+function computeRobustResidualCutoff(values: number[]): number {
+  const threshold = values.length > 0
+    ? calculateMedian(values) + ROAD_ALIGNMENT_RESIDUAL_MAD_MULTIPLIER * calculateMedianAbsoluteDeviation(values)
+    : ROAD_ALIGNMENT_MIN_RESIDUAL_CUTOFF
+  return Math.max(ROAD_ALIGNMENT_MIN_RESIDUAL_CUTOFF, threshold)
+}
+
+function calculateMedian(values: number[]): number {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  return sorted[Math.floor(sorted.length / 2)]
+}
+
+function calculateMedianAbsoluteDeviation(values: number[]): number {
+  const median = calculateMedian(values)
+  return calculateMedian(values.map((value) => Math.abs(value - median)))
+}
+
+function estimateWorldAlignTransform(pairs: RoadAnchorPair[]): WorldAlign | null {
+  if (pairs.length < 2) {
+    return defaultAlignment
+  }
+
+  let sourceSumX = 0
+  let sourceSumZ = 0
+  let targetSumX = 0
+  let targetSumZ = 0
+  for (const pair of pairs) {
+    sourceSumX += pair.source[0]
+    sourceSumZ += pair.source[1]
+    targetSumX += pair.anchor[0]
+    targetSumZ += pair.anchor[1]
+  }
+
+  const n = pairs.length
+  const sourceCx = sourceSumX / n
+  const sourceCz = sourceSumZ / n
+  const targetCx = targetSumX / n
+  const targetCz = targetSumZ / n
+
+  let cross = 0
+  let dot = 0
+  let sourceVariance = 0
+
+  for (const pair of pairs) {
+    const sx = pair.source[0] - sourceCx
+    const sz = pair.source[1] - sourceCz
+    const tx = pair.anchor[0] - targetCx
+    const tz = pair.anchor[1] - targetCz
+
+    dot += sx * tx + sz * tz
+    cross += sx * tz - sz * tx
+    sourceVariance += sx * sx + sz * sz
+  }
+
+  if (!Number.isFinite(sourceVariance) || sourceVariance <= 0) {
+    return defaultAlignment
+  }
+
+  const scale = Math.hypot(dot, cross) / sourceVariance
+  const rotation = Math.atan2(cross, dot)
+  const cos = Math.cos(rotation)
+  const sin = Math.sin(rotation)
+  const translateX = targetCx - scale * (cos * sourceCx - sin * sourceCz)
+  const translateZ = targetCz - scale * (sin * sourceCx + cos * sourceCz)
+
+  if (!Number.isFinite(scale) || !Number.isFinite(rotation) || !Number.isFinite(translateX) || !Number.isFinite(translateZ)) {
+    return defaultAlignment
+  }
+
+  return { scale, rotation, translateX, translateZ }
+}
+
+function measureAlignmentResidual(pair: RoadAnchorPair, align: WorldAlign): number {
+  const sourceAligned = applyWorldAlign(pair.source, align)
+  const anchorAligned = applyWorldAlign(pair.anchor, align)
+  return Math.hypot(anchorAligned[0] - sourceAligned[0], anchorAligned[1] - sourceAligned[1])
+}
+
+function applyWorldAlign(point: [number, number], align: WorldAlign): [number, number] {
+  const cos = Math.cos(align.rotation)
+  const sin = Math.sin(align.rotation)
+  const x = align.scale * (cos * point[0] - sin * point[1]) + align.translateX
+  const z = align.scale * (sin * point[0] + cos * point[1]) + align.translateZ
+  return [x, z]
+}
+
+function resolveRoadPoint(point: [number, number], roadAlign: RoadAlignmentState): [number, number] {
+  const aligned = applyWorldAlign(point, roadAlign.transform)
+  const radius = ROAD_ALIGNMENT_RADIUS
+  const maxDistance2 = radius * radius
+  let totalWeight = 0
+  let offsetX = 0
+  let offsetZ = 0
+
+  for (const pair of roadAlign.pairs) {
+    const sourceAligned = applyWorldAlign(pair.source, roadAlign.transform)
+    const targetAligned = applyWorldAlign(pair.anchor, roadAlign.transform)
+    const dx = aligned[0] - sourceAligned[0]
+    const dz = aligned[1] - sourceAligned[1]
+    const distance2 = dx * dx + dz * dz
+    if (distance2 > maxDistance2) continue
+    const weight = 1 / (1 + distance2 / 5000)
+    const residualX = targetAligned[0] - sourceAligned[0]
+    const residualZ = targetAligned[1] - sourceAligned[1]
+    totalWeight += weight
+    offsetX += residualX * weight
+    offsetZ += residualZ * weight
+  }
+
+  if (totalWeight <= 0.0001) {
+    return aligned
+  }
+
+  const blend = Math.min(1, totalWeight / roadAlign.pairs.length)
+  return [aligned[0] + (offsetX / totalWeight) * blend, aligned[1] + (offsetZ / totalWeight) * blend]
+}
+
+function resolveRoutePoint(point: [number, number, number], roadAlign: RoadAlignmentState): [number, number, number] {
+  const snapped = resolveRoadPoint([point[0], point[2]], roadAlign)
   return [snapped[0], point[1], snapped[1]]
 }
 
-function resolveRoutePoints(route: RouteDefinition): [number, number, number][] {
-  return route.points.map((point) => resolveRoutePoint(point))
+function resolveRoutePoints(route: RouteDefinition, roadAlign: RoadAlignmentState): [number, number, number][] {
+  return route.points.map((point) => resolveRoutePoint(point, roadAlign))
 }
 
 function resolveBuildingDisplaySize(building: Building): [number, number] {
@@ -947,17 +1158,21 @@ function samplePolylinePoint(points: THREE.Vector3[], progress: number) {
   return points[points.length - 1].clone()
 }
 
-function resolvePois(data: CampusData) {
+function resolvePois(data: CampusData, roadAlignment: RoadAlignmentState) {
   const buildingMap = new Map(data.buildings.map((building) => [building.id, building]))
   return data.pois.map((poi) => {
     if (!poi.sourceBuildingId) {
-      return poi
+      const [x, z] = applyWorldAlign([poi.position[0], poi.position[2]], roadAlignment.transform)
+      return {
+        ...poi,
+        position: [x, poi.position[1], z] as [number, number, number],
+      }
     }
     const building = buildingMap.get(poi.sourceBuildingId)
     if (!building) {
       return poi
     }
-    const anchor = resolveBuildingAnchor(building)
+    const anchor = resolveBuildingRenderAnchor(building, roadAlignment)
     return {
       ...poi,
       name: building.name,

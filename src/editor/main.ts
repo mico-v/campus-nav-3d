@@ -1,7 +1,7 @@
 import './editor.css'
 import { createDefaultCampusData } from '../data/campusData.ts'
 import { EditorStore } from './store.ts'
-import { Canvas2D } from './canvas2d.ts'
+import { Canvas2D, type MapBackdropConfig } from './canvas2d.ts'
 import { FormPanel } from './form.ts'
 import { loadCampus, saveCampus, ApiUnavailableError } from './api.ts'
 import { defaultLayerFlags, type LayerFlags } from './types.ts'
@@ -45,6 +45,15 @@ async function boot(): Promise<void> {
 
   const store = new EditorStore(data)
   const layers = defaultLayerFlags()
+  const mapBackdrop: MapBackdropConfig = {
+    enabled: true,
+    provider: 'arcgis-imagery',
+    latitude: 31.251759,
+    longitude: 120.572634,
+    zoom: 17,
+    metersPerWorldUnit: 1,
+    zToLatitude: 1,
+  }
 
   app.innerHTML = `
     <div class="editor-shell">
@@ -97,6 +106,7 @@ async function boot(): Promise<void> {
   const toast = app.querySelector<HTMLDivElement>('#toast')!
 
   const canvas = new Canvas2D(canvasHost, store)
+  canvas.setMapBackdrop(mapBackdrop)
   const form = new FormPanel(formHost, store)
   canvas.setLayers(layers)
   canvas.fitToData()
