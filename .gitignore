@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Map editor backups (written by the dev API on save)
+.editor-backups
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
