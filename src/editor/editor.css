@@ -1,0 +1,270 @@
+:root {
+  --bg: #0f172a;
+  --panel: #1e293b;
+  --panel-2: #273449;
+  --line: #334155;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --accent-strong: #0ea5e9;
+  --danger: #f43f5e;
+  --ok: #22c55e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+#app,
+.editor-shell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.toolbar h1 {
+  font-size: 15px;
+  margin: 0 12px 0 0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.toolbar .group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 10px;
+  border-right: 1px solid var(--line);
+}
+
+.toolbar .group:last-child {
+  border-right: none;
+}
+
+button.tool {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 11px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+button.tool:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button.tool:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+button.tool.primary {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #04222f;
+  font-weight: 600;
+}
+
+button.tool.danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.dirty-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.dirty-dot.dirty {
+  background: var(--danger);
+  box-shadow: 0 0 8px var(--danger);
+}
+
+.toolbar select,
+.toolbar a.link {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.layer-toggles {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.layer-toggles label {
+  font-size: 12px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.banner {
+  background: #7f1d1d;
+  color: #fecaca;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-bottom: 1px solid #991b1b;
+}
+
+.workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.canvas-host {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 30% 20%, #16233b, #0b1426 70%);
+}
+
+.canvas-host svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.canvas-hint {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: rgba(15, 23, 42, 0.7);
+  padding: 4px 9px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.form-host {
+  width: 330px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+  padding: 14px;
+}
+
+.form-host h2 {
+  font-size: 14px;
+  margin: 0 0 4px;
+}
+
+.form-host .sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+
+.field {
+  margin-bottom: 12px;
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 64px;
+}
+
+.field-row {
+  display: flex;
+  gap: 8px;
+}
+
+.field-row .field {
+  flex: 1;
+}
+
+.empty-hint {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 30px;
+  text-align: center;
+}
+
+.toast {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 9px 16px;
+  border-radius: 9px;
+  font-size: 13px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 50;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.toast.ok {
+  border-color: var(--ok);
+}
+
+.toast.err {
+  border-color: var(--danger);
+}
