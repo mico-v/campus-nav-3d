@@ -13,12 +13,31 @@ import {
 } from './projection.ts'
 import {
   polygonBounds,
+  polygonCentroid,
   pointInPolygon,
   nearestVertex,
   nearestEdge,
+  insertVertex,
+  translatePoints,
   distance,
   type Point,
 } from './geometry.ts'
+
+type AreaKind = 'zone' | 'water' | 'field'
+
+type DragState =
+  | { kind: 'pan' }
+  | { kind: 'bVertex'; b: number; v: number }
+  | { kind: 'bMove'; b: number }
+  | { kind: 'bCorner'; b: number; c: number }
+  | { kind: 'rVertex'; r: number; v: number }
+  | { kind: 'rMove'; r: number }
+  | { kind: 'aCorner'; a: AreaKind; i: number; c: number }
+  | { kind: 'aMove'; a: AreaKind; i: number }
+  | { kind: 'poiMove'; i: number }
+  | { kind: 'rpMove'; r: number; i: number }
+
+type ActiveVertex = { kind: 'building' | 'road'; index: number; vertex: number } | null
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
@@ -132,7 +151,14 @@ export class Canvas2D {
     return [event.clientX - rect.left, event.clientY - rect.top]
   }
 
-  // ---- view navigation -------------------------------------------------
+  // ---- view navigation + editing interaction ---------------------------
+
+  private drag: DragState | null = null
+  private dragBefore: CampusData | null = null
+  private dragMoved = false
+  private prevWorld: Point = [0, 0]
+  private prevScreen: [number, number] = [0, 0]
+  protected activeVertex: ActiveVertex = null
 
   private attachViewHandlers(): void {
     this.svgRoot.addEventListener('wheel', (event) => {
@@ -142,47 +168,288 @@ export class Canvas2D {
       this.view = zoomAt(this.view, sx, sy, factor)
       this.render()
     })
-    this.attachPointerHandlers()
-  }
-
-  // Pan on empty space; subclass logic in onPointerDown decides selection/drag.
-  private panning = false
-  private lastPan: [number, number] = [0, 0]
-
-  protected attachPointerHandlers(): void {
     this.svgRoot.addEventListener('pointerdown', (event) => this.handlePointerDown(event))
     this.svgRoot.addEventListener('pointermove', (event) => this.handlePointerMove(event))
     this.svgRoot.addEventListener('pointerup', (event) => this.handlePointerUp(event))
-    this.svgRoot.addEventListener('pointerleave', (event) => this.handlePointerUp(event))
+    this.svgRoot.addEventListener('pointercancel', (event) => this.handlePointerUp(event))
+    this.svgRoot.addEventListener('dblclick', (event) => this.handleDoubleClick(event))
+    window.addEventListener('keydown', (event) => this.handleKeyDown(event))
+  }
+
+  private boxCorners(center: Point, size: [number, number]): Point[] {
+    return [
+      [center[0] - size[0] / 2, center[1] - size[1] / 2],
+      [center[0] + size[0] / 2, center[1] - size[1] / 2],
+      [center[0] + size[0] / 2, center[1] + size[1] / 2],
+      [center[0] - size[0] / 2, center[1] + size[1] / 2],
+    ]
+  }
+
+  private hitCorner(corners: Point[], world: Point): number | null {
+    const idx = nearestVertex(corners, world, this.worldThreshold(VERTEX_HIT_PX))
+    return idx
+  }
+
+  /** If `world` is near a draggable handle of the current selection, return its drag descriptor. */
+  private pickHandle(world: Point): DragState | null {
+    const sel = this.store.selection
+    if (!sel) return null
+    const data = this.store.data
+    if (sel.kind === 'building') {
+      const b = data.buildings[sel.index]
+      if (!b) return null
+      if (b.footprint && b.footprint.length >= 3) {
+        const v = this.hitVertex(b.footprint, world)
+        if (v !== null) {
+          this.activeVertex = { kind: 'building', index: sel.index, vertex: v }
+          return { kind: 'bVertex', b: sel.index, v }
+        }
+      } else {
+        const c = this.hitCorner(this.boxCorners(b.position, b.size), world)
+        if (c !== null) return { kind: 'bCorner', b: sel.index, c }
+      }
+    } else if (sel.kind === 'road') {
+      const r = data.roads[sel.index]
+      if (!r) return null
+      const v = this.hitVertex(r.points, world)
+      if (v !== null) {
+        this.activeVertex = { kind: 'road', index: sel.index, vertex: v }
+        return { kind: 'rVertex', r: sel.index, v }
+      }
+    } else if (sel.kind === 'zone' || sel.kind === 'water' || sel.kind === 'field') {
+      const list = this.areaList(sel.kind)
+      const item = list[sel.index]
+      if (!item) return null
+      const c = this.hitCorner(this.boxCorners(item.center, item.size), world)
+      if (c !== null) return { kind: 'aCorner', a: sel.kind, i: sel.index, c }
+    }
+    return null
+  }
+
+  private areaList(kind: AreaKind) {
+    const data = this.store.data
+    return kind === 'zone' ? data.zones : kind === 'water' ? data.waters : data.fields
+  }
+
+  private moveDragFor(sel: Selection): DragState | null {
+    if (!sel) return null
+    switch (sel.kind) {
+      case 'building':
+        return { kind: 'bMove', b: sel.index }
+      case 'road':
+        return { kind: 'rMove', r: sel.index }
+      case 'zone':
+      case 'water':
+      case 'field':
+        return { kind: 'aMove', a: sel.kind, i: sel.index }
+      case 'poi':
+        return { kind: 'poiMove', i: sel.index }
+      case 'routePoint':
+        return { kind: 'rpMove', r: sel.routeIndex, i: sel.index }
+      default:
+        return null
+    }
+  }
+
+  private startDrag(drag: DragState, world: Point, screen: [number, number], pointerId: number): void {
+    this.drag = drag
+    this.dragBefore = JSON.parse(JSON.stringify(this.store.data)) as CampusData
+    this.dragMoved = false
+    this.prevWorld = world
+    this.prevScreen = screen
+    if (this.svgRoot.setPointerCapture) this.svgRoot.setPointerCapture(pointerId)
   }
 
   protected handlePointerDown(event: PointerEvent): void {
     const screen = this.pointerToScreen(event)
     const world = this.toWorld(screen[0], screen[1])
+
+    // 1) grab a handle of the current selection
+    const handle = this.pickHandle(world)
+    if (handle) {
+      this.startDrag(handle, world, screen, event.pointerId)
+      return
+    }
+
+    // 2) (re)select what's under the cursor
     const hit = this.hitTest(world, screen)
     this.store.select(hit)
-    if (hit === null) {
-      this.panning = true
-      this.lastPan = screen
-      this.svgRoot.setPointerCapture(event.pointerId)
+    if (hit) {
+      if (hit.kind !== 'building' && hit.kind !== 'road') this.activeVertex = null
+      const move = this.moveDragFor(hit)
+      if (move) this.startDrag(move, world, screen, event.pointerId)
+      return
     }
+
+    // 3) empty space → pan
+    this.activeVertex = null
+    this.startDrag({ kind: 'pan' }, world, screen, event.pointerId)
   }
 
   protected handlePointerMove(event: PointerEvent): void {
-    if (!this.panning) return
+    if (!this.drag) return
     const screen = this.pointerToScreen(event)
-    this.view = pan(this.view, screen[0] - this.lastPan[0], screen[1] - this.lastPan[1])
-    this.lastPan = screen
-    this.render()
+    if (this.drag.kind === 'pan') {
+      this.view = pan(this.view, screen[0] - this.prevScreen[0], screen[1] - this.prevScreen[1])
+      this.prevScreen = screen
+      this.render()
+      return
+    }
+    const world = this.toWorld(screen[0], screen[1])
+    const dx = world[0] - this.prevWorld[0]
+    const dz = world[1] - this.prevWorld[1]
+    if (dx === 0 && dz === 0) return
+    this.dragMoved = true
+    this.applyDrag(this.drag, world, dx, dz)
+    this.prevWorld = world
+    this.prevScreen = screen
+    this.store.notifyChange()
+  }
+
+  private applyDrag(drag: DragState, world: Point, dx: number, dz: number): void {
+    const data = this.store.data
+    switch (drag.kind) {
+      case 'bVertex': {
+        const b = data.buildings[drag.b]
+        if (!b.footprint) return
+        b.footprint[drag.v] = [world[0], world[1]]
+        b.position = polygonCentroid(b.footprint)
+        break
+      }
+      case 'bMove': {
+        const b = data.buildings[drag.b]
+        if (b.footprint && b.footprint.length >= 3) {
+          b.footprint = translatePoints(b.footprint, dx, dz)
+          b.position = polygonCentroid(b.footprint)
+        } else {
+          b.position = [b.position[0] + dx, b.position[1] + dz]
+        }
+        break
+      }
+      case 'bCorner': {
+        const b = data.buildings[drag.b]
+        const next = this.resizeFromCorner(b.position, b.size, drag.c, world)
+        b.position = next.center
+        b.size = next.size
+        break
+      }
+      case 'rVertex': {
+        data.roads[drag.r].points[drag.v] = [world[0], world[1]]
+        break
+      }
+      case 'rMove': {
+        const r = data.roads[drag.r]
+        r.points = translatePoints(r.points, dx, dz)
+        break
+      }
+      case 'aCorner': {
+        const item = this.areaList(drag.a)[drag.i]
+        const next = this.resizeFromCorner(item.center, item.size, drag.c, world)
+        item.center = next.center
+        item.size = next.size
+        break
+      }
+      case 'aMove': {
+        const item = this.areaList(drag.a)[drag.i]
+        item.center = [item.center[0] + dx, item.center[1] + dz]
+        break
+      }
+      case 'poiMove': {
+        const p = data.pois[drag.i]
+        p.position = [p.position[0] + dx, p.position[1], p.position[2] + dz]
+        break
+      }
+      case 'rpMove': {
+        const pt = data.routes[drag.r].points[drag.i]
+        data.routes[drag.r].points[drag.i] = [pt[0] + dx, pt[1], pt[2] + dz]
+        break
+      }
+      case 'pan':
+        break
+    }
+  }
+
+  /** Resize an axis-aligned box by dragging `corner` to `world`; the opposite corner stays fixed. */
+  private resizeFromCorner(
+    center: Point,
+    size: [number, number],
+    corner: number,
+    world: Point,
+  ): { center: Point; size: [number, number] } {
+    const corners = this.boxCorners(center, size)
+    const fixed = corners[(corner + 2) % 4]
+    const minX = Math.min(fixed[0], world[0])
+    const maxX = Math.max(fixed[0], world[0])
+    const minZ = Math.min(fixed[1], world[1])
+    const maxZ = Math.max(fixed[1], world[1])
+    const width = Math.max(1, maxX - minX)
+    const depth = Math.max(1, maxZ - minZ)
+    return { center: [(minX + maxX) / 2, (minZ + maxZ) / 2], size: [width, depth] }
   }
 
   protected handlePointerUp(event: PointerEvent): void {
-    if (this.panning) {
-      this.panning = false
-      if (this.svgRoot.hasPointerCapture(event.pointerId)) {
-        this.svgRoot.releasePointerCapture(event.pointerId)
-      }
+    if (!this.drag) return
+    if (this.drag.kind !== 'pan' && this.dragMoved && this.dragBefore) {
+      this.store.recordUndo(this.dragBefore)
     }
+    if (this.svgRoot.hasPointerCapture && this.svgRoot.hasPointerCapture(event.pointerId)) {
+      this.svgRoot.releasePointerCapture(event.pointerId)
+    }
+    this.drag = null
+    this.dragBefore = null
+  }
+
+  private handleDoubleClick(event: MouseEvent): void {
+    const screen = this.pointerToScreen(event as unknown as PointerEvent)
+    const world = this.toWorld(screen[0], screen[1])
+    const sel = this.store.selection
+    if (!sel) return
+    if (sel.kind === 'building') {
+      const b = this.store.data.buildings[sel.index]
+      if (!b.footprint || b.footprint.length < 3) return
+      const edge = this.hitEdge(b.footprint, world)
+      if (!edge) return
+      this.store.mutate('insert-vertex', (d) => {
+        const bb = d.buildings[sel.index]
+        bb.footprint = insertVertex(bb.footprint!, edge.index, edge.point)
+        bb.position = polygonCentroid(bb.footprint)
+      })
+    } else if (sel.kind === 'road') {
+      const r = this.store.data.roads[sel.index]
+      const edge = this.hitEdge(r.points, world)
+      if (!edge) return
+      this.store.mutate('insert-road-node', (d) => {
+        d.roads[sel.index].points = insertVertex(d.roads[sel.index].points, edge.index, edge.point)
+      })
+    }
+  }
+
+  private handleKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'Delete' && event.key !== 'Backspace') return
+    const target = event.target as HTMLElement | null
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
+      return
+    }
+    const av = this.activeVertex
+    if (!av) return
+    if (av.kind === 'building') {
+      const b = this.store.data.buildings[av.index]
+      if (!b?.footprint || b.footprint.length <= 3) return
+      event.preventDefault()
+      this.store.mutate('remove-vertex', (d) => {
+        const bb = d.buildings[av.index]
+        bb.footprint!.splice(av.vertex, 1)
+        bb.position = polygonCentroid(bb.footprint!)
+      })
+    } else {
+      const r = this.store.data.roads[av.index]
+      if (!r || r.points.length <= 2) return
+      event.preventDefault()
+      this.store.mutate('remove-road-node', (d) => {
+        d.roads[av.index].points.splice(av.vertex, 1)
+      })
+    }
+    this.activeVertex = null
   }
 
   // ---- hit testing -----------------------------------------------------

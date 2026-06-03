@@ -87,6 +87,23 @@ export class EditorStore {
     this.notify()
   }
 
+  /** Re-render without recording history — used for live drag previews. */
+  notifyChange(): void {
+    this.notify()
+  }
+
+  /**
+   * Register a completed in-place edit (e.g. a finished drag) as a single undo step.
+   * Pass the snapshot captured *before* the edit began.
+   */
+  recordUndo(before: CampusData): void {
+    this.undoStack.push(deepClone(before))
+    if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
+    this.redoStack = []
+    this._dirty = true
+    this.notify()
+  }
+
   markSaved(): void {
     this._dirty = false
     this.notify()
