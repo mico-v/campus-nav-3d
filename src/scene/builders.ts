@@ -95,7 +95,8 @@ export function buildRoads(data: CampusData): THREE.Object3D[] {
   for (const road of data.roads) {
     if (road.points.length < 2) continue
     const outline = buildRoadOutline(road.points, road.width)
-    const casingOutline = buildRoadOutline(road.points, road.width + 2.2)
+    const casingWidth = road.width + Math.max(1.6, road.width * 0.3)
+    const casingOutline = buildRoadOutline(road.points, casingWidth)
 
     const casing = new THREE.Mesh(
       flatPolygon(casingOutline),
