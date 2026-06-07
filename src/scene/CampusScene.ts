@@ -20,7 +20,6 @@ export class CampusScene {
   private routeCurve: THREE.CatmullRomCurve3 | null = null
   private routeGlow: THREE.MeshBasicMaterial | null = null
   private routePulse: THREE.Mesh | null = null
-  private routePoints: THREE.Vector3[] = []
   private readonly tempVector = new THREE.Vector3()
 
   constructor(host: HTMLDivElement, labelLayer: HTMLDivElement) {
@@ -54,7 +53,7 @@ export class CampusScene {
     this.scene.add(key)
   }
 
-  computeBounds(padding = 0) {
+  private computeBounds(padding = 0) {
     const xs: number[] = []
     const zs: number[] = []
     for (const b of this.data.buildings) {
@@ -83,9 +82,9 @@ export class CampusScene {
   private rebuild(): void {
     this.disposeGroup()
     this.labelLayer.innerHTML = ''
-    this.clickableObjects = []
-    this.labels = []
-    this.routeCurve = null; this.routeGlow = null; this.routePulse = null; this.routePoints = []
+    this.clickableObjects.length = 0
+    this.labels.length = 0
+    this.routeCurve = null; this.routeGlow = null; this.routePulse = null
 
     const bounds = this.computeBounds(140)
     this.campusGroup.add(buildGround(bounds))
@@ -104,15 +103,15 @@ export class CampusScene {
     buildTrees(this.data).forEach((o) => this.campusGroup.add(o))
     const { objects, labels } = buildPois(this.data, this.labelLayer)
     objects.forEach((o) => this.campusGroup.add(o))
-    this.labels = labels
+    this.labels.push(...labels)
     this.buildRoute()
   }
 
   private buildRoute(): void {
     const route = this.data.routes[0]
     if (!route || route.points.length < 2) return
-    this.routePoints = route.points.map((p) => new THREE.Vector3(...p))
-    this.routeCurve = new THREE.CatmullRomCurve3(this.routePoints)
+    const routePoints = route.points.map((p) => new THREE.Vector3(...p))
+    this.routeCurve = new THREE.CatmullRomCurve3(routePoints)
     const tube = new THREE.Mesh(
       new THREE.TubeGeometry(this.routeCurve, 220, 1.55, 16, false),
       new THREE.MeshStandardMaterial({ color: COLORS.routePrimary, emissive: COLORS.routePrimary, emissiveIntensity: 0.9, transparent: true, opacity: 0.98 }),
