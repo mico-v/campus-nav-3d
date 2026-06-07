@@ -4,6 +4,14 @@ import type { CampusData } from '../data/campusData'
 import { COLORS } from './theme'
 import { buildGround, buildZones, buildWaters, buildFields, buildTrees, buildRoads, buildBuilding, buildPois, type BuiltLabel } from './builders'
 
+// 将动画时间映射到 [0, 1) 的曲线参数；负值/NaN/越界都被钳制，
+// 避免 CatmullRomCurve3.getPointAt 在 t<0 或 t>=1 时抛 undefined 异常（浏览器首帧 elapsed 可能为负）。
+export function routeParam(elapsed: number): number {
+  if (!Number.isFinite(elapsed)) return 0
+  const wrapped = ((elapsed * 0.08) % 1 + 1) % 1
+  return Math.min(wrapped, 0.999)
+}
+
 export class CampusScene {
   readonly scene = new THREE.Scene()
   readonly camera: THREE.PerspectiveCamera
@@ -181,7 +189,7 @@ export class CampusScene {
     this.controls.update()
     if (this.routeGlow) this.routeGlow.opacity = 0.14 + Math.sin(elapsed * 2.2) * 0.06
     if (this.routeCurve && this.routePulse) {
-      const t = Math.min((elapsed * 0.08) % 1, 0.999)
+      const t = routeParam(elapsed)
       this.routePulse.position.copy(this.routeCurve.getPointAt(t))
       this.routePulse.scale.setScalar(0.8 + (Math.sin(elapsed * 5.5) + 1) * 0.12)
     }
