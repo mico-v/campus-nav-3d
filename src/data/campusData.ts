@@ -103,5 +103,3 @@ export function cloneCampusData(data: CampusData): CampusData {
 export function createDefaultCampusData(): CampusData {
   return cloneCampusData(baseCampusData)
 }
-
-export const campusData = createDefaultCampusData()

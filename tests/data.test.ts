@@ -1,22 +1,36 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { createDefaultCampusData } from '../src/data/campusData'
 
-function extractInlineBase(): unknown {
-  const src = readFileSync(new URL('../src/data/campusData.ts', import.meta.url), 'utf8')
-  const start = src.indexOf('{', src.indexOf('const baseCampusData'))
-  const end = src.indexOf('\nexport function cloneCampusData')
-  if (start < 0 || end < 0 || start >= end) return null
-  return JSON.parse(src.slice(start, end).trim())
-}
+describe('campus 数据完整性', () => {
+  const data = createDefaultCampusData()
 
-describe('campus.json 等价性', () => {
-  it('campus.json 与原内联数据逐字段相等', async () => {
-    const json = (await import('../src/data/campus.json', { with: { type: 'json' } })).default
-    const inline = extractInlineBase()
-    if (inline === null) {
-      expect(Object.keys(json as object)).toContain('buildings')
-      return
+  it('顶层集合存在且非空', () => {
+    expect(data.buildings.length).toBeGreaterThan(0)
+    expect(data.roads.length).toBeGreaterThan(0)
+    expect(data.zones.length).toBeGreaterThan(0)
+  })
+
+  it('建筑数量与路网数量符合当前数据基线', () => {
+    expect(data.buildings).toHaveLength(57)
+    expect(data.roads).toHaveLength(80)
+  })
+
+  it('每个建筑都有合法的 position 与非负 height', () => {
+    for (const b of data.buildings) {
+      expect(b.position).toHaveLength(2)
+      expect(Number.isFinite(b.position[0])).toBe(true)
+      expect(Number.isFinite(b.position[1])).toBe(true)
+      expect(b.height).toBeGreaterThanOrEqual(0)
     }
-    expect(json).toEqual(inline)
+  })
+
+  it('每条道路至少有 2 个点且坐标有限', () => {
+    for (const r of data.roads) {
+      expect(r.points.length).toBeGreaterThanOrEqual(2)
+      for (const [x, z] of r.points) {
+        expect(Number.isFinite(x)).toBe(true)
+        expect(Number.isFinite(z)).toBe(true)
+      }
+    }
   })
 })
