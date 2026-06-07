@@ -123,7 +123,11 @@ export function buildBuilding(building: Building, selected: boolean): THREE.Grou
   if (building.footprint && building.footprint.length >= 3) {
     const body = new THREE.Mesh(
       extrudeFootprint(building.footprint, building.position, h),
-      new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0 }),
+      new THREE.MeshStandardMaterial({
+        color, roughness: 0.85, metalness: 0,
+        emissive: selected ? COLORS.selected : '#000000',
+        emissiveIntensity: selected ? 0.18 : 0,
+      }),
     )
     group.add(body)
     const roof = new THREE.Mesh(
@@ -136,7 +140,11 @@ export function buildBuilding(building: Building, selected: boolean): THREE.Grou
   } else {
     const body = new THREE.Mesh(
       new THREE.BoxGeometry(building.size[0], h, building.size[1]),
-      new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0 }),
+      new THREE.MeshStandardMaterial({
+        color, roughness: 0.85, metalness: 0,
+        emissive: selected ? COLORS.selected : '#000000',
+        emissiveIntensity: selected ? 0.18 : 0,
+      }),
     )
     body.position.y = h / 2
     group.add(body)
