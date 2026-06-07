@@ -24,6 +24,7 @@ export interface Zone {
   center: [number, number]
   size: [number, number]
   color: string
+  footprint?: [number, number][]
 }
 
 export interface Building {
@@ -51,6 +52,7 @@ export interface WaterBody {
   center: [number, number]
   size: [number, number]
   color?: string
+  footprint?: [number, number][]
 }
 
 export interface FieldArea {
@@ -60,6 +62,7 @@ export interface FieldArea {
   size: [number, number]
   color?: string
   stripeColor?: string
+  footprint?: [number, number][]
 }
 
 export interface PoiMarker {

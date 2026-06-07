@@ -11,8 +11,8 @@ describe('campus 数据完整性', () => {
   })
 
   it('建筑数量与路网数量符合当前数据基线', () => {
-    expect(data.buildings).toHaveLength(57)
-    expect(data.roads).toHaveLength(80)
+    expect(data.buildings).toHaveLength(97)
+    expect(data.roads).toHaveLength(135)
   })
 
   it('每个建筑都有合法的 position 与非负 height', () => {
