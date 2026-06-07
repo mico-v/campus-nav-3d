@@ -152,8 +152,6 @@ export function buildBuilding(building: Building, selected: boolean): THREE.Grou
   return group
 }
 
-const markerGeometry = new THREE.CylinderGeometry(0.9, 0.9, 7, 12)
-
 export function resolvePois(data: CampusData): PoiMarker[] {
   const map = new Map(data.buildings.map((b) => [b.id, b]))
   return data.pois.map((poi) => {
@@ -179,7 +177,10 @@ export function buildPois(data: CampusData, labelLayer: HTMLDivElement): { objec
     )
     cap.position.set(...poi.position)
     objects.push(cap)
-    const stem = new THREE.Mesh(markerGeometry, new THREE.MeshStandardMaterial({ color: poi.color ?? '#ffffff' }))
+    const stem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.9, 0.9, 7, 12),
+      new THREE.MeshStandardMaterial({ color: poi.color ?? '#ffffff' }),
+    )
     stem.position.set(poi.position[0], poi.position[1] - 3.2, poi.position[2])
     objects.push(stem)
     const element = document.createElement('div')
