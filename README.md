@@ -10,8 +10,23 @@
 - 数据驱动的建筑、区域、道路网络、水体、操场、POI、路线
 - 默认展示从二号门到图书馆的 graph 最短路示例
 - 右侧导航面板展示路线步骤与沿途地标
-- 地图数据集中在 `src/data/campusData.ts`
+- 地图几何数据集中在 `src/data/campus.json`
 - 使用相对 `base`，可直接部署到 GitHub Pages 项目页
+
+## 代码结构
+
+渲染逻辑按职责拆分为独立模块：
+
+- `src/main.ts` — 薄入口：装配模块、事件绑定、渲染循环
+- `src/scene/geo.ts` — 唯一的「数据坐标 → 世界坐标」映射（所有贴地/拉伸几何都经此，避免道路镜像偏移）
+- `src/scene/builders.ts` — 各实体（建筑/道路/地块/水体/操场/树/POI/路线）→ Three.js 网格
+- `src/scene/CampusScene.ts` — 场景/相机/灯光/控制器/重建与渲染循环
+- `src/scene/theme.ts` — 配色与 Y 层级常量
+- `src/ui/panel.ts` — 侧栏路线/建筑列表/选中提示的 DOM 渲染
+- `src/interaction.ts` — 点击拾取建筑
+- `src/data/campusData.ts` — 类型定义 + 从 `campus.json` 加载
+
+坐标纯函数有回归测试，运行 `npm test`（Vitest）。
 
 ## 本地开发
 
@@ -41,19 +56,17 @@ npm run preview
 2. 运行 `npm run build`
 3. 将 `dist/` 内容发布到 Pages 分支，或使用 GitHub Actions 上传 `dist/`
 
-## 后续手工编辑入口
+## 手工编辑地图数据
 
-主要编辑文件：
-
-- `src/data/campusData.ts`
-
-你可以直接修改：
+几何数据在 `src/data/campus.json`，可直接修改：
 
 - 建筑 `height / position / size / name / category / footprint`
 - 分区颜色和范围
 - 道路折线
 - POI 标记
 - 示例路线点位与步骤文案
+
+> 注：交互式地图编辑器（在场景中增删/拖拽路点并导出 JSON）为后续计划，当前版本未包含。
 
 ## 当前包含的核心地标
 
