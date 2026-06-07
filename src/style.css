@@ -53,29 +53,23 @@ textarea {
   position: relative;
   min-height: 100vh;
   overflow: hidden;
-  background: radial-gradient(circle at top left, rgba(255,255,255,0.7), transparent 28%), linear-gradient(180deg, #dceefc 0%, #cfe4c5 100%);
+  background: #eef3f6;
 }
 
-.hero-copy {
+.topbar {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: 0; left: 0; right: 0;
   z-index: 3;
-  width: min(480px, calc(100% - 40px));
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 10px 36px rgba(16, 35, 58, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0));
+  pointer-events: none;
 }
-
-.eyebrow {
-  margin: 0 0 6px;
-  font-size: 0.82rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #315c85;
-}
+.topbar .brand { font-weight: 700; font-size: 1.05rem; color: #18324a; }
+.topbar .hint { font-size: 0.8rem; color: #5b748f; }
 
 h1 {
   margin: 0;
@@ -83,21 +77,6 @@ h1 {
   line-height: 1.06;
 }
 
-.subtitle {
-  margin: 10px 0 0;
-  max-width: 46ch;
-  color: #35516c;
-  font-size: 0.96rem;
-}
-
-.hero-badges {
-  margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.hero-badges span,
 .chip,
 .pill {
   display: inline-flex;
@@ -155,21 +134,12 @@ h1 {
   background: rgba(194, 65, 12, 0.92);
 }
 
-.scene-help,
 .selection-toast {
   position: absolute;
   z-index: 3;
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
   color: #18324a;
-}
-
-.scene-help {
-  left: 24px;
-  bottom: 24px;
-  padding: 10px 14px;
-  border-radius: 999px;
-  font-size: 0.84rem;
 }
 
 .selection-toast {
@@ -329,21 +299,6 @@ h1 {
 }
 
 @media (max-width: 720px) {
-  .hero-copy {
-    top: 14px;
-    left: 14px;
-    width: calc(100% - 28px);
-    padding: 14px 16px;
-  }
-
-  .scene-help {
-    left: 14px;
-    right: 14px;
-    bottom: 14px;
-    text-align: center;
-    border-radius: 14px;
-  }
-
   .selection-toast {
     right: 14px;
     left: 14px;
