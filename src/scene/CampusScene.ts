@@ -79,6 +79,12 @@ export class CampusScene {
     this.rebuild()
   }
 
+  setDataAndSelection(data: CampusData, index: number): void {
+    this.data = data
+    this.selectedIndex = index
+    this.rebuild()
+  }
+
   private rebuild(): void {
     this.disposeGroup()
     this.labelLayer.innerHTML = ''

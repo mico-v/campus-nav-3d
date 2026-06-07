@@ -58,8 +58,7 @@ const data = createDefaultCampusData()
 let selectedIndex = data.buildings.length > 0 ? 0 : -1
 
 const campus = new CampusScene(sceneHost, labelLayer)
-campus.setData(data)
-campus.setSelected(selectedIndex)
+campus.setDataAndSelection(data, selectedIndex)
 campus.setOverviewCamera()
 
 function syncUi(): void {
