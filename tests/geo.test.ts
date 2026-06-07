@@ -42,10 +42,16 @@ describe('buildRoadOutline', () => {
     const zs = outline.map((p) => p[1])
     expect(Math.min(...zs)).toBeCloseTo(95, 4)
     expect(Math.max(...zs)).toBeCloseTo(105, 4)
+    const xs = outline.map((p) => p[0])
+    expect(Math.min(...xs)).toBeCloseTo(0, 4)
+    expect(Math.max(...xs)).toBeCloseTo(50, 4)
   })
 
   it('重合点不产生 NaN', () => {
     const outline = buildRoadOutline([[0, 0], [0, 0], [10, 0]], 4)
     expect(outline.every((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))).toBe(true)
+    const zs = outline.map((p) => p[1])
+    // 重合起点不应把道路掐断为零宽：仍应存在 ±2 的半宽偏移
+    expect(Math.max(...zs) - Math.min(...zs)).toBeGreaterThan(0)
   })
 })

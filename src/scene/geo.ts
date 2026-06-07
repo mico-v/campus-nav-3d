@@ -48,7 +48,7 @@ export function buildRoadOutline(points: Vec2[], width: number): Vec2[] {
     const fallback = new THREE.Vector2(next[0] - prev[0], next[1] - prev[1]).normalize()
     const tangent =
       Number.isFinite(dir.x) && Number.isFinite(dir.y) && dir.lengthSq() > 0 ? dir : fallback
-    const safe = Number.isFinite(tangent.x) && Number.isFinite(tangent.y) ? tangent : new THREE.Vector2(1, 0)
+    const safe = tangent.lengthSq() > 1e-10 ? tangent : new THREE.Vector2(1, 0)
     const normal = new THREE.Vector2(-safe.y, safe.x).normalize().multiplyScalar(width / 2)
     left.push([cur[0] + normal.x, cur[1] + normal.y])
     right.unshift([cur[0] - normal.x, cur[1] - normal.y])
