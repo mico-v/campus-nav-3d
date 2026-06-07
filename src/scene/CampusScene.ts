@@ -191,14 +191,20 @@ export class CampusScene {
 
   private updateLabels(): void {
     const w = this.host.clientWidth, h = this.host.clientHeight
-    for (const t of this.labels) {
+    const placed: { x: number; y: number }[] = []
+    const minGap = 46
+    const ranked = this.labels.map((t) => {
       this.tempVector.set(...t.marker.position).project(this.camera)
-      const visible = this.tempVector.z < 1 && this.tempVector.z > -1
-      const left = ((this.tempVector.x + 1) / 2) * w
-      const top = ((-this.tempVector.y + 1) / 2) * h
-      const inside = left >= -80 && left <= w + 80 && top >= -30 && top <= h + 30
-      t.element.style.opacity = visible && inside ? '1' : '0'
-      t.element.style.transform = `translate(${left}px, ${top}px) translate(-50%, -50%)`
+      return { t, depth: this.tempVector.z, x: ((this.tempVector.x + 1) / 2) * w, y: ((-this.tempVector.y + 1) / 2) * h }
+    }).sort((a, b) => a.depth - b.depth)
+    for (const r of ranked) {
+      const visible = r.depth < 1 && r.depth > -1
+      const inside = r.x >= -80 && r.x <= w + 80 && r.y >= -30 && r.y <= h + 30
+      const clashes = placed.some((p) => Math.abs(p.x - r.x) < minGap && Math.abs(p.y - r.y) < minGap * 0.5)
+      const show = visible && inside && !clashes
+      r.t.element.style.opacity = show ? '1' : '0'
+      r.t.element.style.transform = `translate(${r.x}px, ${r.y}px) translate(-50%, -50%)`
+      if (show) placed.push({ x: r.x, y: r.y })
     }
   }
 }
