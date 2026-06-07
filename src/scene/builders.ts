@@ -8,6 +8,12 @@ export interface BuiltLabel {
   element: HTMLDivElement
 }
 
+function roadRenderWidth(road: { id: string; width: number }): number {
+  if (road.id.startsWith('osm-canal-')) return road.width * 1.35
+  if (road.id.startsWith('osm-road-')) return Math.max(5.5, road.width * 2.2)
+  return road.width
+}
+
 export function buildGround(bounds: { center: [number, number]; width: number; depth: number }): THREE.Mesh {
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(bounds.width, bounds.depth),
@@ -21,13 +27,16 @@ export function buildGround(bounds: { center: [number, number]; width: number; d
 
 export function buildZones(data: CampusData): THREE.Object3D[] {
   return data.zones.map((zone) => {
-    const tile = new THREE.Mesh(
-      new THREE.PlaneGeometry(zone.size[0], zone.size[1]),
-      new THREE.MeshStandardMaterial({
-        color: zone.color, transparent: true, opacity: 0.5,
-        roughness: 1, metalness: 0, depthWrite: false,
-      }),
-    )
+    const material = new THREE.MeshStandardMaterial({
+      color: zone.color, transparent: true, opacity: 0.5,
+      roughness: 1, metalness: 0, depthWrite: false,
+    })
+    if (zone.footprint && zone.footprint.length >= 3) {
+      const mesh = new THREE.Mesh(flatPolygon(zone.footprint), material)
+      mesh.position.set(0, LAYER.zone, 0)
+      return mesh
+    }
+    const tile = new THREE.Mesh(new THREE.PlaneGeometry(zone.size[0], zone.size[1]), material)
     tile.rotation.x = -Math.PI / 2
     tile.position.set(zone.center[0], LAYER.zone, zone.center[1])
     return tile
@@ -36,10 +45,13 @@ export function buildZones(data: CampusData): THREE.Object3D[] {
 
 export function buildWaters(data: CampusData): THREE.Object3D[] {
   return data.waters.map((water) => {
-    const mesh = new THREE.Mesh(
-      new THREE.CircleGeometry(1, 48),
-      new THREE.MeshStandardMaterial({ color: water.color ?? '#7cb5f0', transparent: true, opacity: 0.9, roughness: 0.3, metalness: 0 }),
-    )
+    const material = new THREE.MeshStandardMaterial({ color: water.color ?? '#7cb5f0', transparent: true, opacity: 0.9, roughness: 0.3, metalness: 0 })
+    if (water.footprint && water.footprint.length >= 3) {
+      const mesh = new THREE.Mesh(flatPolygon(water.footprint), material)
+      mesh.position.set(0, LAYER.water, 0)
+      return mesh
+    }
+    const mesh = new THREE.Mesh(new THREE.CircleGeometry(1, 48), material)
     mesh.scale.set(water.size[0] / 2, water.size[1] / 2, 1)
     mesh.rotation.x = -Math.PI / 2
     mesh.position.set(water.center[0], LAYER.water, water.center[1])
@@ -50,22 +62,36 @@ export function buildWaters(data: CampusData): THREE.Object3D[] {
 export function buildFields(data: CampusData): THREE.Object3D[] {
   return data.fields.map((field) => {
     const group = new THREE.Group()
-    const base = new THREE.Mesh(
-      new THREE.PlaneGeometry(field.size[0], field.size[1]),
-      new THREE.MeshStandardMaterial({ color: field.color ?? '#9fd9ad', roughness: 1 }),
-    )
-    base.rotation.x = -Math.PI / 2
-    base.position.y = LAYER.field
-    group.add(base)
+    const baseMaterial = new THREE.MeshStandardMaterial({ color: field.color ?? '#9fd9ad', roughness: 1 })
+    const hasFootprint = field.footprint && field.footprint.length >= 3
+
+    if (hasFootprint) {
+      const base = new THREE.Mesh(flatPolygon(field.footprint!), baseMaterial)
+      base.position.set(0, LAYER.field, 0)
+      group.add(base)
+    } else {
+      const base = new THREE.Mesh(new THREE.PlaneGeometry(field.size[0], field.size[1]), baseMaterial)
+      base.rotation.x = -Math.PI / 2
+      base.position.y = LAYER.field
+      group.add(base)
+    }
+
     const track = new THREE.Mesh(
       new THREE.RingGeometry(field.size[0] / 2 + 2, field.size[0] / 2 + 6, 48),
       new THREE.MeshStandardMaterial({ color: '#e0a35f', roughness: 1 }),
     )
     track.scale.set(1, field.size[1] / field.size[0], 1)
     track.rotation.x = -Math.PI / 2
-    track.position.y = LAYER.field + 0.005
-    group.add(track)
-    group.position.set(field.center[0], 0, field.center[1])
+
+    if (hasFootprint) {
+      track.position.set(field.center[0], LAYER.field + 0.005, field.center[1])
+      group.add(track)
+      group.position.set(0, 0, 0)
+    } else {
+      track.position.y = LAYER.field + 0.005
+      group.add(track)
+      group.position.set(field.center[0], 0, field.center[1])
+    }
     return group
   })
 }
@@ -94,8 +120,9 @@ export function buildRoads(data: CampusData): THREE.Object3D[] {
   const objects: THREE.Object3D[] = []
   for (const road of data.roads) {
     if (road.points.length < 2) continue
-    const outline = buildRoadOutline(road.points, road.width)
-    const casingWidth = road.width + Math.max(1.6, road.width * 0.3)
+    const w = roadRenderWidth(road)
+    const outline = buildRoadOutline(road.points, w)
+    const casingWidth = w + Math.max(1.6, w * 0.3)
     const casingOutline = buildRoadOutline(road.points, casingWidth)
 
     const casing = new THREE.Mesh(
