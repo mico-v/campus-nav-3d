@@ -50,6 +50,7 @@ type MapBackdropRequest = {
 
 type DragState =
   | { kind: 'pan' }
+  | { kind: 'backdrop' }
   | { kind: 'bVertex'; b: number; v: number }
   | { kind: 'bMove'; b: number }
   | { kind: 'bCorner'; b: number; c: number }
@@ -396,6 +397,19 @@ export class Canvas2D {
     const screen = this.pointerToScreen(event)
     const world = this.toWorld(screen[0], screen[1])
 
+    // 0) 中键(滚轮键) → 始终平移画布，无视光标下内容
+    if (event.button === 1) {
+      event.preventDefault()
+      this.startDrag({ kind: 'pan' }, world, screen, event.pointerId)
+      return
+    }
+
+    // 0b) 底图解锁(对齐模式) → 左键拖动平移底图，暂停元素编辑
+    if (!this.backdropLocked) {
+      this.startDrag({ kind: 'backdrop' }, world, screen, event.pointerId)
+      return
+    }
+
     // 1) grab a handle of the current selection
     const handle = this.pickHandle(world)
     if (handle) {
@@ -424,6 +438,19 @@ export class Canvas2D {
     if (this.drag.kind === 'pan') {
       this.view = pan(this.view, screen[0] - this.prevScreen[0], screen[1] - this.prevScreen[1])
       this.prevScreen = screen
+      this.render()
+      return
+    }
+    if (this.drag.kind === 'backdrop') {
+      const w = this.toWorld(screen[0], screen[1])
+      this.backdropAlign = {
+        ...this.backdropAlign,
+        offsetX: this.backdropAlign.offsetX + (w[0] - this.prevWorld[0]),
+        offsetZ: this.backdropAlign.offsetZ + (w[1] - this.prevWorld[1]),
+      }
+      this.prevWorld = w
+      this.prevScreen = screen
+      this.onBackdropAlignChange?.(this.backdropAlign)
       this.render()
       return
     }
@@ -521,7 +548,7 @@ export class Canvas2D {
 
   protected handlePointerUp(event: PointerEvent): void {
     if (!this.drag) return
-    if (this.drag.kind !== 'pan' && this.dragMoved && this.dragBefore) {
+    if (this.drag.kind !== 'pan' && this.drag.kind !== 'backdrop' && this.dragMoved && this.dragBefore) {
       this.store.recordUndo(this.dragBefore)
     }
     if (this.svgRoot.hasPointerCapture && this.svgRoot.hasPointerCapture(event.pointerId)) {
