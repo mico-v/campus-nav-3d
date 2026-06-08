@@ -120,6 +120,31 @@ export function worldBoundsToGeo(
   }
 }
 
+export interface BackdropAlign {
+  offsetX: number
+  offsetZ: number
+  scale: number
+}
+
+export const DEFAULT_BACKDROP_ALIGN: BackdropAlign = { offsetX: 0, offsetZ: 0, scale: 1 }
+
+// 纯函数：把数据 bounds 经"绕中心缩放 + 偏移"得到底图覆盖的世界矩形。无 DOM 依赖。
+export function applyBackdropAlign(
+  bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
+  align: BackdropAlign,
+): { minX: number; maxX: number; minZ: number; maxZ: number } {
+  const cx = (bounds.minX + bounds.maxX) / 2
+  const cz = (bounds.minZ + bounds.maxZ) / 2
+  const halfW = ((bounds.maxX - bounds.minX) / 2) * align.scale
+  const halfH = ((bounds.maxZ - bounds.minZ) / 2) * align.scale
+  return {
+    minX: cx + align.offsetX - halfW,
+    maxX: cx + align.offsetX + halfW,
+    minZ: cz + align.offsetZ - halfH,
+    maxZ: cz + align.offsetZ + halfH,
+  }
+}
+
 function svg<K extends keyof SVGElementTagNameMap>(
   tag: K,
   attrs: Record<string, string | number>,
