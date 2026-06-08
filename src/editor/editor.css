@@ -280,3 +280,16 @@ button.tool.danger:hover:not(:disabled) {
 .toast.err {
   border-color: var(--danger);
 }
+
+.lock-toggle,
+.scale-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+.scale-control input[type='range'] {
+  width: 110px;
+}

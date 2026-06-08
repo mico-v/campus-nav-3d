@@ -1,10 +1,34 @@
 import './editor.css'
 import { createDefaultCampusData } from '../data/campusData.ts'
 import { EditorStore } from './store.ts'
-import { Canvas2D, type MapBackdropConfig } from './canvas2d.ts'
+import { Canvas2D, type MapBackdropConfig, type BackdropAlign } from './canvas2d.ts'
 import { FormPanel } from './form.ts'
 import { loadCampus, saveCampus, ApiUnavailableError } from './api.ts'
 import { defaultLayerFlags, type LayerFlags } from './types.ts'
+
+const ALIGN_KEY = 'campus-editor:backdrop-align'
+
+function loadBackdropAlign(): BackdropAlign | null {
+  try {
+    const raw = localStorage.getItem(ALIGN_KEY)
+    if (!raw) return null
+    const v = JSON.parse(raw)
+    if (typeof v?.offsetX === 'number' && typeof v?.offsetZ === 'number' && typeof v?.scale === 'number') {
+      return { offsetX: v.offsetX, offsetZ: v.offsetZ, scale: v.scale }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function saveBackdropAlign(a: BackdropAlign): void {
+  try {
+    localStorage.setItem(ALIGN_KEY, JSON.stringify(a))
+  } catch {
+    // ignore (private mode / quota) — 对齐是辅助功能，存不了不致命
+  }
+}
 
 const LAYER_LABELS: Array<{ key: keyof LayerFlags; label: string }> = [
   { key: 'buildings', label: '建筑' },
@@ -81,6 +105,10 @@ async function boot(): Promise<void> {
           ).join('')}
         </div>
         <div class="group">
+          <label class="lock-toggle"><input type="checkbox" id="backdrop-lock" checked /> 底图锁定</label>
+          <label class="scale-control">底图缩放 <input type="range" id="backdrop-scale" min="0.5" max="2" step="0.01" value="1" /></label>
+        </div>
+        <div class="group">
           <a class="link" href="./index.html" target="_blank" rel="noopener">打开 3D 预览 ↗</a>
         </div>
       </div>
@@ -104,12 +132,27 @@ async function boot(): Promise<void> {
   const addType = app.querySelector<HTMLSelectElement>('#add-type')!
   const dirtyDot = app.querySelector<HTMLSpanElement>('#dirty-dot')!
   const toast = app.querySelector<HTMLDivElement>('#toast')!
+  const backdropLock = app.querySelector<HTMLInputElement>('#backdrop-lock')!
+  const backdropScale = app.querySelector<HTMLInputElement>('#backdrop-scale')!
 
   const canvas = new Canvas2D(canvasHost, store)
   canvas.setMapBackdrop(mapBackdrop)
+  const savedAlign = loadBackdropAlign()
+  if (savedAlign) {
+    canvas.setBackdropAlign(savedAlign)
+    backdropScale.value = String(savedAlign.scale)
+  }
+  canvas.onBackdropAlignChange = (a) => saveBackdropAlign(a)
   const form = new FormPanel(formHost, store)
   canvas.setLayers(layers)
   canvas.fitToData()
+
+  backdropLock.addEventListener('change', () => {
+    canvas.setBackdropLocked(backdropLock.checked)
+  })
+  backdropScale.addEventListener('input', () => {
+    canvas.setBackdropScale(Number(backdropScale.value))
+  })
 
   let toastTimer = 0
   function showToast(message: string, kind: 'ok' | 'err'): void {
