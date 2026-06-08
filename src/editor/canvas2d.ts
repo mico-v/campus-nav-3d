@@ -90,6 +90,36 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
 
+export interface GeoBox {
+  minLat: number
+  maxLat: number
+  minLon: number
+  maxLon: number
+}
+
+// 纯函数：世界 bounds + 锚点经纬 → 经纬 bbox。无 DOM 依赖，可单测。
+export function worldBoundsToGeo(
+  bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
+  opts: { latitude: number; longitude: number; metersPerWorldUnit?: number; zToLatitude?: number },
+): GeoBox {
+  const centerX = (bounds.minX + bounds.maxX) / 2
+  const centerZ = (bounds.minZ + bounds.maxZ) / 2
+  const zToLatitude = opts.zToLatitude ?? 1
+  const metersPerUnit = opts.metersPerWorldUnit ?? 1
+  const metersPerLon = 111_320 * Math.cos(opts.latitude * (Math.PI / 180))
+  const metersPerLat = 110_574
+  const minLat = opts.latitude + ((bounds.minZ - centerZ) * metersPerUnit * zToLatitude) / metersPerLat
+  const maxLat = opts.latitude + ((bounds.maxZ - centerZ) * metersPerUnit * zToLatitude) / metersPerLat
+  const minLon = opts.longitude + ((bounds.minX - centerX) * metersPerUnit) / metersPerLon
+  const maxLon = opts.longitude + ((bounds.maxX - centerX) * metersPerUnit) / metersPerLon
+  return {
+    minLat: Math.min(minLat, maxLat),
+    maxLat: Math.max(minLat, maxLat),
+    minLon: Math.min(minLon, maxLon),
+    maxLon: Math.max(minLon, maxLon),
+  }
+}
+
 function svg<K extends keyof SVGElementTagNameMap>(
   tag: K,
   attrs: Record<string, string | number>,
@@ -887,26 +917,17 @@ export class Canvas2D {
   }
 
   private buildWorldToGeo(bounds: ViewBounds, config: MapBackdropConfig): MapBoundsGeo {
-    const centerX = (bounds.minX + bounds.maxX) / 2
-    const centerZ = (bounds.minZ + bounds.maxZ) / 2
-    const zToLatitude = config.zToLatitude ?? 1
-    const metersPerUnit = config.metersPerWorldUnit ?? 1
-    const centerLat = config.latitude
-    const centerLon = config.longitude
-    const radiusLat = centerLat * (Math.PI / 180)
-    const metersPerLon = 111_320 * Math.cos(radiusLat)
-    const metersPerLat = 110_574
-
-    const minLat = centerLat + ((bounds.minZ - centerZ) * metersPerUnit * zToLatitude) / metersPerLat
-    const maxLat = centerLat + ((bounds.maxZ - centerZ) * metersPerUnit * zToLatitude) / metersPerLat
-    const minLon = centerLon + ((bounds.minX - centerX) * metersPerUnit) / metersPerLon
-    const maxLon = centerLon + ((bounds.maxX - centerX) * metersPerUnit) / metersPerLon
-
+    const geo = worldBoundsToGeo(bounds, {
+      latitude: config.latitude,
+      longitude: config.longitude,
+      metersPerWorldUnit: config.metersPerWorldUnit,
+      zToLatitude: config.zToLatitude,
+    })
     return {
-      minLat: clamp(Math.min(minLat, maxLat), -85, 85),
-      maxLat: clamp(Math.max(minLat, maxLat), -85, 85),
-      minLon: clamp(Math.min(minLon, maxLon), -180, 180),
-      maxLon: clamp(Math.max(minLon, maxLon), -180, 180),
+      minLat: clamp(geo.minLat, -85, 85),
+      maxLat: clamp(geo.maxLat, -85, 85),
+      minLon: clamp(geo.minLon, -180, 180),
+      maxLon: clamp(geo.maxLon, -180, 180),
     }
   }
 
