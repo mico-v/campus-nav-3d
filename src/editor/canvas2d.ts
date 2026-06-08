@@ -239,6 +239,25 @@ export class Canvas2D {
     this.render()
   }
 
+  setBackdropAlign(align: BackdropAlign): void {
+    this.backdropAlign = { offsetX: align.offsetX, offsetZ: align.offsetZ, scale: clamp(align.scale, 0.2, 5) }
+    this.render()
+  }
+
+  setBackdropLocked(locked: boolean): void {
+    this.backdropLocked = locked
+  }
+
+  setBackdropScale(scale: number): void {
+    this.backdropAlign = { ...this.backdropAlign, scale: clamp(scale, 0.2, 5) }
+    this.onBackdropAlignChange?.(this.backdropAlign)
+    this.render()
+  }
+
+  getBackdropAlign(): BackdropAlign {
+    return { ...this.backdropAlign }
+  }
+
   fitToData(): void {
     const rect = this.host.getBoundingClientRect()
     if (rect.width < 2 || rect.height < 2) return // layout not ready yet
@@ -266,6 +285,9 @@ export class Canvas2D {
   private drag: DragState | null = null
   private dragBefore: CampusData | null = null
   private dragMoved = false
+  private backdropAlign: BackdropAlign = { ...DEFAULT_BACKDROP_ALIGN }
+  private backdropLocked = true
+  onBackdropAlignChange: ((align: BackdropAlign) => void) | null = null
   private prevWorld: Point = [0, 0]
   private prevScreen: [number, number] = [0, 0]
   protected activeVertex: ActiveVertex = null
@@ -879,8 +901,9 @@ export class Canvas2D {
       return
     }
 
-    const [x1, y1] = this.toScreen(bounds.minX, bounds.minZ)
-    const [x2, y2] = this.toScreen(bounds.maxX, bounds.maxZ)
+    const aligned = applyBackdropAlign(bounds, this.backdropAlign)
+    const [x1, y1] = this.toScreen(aligned.minX, aligned.minZ)
+    const [x2, y2] = this.toScreen(aligned.maxX, aligned.maxZ)
     const left = Math.min(x1, x2)
     const top = Math.min(y1, y2)
     const width = Math.max(1, Math.abs(x2 - x1))
