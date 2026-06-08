@@ -37,6 +37,7 @@ export interface Building {
   color?: string
   zoneId: string
   footprint?: [number, number][]
+  info?: string
 }
 
 export interface Road {
@@ -72,6 +73,7 @@ export interface PoiMarker {
   position: [number, number, number]
   color?: string
   sourceBuildingId?: string
+  info?: string
 }
 
 export interface RouteDefinition {

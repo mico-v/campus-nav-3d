@@ -58,7 +58,7 @@ describe('computeDataBounds', () => {
 
   it('includes road points', () => {
     const data = emptyData()
-    data.roads.push({ id: 'r', points: [[-5, -5], [50, 60]] })
+    data.roads.push({ id: 'r', points: [[-5, -5], [50, 60]], width: 3 })
     expect(computeDataBounds(data)).toEqual({ minX: -5, maxX: 50, minZ: -5, maxZ: 60 })
   })
 })

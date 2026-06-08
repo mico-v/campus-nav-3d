@@ -63,7 +63,7 @@ function fpData(): CampusData {
         ],
       },
     ],
-    roads: [{ id: 'r1', points: [[0, 0], [100, 0]] }],
+    roads: [{ id: 'r1', points: [[0, 0], [100, 0]], width: 3 }],
     waters: [],
     fields: [],
     trees: [],
