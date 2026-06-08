@@ -598,13 +598,14 @@ export class Canvas2D {
     const ground = this.layerGroup('ground')
     const [gx1, gy1] = this.toScreen(bounds.minX, bounds.minZ)
     const [gx2, gy2] = this.toScreen(bounds.maxX, bounds.maxZ)
+    const backdropActive = this.mapBackdropConfig !== null
     ground.appendChild(
       svg('rect', {
         x: Math.min(gx1, gx2),
         y: Math.min(gy1, gy2),
         width: Math.abs(gx2 - gx1),
         height: Math.abs(gy2 - gy1),
-        fill: '#0c1a2e',
+        fill: backdropActive ? 'none' : '#0c1a2e',
         stroke: '#1e3a5f',
         'stroke-width': 1,
       }),
