@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="校园地图">
+  <rect width="64" height="64" rx="14" fill="#10233a"/>
+  <path d="M11 18 32 9l21 9v28l-21 9-21-9V18Z" fill="#38bdf8" opacity=".9"/>
+  <path d="m18 24 14-6 14 6v17l-14 6-14-6V24Z" fill="#10233a"/>
+  <path d="M32 18v29M18 24l14 6 14-6M18 41l14-6 14 6" fill="none" stroke="#f8fafc" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="32" cy="30" r="4" fill="#fbbf24"/>
+</svg>

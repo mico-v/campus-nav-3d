@@ -30,7 +30,7 @@ describe('Canvas2D rendering (DOM smoke)', () => {
     expect(buildingsLayer.children.length).toBe(data.buildings.length)
     // roads layer should contain polylines
     const roadsLayer = svg.querySelector('g[data-layer="roads"]')!
-    expect(roadsLayer.children.length).toBeGreaterThan(0)
+    if (data.roads.length > 0) expect(roadsLayer.children.length).toBeGreaterThan(0)
     // pois
     const poisLayer = svg.querySelector('g[data-layer="pois"]')!
     expect(poisLayer.children.length).toBe(data.pois.length)
@@ -47,5 +47,39 @@ describe('Canvas2D rendering (DOM smoke)', () => {
     canvas.render()
     const handles = host.querySelector('svg g[data-layer="handles"]')!
     expect(handles.children.length).toBe(data.buildings[idx].footprint!.length)
+  })
+
+  it('uses authored road width in the 2D editor and hides navigation routes', () => {
+    const data = createDefaultCampusData()
+    data.buildings = []
+    data.zones = []
+    data.waters = []
+    data.fields = []
+    data.trees = []
+    data.pois = []
+    data.roads = [{ id: 'editor-road', points: [[0, 0], [100, 0]], width: 24 }]
+    const store = new EditorStore(data)
+    const host = makeHost()
+    const canvas = new Canvas2D(host, store)
+    canvas.fitToData()
+
+    const road = host.querySelector('g[data-layer="roads"] polyline')!
+    expect(Number(road.getAttribute('stroke-width'))).toBeGreaterThan(6)
+    expect(host.querySelector('g[data-layer="route"]')).toBeNull()
+  })
+
+  it('can make building fills transparent for overlay inspection', () => {
+    const data = createDefaultCampusData()
+    const store = new EditorStore(data)
+    const host = makeHost()
+    const canvas = new Canvas2D(host, store)
+    canvas.setBuildingsTransparent(true)
+    canvas.fitToData()
+    const index = 0
+    store.select({ kind: 'building', index })
+    canvas.render()
+
+    const building = host.querySelector('g[data-layer="buildings"]')!.children[index] as SVGElement
+    expect(Number(building.getAttribute('fill-opacity'))).toBeLessThan(0.2)
   })
 })

@@ -13,7 +13,7 @@ function minimalCampus(): Record<string, unknown> {
   return {
     name: 'test',
     bounds: { width: 100, depth: 100 },
-    zones: [],
+    zones: [{ id: 'z1', name: 'zone', category: 'academic', center: [0, 0], size: [100, 100], color: '#ffffff' }],
     buildings: [
       {
         id: 'b1',
@@ -30,7 +30,6 @@ function minimalCampus(): Record<string, unknown> {
     fields: [],
     trees: [],
     pois: [],
-    routes: [],
   }
 }
 
@@ -86,7 +85,7 @@ describe('loadCampusData / saveCampusData', () => {
     const result = await saveCampusData(dataPath, backupDir, data, '2026-06-03T00:00:00.000Z')
     expect(result.ok).toBe(true)
     const onDisk = await readFile(dataPath, 'utf8')
-    expect(onDisk).toBe(serializeCampusData(data as never))
+    expect(onDisk).toBe(serializeCampusData({ ...data, roadNetwork: { nodes: [], segments: [] } } as never))
   })
 
   it('backs up the previous file before overwriting', async () => {
@@ -100,14 +99,14 @@ describe('loadCampusData / saveCampusData', () => {
 
   it('does not write when validation fails', async () => {
     const bad = minimalCampus()
-    delete bad.routes
-    await expect(saveCampusData(dataPath, backupDir, bad, '2026-06-03T00:00:00.000Z')).rejects.toThrow(/routes/)
+    delete (bad.buildings as Array<Record<string, unknown>>)[0].position
+    await expect(saveCampusData(dataPath, backupDir, bad, '2026-06-03T00:00:00.000Z')).rejects.toThrow(/position/)
     await expect(readFile(dataPath, 'utf8')).rejects.toThrow()
   })
 
   it('round-trips through loadCampusData', async () => {
     const data = minimalCampus()
     await saveCampusData(dataPath, backupDir, data, '2026-06-03T00:00:00.000Z')
-    expect(await loadCampusData(dataPath)).toEqual(data)
+    expect(await loadCampusData(dataPath)).toEqual({ ...data, roadNetwork: { nodes: [], segments: [] } })
   })
 })

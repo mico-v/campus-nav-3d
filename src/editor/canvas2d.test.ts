@@ -13,7 +13,6 @@ function emptyData(): CampusData {
     fields: [],
     trees: [],
     pois: [],
-    routes: [],
   }
 }
 

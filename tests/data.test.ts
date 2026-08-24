@@ -6,13 +6,13 @@ describe('campus 数据完整性', () => {
 
   it('顶层集合存在且非空', () => {
     expect(data.buildings.length).toBeGreaterThan(0)
-    expect(data.roads.length).toBeGreaterThan(0)
     expect(data.zones.length).toBeGreaterThan(0)
   })
 
-  it('建筑数量与路网数量符合当前数据基线', () => {
-    expect(data.buildings).toHaveLength(97)
-    expect(data.roads).toHaveLength(135)
+  it('建筑与路网集合具有稳定的唯一 ID', () => {
+    expect(data.buildings.length).toBeGreaterThan(0)
+    expect(new Set(data.buildings.map((building) => building.id)).size).toBe(data.buildings.length)
+    expect(new Set(data.roads.map((road) => road.id)).size).toBe(data.roads.length)
   })
 
   it('每个建筑都有合法的 position 与非负 height', () => {
@@ -32,5 +32,12 @@ describe('campus 数据完整性', () => {
         expect(Number.isFinite(z)).toBe(true)
       }
     }
+  })
+
+  it('默认数据包含与道路来源一致的可寻路拓扑', () => {
+    expect(data.roadNetwork?.nodes.length).toBeGreaterThan(0)
+    expect(data.roadNetwork?.segments.length).toBeGreaterThan(0)
+    expect(data.roadNetwork?.nodes.every((node) => (node.sourceIds?.length ?? 0) > 0)).toBe(true)
+    expect(data.roadNetwork?.segments.every((segment) => (segment.sourceIds?.length ?? 0) > 0)).toBe(true)
   })
 })

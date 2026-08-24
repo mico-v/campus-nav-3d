@@ -1,5 +1,6 @@
 import type { CampusData } from '../data/campusData.ts'
 import type { Selection } from './types.ts'
+import { syncRoadNetwork } from '../data/roadNormalization.ts'
 
 const UNDO_LIMIT = 100
 
@@ -15,12 +16,14 @@ export class EditorStore {
   private _data: CampusData
   private _selection: Selection = null
   private _dirty = false
+  private _revision = 0
   private undoStack: CampusData[] = []
   private redoStack: CampusData[] = []
   private subscribers = new Set<() => void>()
 
   constructor(initial: CampusData) {
     this._data = deepClone(initial)
+    syncRoadNetwork(this._data)
   }
 
   get data(): CampusData {
@@ -33,6 +36,11 @@ export class EditorStore {
 
   get dirty(): boolean {
     return this._dirty
+  }
+
+  /** Changes whenever editable data is mutated, including live drag previews. */
+  get revision(): number {
+    return this._revision
   }
 
   get canUndo(): boolean {
@@ -57,13 +65,20 @@ export class EditorStore {
     this.notify()
   }
 
-  /** Apply a mutation: snapshot current state for undo, run `fn`, mark dirty, notify. */
+  /** Apply a mutation and record one undo step only when data actually changes. */
   mutate(_label: string, fn: (data: CampusData) => void): void {
-    this.undoStack.push(deepClone(this._data))
+    const before = deepClone(this._data)
+    fn(this._data)
+    syncRoadNetwork(this._data)
+    if (JSON.stringify(before) === JSON.stringify(this._data)) {
+      this.notify()
+      return
+    }
+    this.undoStack.push(before)
     if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
     this.redoStack = []
-    fn(this._data)
     this._dirty = true
+    this._revision += 1
     this.notify()
   }
 
@@ -72,7 +87,9 @@ export class EditorStore {
     if (!prev) return
     this.redoStack.push(deepClone(this._data))
     this._data = prev
+    syncRoadNetwork(this._data)
     this._dirty = true
+    this._revision += 1
     this.clampSelection()
     this.notify()
   }
@@ -82,13 +99,17 @@ export class EditorStore {
     if (!next) return
     this.undoStack.push(deepClone(this._data))
     this._data = next
+    syncRoadNetwork(this._data)
     this._dirty = true
+    this._revision += 1
     this.clampSelection()
     this.notify()
   }
 
   /** Re-render without recording history — used for live drag previews. */
   notifyChange(): void {
+    syncRoadNetwork(this._data)
+    this._revision += 1
     this.notify()
   }
 
@@ -97,10 +118,13 @@ export class EditorStore {
    * Pass the snapshot captured *before* the edit began.
    */
   recordUndo(before: CampusData): void {
+    if (JSON.stringify(before) === JSON.stringify(this._data)) return
+    syncRoadNetwork(this._data)
     this.undoStack.push(deepClone(before))
     if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
     this.redoStack = []
     this._dirty = true
+    this._revision += 1
     this.notify()
   }
 
@@ -111,10 +135,12 @@ export class EditorStore {
 
   replaceAll(data: CampusData): void {
     this._data = deepClone(data)
+    syncRoadNetwork(this._data)
     this.undoStack = []
     this.redoStack = []
     this._selection = null
     this._dirty = false
+    this._revision += 1
     this.notify()
   }
 
@@ -122,9 +148,8 @@ export class EditorStore {
   private clampSelection(): void {
     const sel = this._selection
     if (!sel) return
-    if (sel.kind === 'routePoint') {
-      const route = this._data.routes[sel.routeIndex]
-      if (!route || !route.points[sel.index]) this._selection = null
+    if (sel.kind === 'road-node') {
+      if (!this._data.roadNetwork?.nodes.some((node) => node.id === sel.id)) this._selection = null
       return
     }
     const collection = this._data[`${sel.kind}s` as 'buildings'] as unknown[] | undefined

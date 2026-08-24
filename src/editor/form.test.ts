@@ -17,7 +17,6 @@ function data(): CampusData {
     fields: [],
     trees: [],
     pois: [{ id: 'p1', name: 'POI1', kind: 'landmark', position: [5, 6, 7] }],
-    routes: [],
   }
 }
 
@@ -59,6 +58,7 @@ describe('FormPanel', () => {
     expect(store.dirty).toBe(true)
     store.undo()
     expect(store.data.buildings[0].height).toBe(12)
+    expect(store.canUndo).toBe(false)
   })
 
   it('edits building info textarea', () => {
@@ -104,4 +104,95 @@ describe('FormPanel', () => {
     expect(() => inputByLabel(host, '高度')).toThrow()
     expect(() => inputByLabel(host, '类型')).not.toThrow() // poi kind field
   })
+
+  it('adds and deletes road points from the points editor', () => {
+    const d = data()
+    d.roads = [{ id: 'r1', points: [[0, 0], [10, 0]], width: 3 }]
+    const host = document.createElement('div')
+    const store = new EditorStore(d)
+    const form = new FormPanel(host, store)
+    store.subscribe(() => form.render())
+    store.select({ kind: 'road', index: 0 })
+
+    const rows = () => Array.from(host.querySelectorAll('.points-row'))
+    expect(rows().length).toBe(2)
+
+    // insert after first point (midpoint)
+    rows()[0].querySelectorAll('button')[0].dispatchEvent(new Event('click', { bubbles: true }))
+    expect(store.data.roads[0].points.length).toBe(3)
+    expect(store.data.roads[0].points[1][0]).toBeCloseTo(5)
+    expect(rows().length).toBe(3)
+
+    // append at end
+    host.querySelector('.points-editor > button.tool.small')!.dispatchEvent(new Event('click', { bubbles: true }))
+    expect(store.data.roads[0].points.length).toBe(4)
+
+    // delete first point
+    rows()[0].querySelectorAll('button')[1].dispatchEvent(new Event('click', { bubbles: true }))
+    expect(store.data.roads[0].points.length).toBe(3)
+
+    // undoable as discrete steps
+    store.undo()
+    expect(store.data.roads[0].points.length).toBe(4)
+  })
+
+  it('disables road point delete at the minimum of 2', () => {
+    const d = data()
+    d.roads = [{ id: 'r1', points: [[0, 0], [10, 0]], width: 3 }]
+    const host = document.createElement('div')
+    const store = new EditorStore(d)
+    const form = new FormPanel(host, store)
+    store.subscribe(() => form.render())
+    store.select({ kind: 'road', index: 0 })
+
+    const del = host.querySelectorAll('.points-row')[0].querySelectorAll('button')[1] as HTMLButtonElement
+    expect(del.disabled).toBe(true)
+  })
+
+  it('converts a box building to an editable footprint', () => {
+    const host = document.createElement('div')
+    const store = new EditorStore(data())
+    const form = new FormPanel(host, store)
+    store.subscribe(() => form.render())
+    store.select({ kind: 'building', index: 0 })
+
+    const convert = host.querySelector<HTMLButtonElement>('.points-editor button.tool.small')
+    expect(convert).toBeTruthy()
+    convert!.dispatchEvent(new Event('click', { bubbles: true }))
+    expect(store.data.buildings[0].footprint!.length).toBe(4)
+    expect(host.querySelectorAll('.points-row').length).toBe(4)
+  })
+
+  it('converts a polygon building back to a rectangle', () => {
+    const d = data()
+    d.buildings[0].footprint = [[0, 0], [30, 0], [40, 20], [10, 40]]
+    const host = document.createElement('div')
+    const store = new EditorStore(d)
+    const form = new FormPanel(host, store)
+    store.subscribe(() => form.render())
+    store.select({ kind: 'building', index: 0 })
+
+    const button = Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find((item) => item.textContent?.includes('转为矩形建筑'))
+    expect(button).toBeTruthy()
+    button!.click()
+    expect(store.data.buildings[0].footprint).toBeUndefined()
+    expect(store.data.buildings[0].position).toEqual([20, 20])
+    expect(store.data.buildings[0].size).toEqual([40, 40])
+  })
+
+  it('edits the building id field', () => {
+    const host = document.createElement('div')
+    const store = new EditorStore(data())
+    const form = new FormPanel(host, store)
+    store.subscribe(() => form.render())
+    store.select({ kind: 'building', index: 0 })
+
+    const id = inputByLabel(host, 'ID') as HTMLInputElement
+    id.dispatchEvent(new Event('focus'))
+    id.value = 'b9'
+    fire(id, 'input')
+    fire(id, 'change')
+    expect(store.data.buildings[0].id).toBe('b9')
+  })
+
 })

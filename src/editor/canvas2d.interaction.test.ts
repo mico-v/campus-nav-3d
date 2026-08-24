@@ -68,7 +68,6 @@ function fpData(): CampusData {
     fields: [],
     trees: [],
     pois: [],
-    routes: [],
   }
 }
 
@@ -131,6 +130,20 @@ describe('Canvas2D interaction', () => {
     expect(store.data.buildings[0].footprint!.length).toBe(3)
   })
 
+  it('selects a vertex directly and deletes it without selecting the object first', () => {
+    const { store, canvas } = setup()
+    const v = canvas.screenOf(70, 30)
+    canvas.down(v[0], v[1])
+
+    expect(store.selection).toEqual({ kind: 'building', index: 0 })
+    expect(store.data.buildings[0].footprint).toHaveLength(4)
+    expect(canvas.hasActiveVertex).toBe(true)
+
+    canvas.pressDelete()
+    expect(store.data.buildings[0].footprint).toHaveLength(3)
+    expect(canvas.hasActiveVertex).toBe(false)
+  })
+
   it('drags a road node', () => {
     const { store, canvas } = setup()
     store.select({ kind: 'road', index: 0 })
@@ -141,5 +154,23 @@ describe('Canvas2D interaction', () => {
     canvas.up(target[0], target[1])
     expect(store.data.roads[0].points[1][0]).toBeCloseTo(120, 1)
     expect(store.data.roads[0].points[1][1]).toBeCloseTo(20, 1)
+  })
+
+  it('drags a junction node across all connected source roads', () => {
+    const { store, canvas } = setup()
+    store.data.roads = [
+      { id: 'h', points: [[0, 0], [100, 0]], width: 8 },
+      { id: 'v', points: [[50, -50], [50, 50]], width: 8 },
+    ]
+    store.notifyChange()
+    const start = canvas.screenOf(50, 0)
+    const target = canvas.screenOf(60, 10)
+    canvas.down(start[0], start[1])
+    canvas.move(target[0], target[1])
+    canvas.up(target[0], target[1])
+
+    expect(store.data.roads[0].points).toContainEqual([60, 10])
+    expect(store.data.roads[1].points).toContainEqual([60, 10])
+    expect(store.data.roadNetwork?.nodes.some((node) => node.kind === 'junction' && node.position[0] === 60 && node.position[1] === 10)).toBe(true)
   })
 })

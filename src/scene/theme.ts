@@ -1,11 +1,14 @@
 // Apple 地图风：低饱和柔和配色 + Y 层级栈（避免共面 z-fighting）。
 export const LAYER = {
-  ground: 0,
+  // Keep the ground below all authored map layers and building footprints.
+  // This avoids coplanar depth competition when the camera moves around a building.
+  ground: -0.2,
   zone: 0.05,
   field: 0.1,
   water: 0.15,
   roadCasing: 0.18,
   road: 0.2,
+  building: 0.25,
   marker: 0.25,
 } as const
 
@@ -15,21 +18,22 @@ export const COLORS = {
   roof: '#fbfcfe',
   roofSelected: '#fff1f2',
   selected: '#fb7185',
-  road: '#ffffff',
-  roadCasing: '#d7dde3',
-  routePrimary: '#ff4fa3',
+  road: '#969da3',
+  roadCasing: '#c7ccd0',
+  buildingEdge: '#526273',
+  selectedEdge: '#be123c',
 } as const
 
 // 建筑体色（按类别），柔和低饱和。
 export const BUILDING_COLOR: Record<string, string> = {
-  dorm: '#cdd6f4',
-  academic: '#bcd4f2',
-  admin: '#c2e6cd',
-  sports: '#bfeaf0',
-  library: '#f5e2ad',
-  gate: '#f6c79a',
-  canteen: '#f3bcbc',
-  service: '#f3d2ab',
-  poi: '#f3c4dc',
-  landscape: '#c2e6cd',
+  dorm: '#2a78d6',
+  academic: '#eb6834',
+  landscape: '#1baf7a',
+  sports: '#eda100',
+  service: '#e87ba4',
+  admin: '#008300',
+  library: '#4a3aa7',
+  gate: '#e34948',
+  canteen: '#64748b',
+  poi: '#64748b',
 }

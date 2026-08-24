@@ -1,4 +1,7 @@
 import campusJson from './campus.json'
+import { normalizeCampusData } from './roadNormalization'
+import { validateCampusDataValue } from './campusValidation'
+import type { RoadAccess, RoadClass, RoadNetwork, RoadSurface } from './roadNetwork'
 
 export type ZoneCategory = 'dorm' | 'academic' | 'landscape' | 'sports' | 'service' | 'admin'
 
@@ -35,7 +38,8 @@ export interface Building {
   size: [number, number]
   height: number
   color?: string
-  zoneId: string
+  /** Optional until the campus is subdivided into authoritative zones. */
+  zoneId?: string
   footprint?: [number, number][]
   info?: string
 }
@@ -45,6 +49,18 @@ export interface Road {
   points: [number, number][]
   width: number
   color?: string
+  /** Optional explicit display classification; legacy data falls back to id rules. */
+  kind?: 'graph' | 'road' | 'canal'
+  roadClass?: RoadClass
+  surface?: RoadSurface
+  access?: RoadAccess
+  oneWay?: boolean
+  speed?: number
+  sidewalk?: boolean
+  /** IDs of legacy/source records represented by this canonical road. */
+  sourceIds?: string[]
+  /** Routing/debug provenance; never rendered as an additional road. */
+  routing?: { sourceIds: string[] }
 }
 
 export interface WaterBody {
@@ -76,26 +92,26 @@ export interface PoiMarker {
   info?: string
 }
 
-export interface RouteDefinition {
-  id: string
-  name: string
-  points: [number, number, number][]
-  steps: string[]
-  landmarks: string[]
-}
-
-export interface CampusData {
+/** Static, editable map data. Navigation results are runtime-only and are not persisted here. */
+export interface MapDataset {
   name: string
   bounds: { width: number; depth: number }
   zones: Zone[]
   buildings: Building[]
   roads: Road[]
+  /** Explicit routable topology; legacy imports may omit it until normalization. */
+  roadNetwork?: RoadNetwork
   waters: WaterBody[]
   fields: FieldArea[]
   trees: [number, number][]
   pois: PoiMarker[]
-  routes: RouteDefinition[]
 }
+
+/** Backwards-compatible name used by the editor and renderer. */
+export type CampusData = MapDataset
+
+/** Data after import normalization; this is the shape used by rendering and navigation. */
+export type CanonicalCampusData = Omit<MapDataset, 'roadNetwork'> & { roadNetwork: RoadNetwork }
 
 // Sources: graph positions and connectivity from ZDaneel/usts-navigation-graph commit 6f251d8;
 // named OpenStreetMap building footprints are fitted into the graph coordinate system using matched landmarks.
@@ -105,6 +121,11 @@ export function cloneCampusData(data: CampusData): CampusData {
   return JSON.parse(JSON.stringify(data)) as CampusData
 }
 
-export function createDefaultCampusData(): CampusData {
-  return cloneCampusData(baseCampusData)
+export function createDefaultCampusData(): CanonicalCampusData {
+  return normalizeCampusData(cloneCampusData(baseCampusData))
+}
+
+/** Return actionable errors before an edited dataset is serialized. */
+export function validateCampusData(data: CampusData): string[] {
+  return validateCampusDataValue(data)
 }

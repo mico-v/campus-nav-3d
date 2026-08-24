@@ -23,6 +23,7 @@ describe('campus-store 保留 footprint 字段', () => {
       const backupDir = join(dir, 'backups')
       await saveCampusData(dataPath, backupDir, data, '2026-06-07T00:00:00.000Z')
       const written = JSON.parse(await readFile(dataPath, 'utf8'))
+      expect(written.roadNetwork.nodes.length).toBeGreaterThan(0)
       const writtenZone = written.zones.find((z: { id: string }) => z.id === zoneWithFp!.id)
       expect(writtenZone.footprint).toEqual(zoneWithFp!.footprint)
     } finally {

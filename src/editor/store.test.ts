@@ -15,7 +15,6 @@ function makeData(): CampusData {
     fields: [],
     trees: [],
     pois: [],
-    routes: [],
   }
 }
 
@@ -74,6 +73,26 @@ describe('EditorStore', () => {
     store.select({ kind: 'building', index: 0 })
     expect(store.selection).toEqual({ kind: 'building', index: 0 })
     expect(fn).toHaveBeenCalledTimes(1)
+  })
+
+  it('selection transitions notify both views without changing data', () => {
+    const store = new EditorStore(makeData())
+    const fn = vi.fn()
+    store.subscribe(fn)
+    store.select({ kind: 'building', index: 0 })
+    store.select(null)
+    expect(store.selection).toBeNull()
+    expect(store.data.buildings[0].position).toEqual([0, 0])
+    expect(fn).toHaveBeenCalledTimes(2)
+  })
+
+  it('recordUndo makes a constrained external edit reversible', () => {
+    const store = new EditorStore(makeData())
+    const before = JSON.parse(JSON.stringify(store.data)) as CampusData
+    store.data.buildings[0].position = [20, 30]
+    store.recordUndo(before)
+    store.undo()
+    expect(store.data.buildings[0].position).toEqual([0, 0])
   })
 
   it('mutations on the working copy do not leak into undo snapshots', () => {

@@ -1,64 +1,17 @@
 import { mkdir, readFile, writeFile, rename, copyFile, access } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { CampusData } from '../src/data/campusData.ts'
+import { assertValidCampusData } from '../src/data/campusValidation.ts'
+import { normalizeCampusData } from '../src/data/roadNormalization.ts'
 
 export interface SaveResult {
   ok: true
   backupPath: string | null
 }
 
-const ARRAY_KEYS = [
-  'zones',
-  'buildings',
-  'roads',
-  'waters',
-  'fields',
-  'trees',
-  'pois',
-  'routes',
-] as const
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isNumberPair(value: unknown): boolean {
-  return Array.isArray(value) && value.length >= 2 && value.every((n) => typeof n === 'number')
-}
-
-/** Throws Error with a descriptive message when `value` is not a structurally valid CampusData. */
+/** Throws an actionable error when `value` is not a valid static map dataset. */
 export function validateCampusData(value: unknown): asserts value is CampusData {
-  if (!isRecord(value)) {
-    throw new Error('campus data must be an object')
-  }
-  if (typeof value.name !== 'string') {
-    throw new Error('campus data "name" must be a string')
-  }
-  if (!isRecord(value.bounds) || typeof value.bounds.width !== 'number' || typeof value.bounds.depth !== 'number') {
-    throw new Error('campus data "bounds" must have numeric width and depth')
-  }
-  for (const key of ARRAY_KEYS) {
-    if (!Array.isArray(value[key])) {
-      throw new Error(`campus data "${key}" must be an array`)
-    }
-  }
-
-  const buildings = value.buildings as unknown[]
-  buildings.forEach((b, i) => {
-    if (!isRecord(b)) throw new Error(`buildings[${i}] must be an object`)
-    if (typeof b.id !== 'string') throw new Error(`buildings[${i}].id must be a string`)
-    if (typeof b.name !== 'string') throw new Error(`buildings[${i}].name must be a string`)
-    if (typeof b.category !== 'string') throw new Error(`buildings[${i}].category must be a string`)
-    if (!isNumberPair(b.position)) throw new Error(`buildings[${i}].position must be [number, number]`)
-    if (!isNumberPair(b.size)) throw new Error(`buildings[${i}].size must be [number, number]`)
-    if (typeof b.height !== 'number') throw new Error(`buildings[${i}].height must be a number`)
-  })
-
-  const roads = value.roads as unknown[]
-  roads.forEach((r, i) => {
-    if (!isRecord(r)) throw new Error(`roads[${i}] must be an object`)
-    if (!Array.isArray(r.points)) throw new Error(`roads[${i}].points must be an array`)
-  })
+  assertValidCampusData(value)
 }
 
 /** Stable, pretty-printed serialization with trailing newline. */
@@ -91,6 +44,7 @@ export async function saveCampusData(
   now: string,
 ): Promise<SaveResult> {
   validateCampusData(data)
+  const normalized = normalizeCampusData(data)
 
   let backupPath: string | null = null
   if (await fileExists(dataPath)) {
@@ -102,7 +56,7 @@ export async function saveCampusData(
 
   await mkdir(dirname(dataPath), { recursive: true })
   const tmpPath = `${dataPath}.tmp`
-  await writeFile(tmpPath, serializeCampusData(data), 'utf8')
+  await writeFile(tmpPath, serializeCampusData(normalized), 'utf8')
   await rename(tmpPath, dataPath)
 
   return { ok: true, backupPath }

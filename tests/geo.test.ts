@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { flatPolygon, extrudeFootprint, buildRoadOutline } from '../src/scene/geo'
+import { flatPolygon, extrudeFootprint, buildRoadCorridor, buildRoadOutline } from '../src/scene/geo'
 import type * as THREE from 'three'
 
 function worldVerts(geo: THREE.BufferGeometry): number[][] {
@@ -53,5 +53,20 @@ describe('buildRoadOutline', () => {
     const zs = outline.map((p) => p[1])
     // 重合起点不应把道路掐断为零宽：仍应存在 ±2 的半宽偏移
     expect(Math.max(...zs) - Math.min(...zs)).toBeGreaterThan(0)
+  })
+})
+
+describe('buildRoadCorridor', () => {
+  it('keeps acute turns finite and bounded with a miter limit', () => {
+    const corridor = buildRoadCorridor([[0, 0], [10, 0], [10.1, 10]], 10, { join: 'miter', cap: 'square', miterLimit: 2 })
+    expect(corridor.length).toBeGreaterThan(4)
+    expect(corridor.every((point) => point.every(Number.isFinite))).toBe(true)
+    expect(Math.max(...corridor.map(([x]) => x)) - Math.min(...corridor.map(([x]) => x))).toBeLessThan(40)
+  })
+
+  it('supports round caps without changing the authored width', () => {
+    const corridor = buildRoadCorridor([[0, 0], [20, 0]], 6, { cap: 'round' })
+    expect(corridor.length).toBeGreaterThan(12)
+    expect(Math.max(...corridor.map(([, z]) => z)) - Math.min(...corridor.map(([, z]) => z))).toBeCloseTo(6, 0)
   })
 })

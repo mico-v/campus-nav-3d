@@ -1,4 +1,6 @@
 import type { CampusData } from '../data/campusData.ts'
+import { assertValidCampusData } from '../data/campusValidation.ts'
+import { normalizeCampusData } from '../data/roadNormalization.ts'
 
 const ENDPOINT = '/api/campus'
 
@@ -30,7 +32,9 @@ export async function loadCampus(): Promise<CampusData> {
     // The static preview server returns index.html for unknown routes.
     throw new ApiUnavailableError('编辑后端不可用（未返回 JSON）')
   }
-  return (await response.json()) as CampusData
+  const raw: unknown = await response.json()
+  assertValidCampusData(raw)
+  return normalizeCampusData(raw)
 }
 
 /** Persist campus data via the dev backend. Throws Error with the server message on failure. */
