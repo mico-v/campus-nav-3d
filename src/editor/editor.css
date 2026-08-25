@@ -125,6 +125,58 @@ button.tool.active {
   text-decoration: none;
 }
 
+.structure-search-group {
+  position: relative;
+}
+
+.search-label {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#structure-search {
+  width: 190px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 13px;
+}
+
+.structure-search-results {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 55px;
+  width: 260px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  z-index: 20;
+}
+
+.structure-search-results[hidden] { display: none; }
+
+.structure-search-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.structure-search-result:hover { background: var(--panel-2); }
+.structure-search-result small { color: var(--muted); margin-top: 2px; }
+
 .layer-toggles {
   display: flex;
   gap: 9px;
@@ -295,6 +347,47 @@ button.tool.active {
 .toast.err {
   border-color: var(--danger);
 }
+
+.validation-output {
+  position: fixed;
+  right: 344px;
+  bottom: 34px;
+  width: min(560px, calc(100vw - 370px));
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px 12px;
+  background: rgba(30, 41, 59, 0.98);
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  z-index: 40;
+  font-size: 12px;
+}
+
+.validation-output ul { margin: 7px 0 0; padding-left: 18px; }
+.validation-output li { margin: 3px 0; }
+.validation-output button { border: 0; padding: 0; color: #fecaca; background: transparent; text-align: left; cursor: pointer; }
+.validation-output button:hover { color: #fff; text-decoration: underline; }
+
+.road-help {
+  position: fixed;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  width: min(620px, calc(100vw - 32px));
+  padding: 20px 24px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  z-index: 60;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.road-help h2 { margin: 0 0 8px; font-size: 17px; }
+.road-help ol { margin: 0; padding-left: 22px; }
+.road-help li + li { margin-top: 7px; }
+.road-help code { color: #7dd3fc; }
+.road-help-close { position: absolute; top: 8px; right: 10px; border: 0; background: transparent; color: var(--muted); font-size: 24px; cursor: pointer; }
 
 .lock-toggle,
 .scale-control {

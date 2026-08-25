@@ -8,6 +8,7 @@ import { defaultLayerFlags, type LayerFlags, DEFAULT_GRID_SETTINGS, type EditorM
 import { CampusScene } from '../scene/CampusScene.ts'
 import { translatePoints } from './geometry.ts'
 import { moveRoadNode } from '../data/roadNetwork.ts'
+import { editorSearchResults, selectionForValidationError } from './search.ts'
 
 const ALIGN_KEY = 'campus-editor:backdrop-align'
 
@@ -52,6 +53,10 @@ const ADD_TYPES: Array<{ value: string; label: string }> = [
   { value: 'poi', label: 'POI' },
 ]
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
+}
+
 async function boot(): Promise<void> {
   const app = document.querySelector<HTMLDivElement>('#app')
   if (!app) throw new Error('App root not found')
@@ -84,10 +89,16 @@ async function boot(): Promise<void> {
       <div class="toolbar">
         <h1>校园地图编辑器</h1>
         <div class="group">
-          <button class="tool" id="btn-validate">校验</button>
+          <button class="tool" id="btn-validate" title="检查全部数据；错误会显示在右下角并可点击定位">校验</button>
           <button class="tool primary" id="btn-save"${readOnly ? ' disabled' : ''}>保存</button>
           <button class="tool" id="btn-export">导出 JSON</button>
+          <button class="tool" id="btn-road-help" title="了解可编辑道路与自动路网的关系">道路说明</button>
           <span class="dirty-dot" id="dirty-dot" title="未保存改动"></span>
+        </div>
+        <div class="group structure-search-group">
+          <label class="search-label" for="structure-search">快速查找</label>
+          <input id="structure-search" type="search" placeholder="道路名 / ID / 建筑 / 场地" autocomplete="off" />
+          <div class="structure-search-results" id="structure-search-results" hidden></div>
         </div>
         <div class="group">
           <button class="tool" id="btn-undo" disabled>撤销</button>
@@ -116,11 +127,11 @@ async function boot(): Promise<void> {
           <button class="tool mode" data-mode="pan">平移</button>
           <button class="tool mode" data-mode="add-road">加道路/节点</button>
           <button class="tool mode" data-mode="reshape">重塑</button>
-          <button class="tool mode" data-mode="split-merge">拆分/合并</button>
+          <button class="tool mode" data-mode="split-merge" title="只选择道路或路网节点，再使用右侧拆分/合并命令">道路拓扑选择</button>
           <button class="tool" id="btn-split-road" title="将选中道路从中间节点拆成两条">拆分选中道路</button>
           <button class="tool" id="btn-merge-road" title="把选中道路与相邻端点道路合并">合并相邻道路</button>
           <button class="tool" id="btn-merge-node" title="把选中道路节点与附近节点合并">合并相邻节点</button>
-          <button class="tool mode" data-mode="area">区域/建筑</button>
+          <button class="tool mode" data-mode="area" title="穿过建筑和道路，优先选择底层区域、水体或场地">区域优先选择</button>
         </div>
         <div class="group precision-tools">
           <label class="lock-toggle"><input type="checkbox" id="grid-visible" checked /> 网格</label>
@@ -146,6 +157,17 @@ async function boot(): Promise<void> {
         <div class="form-host" id="form-host"></div>
       </div>
       <div class="toast" id="toast"></div>
+      <div class="validation-output" id="validation-output" hidden></div>
+      <div class="road-help" id="road-help" hidden>
+        <button type="button" class="road-help-close" id="road-help-close" aria-label="关闭">×</button>
+        <h2>道路是如何工作的</h2>
+        <ol>
+          <li><code>roads</code> 是你直接编辑和保存的道路中心线；每条道路由 ID、可选名称、节点坐标、宽度和通行属性组成。</li>
+          <li><code>roadNetwork</code> 是系统根据道路中心线自动生成的导航拓扑。交叉处会自动切分成路段和路口节点，无需手工维护。</li>
+          <li>移动、拆分或合并道路后，编辑器会立即重建路网；保存前校验会检查中心线、宽度、节点引用和拓扑一致性。</li>
+          <li>定位问题：输入名称或 ID 快速查找；校验失败后点击右下角的具体错误，可直接选中相关道路或节点。</li>
+        </ol>
+      </div>
       <div class="status-bar" id="status-bar">选择模式 · 网格 10 · 吸附优先：节点/交叉点/锚点 → 网格</div>
     </div>
   `
@@ -163,6 +185,12 @@ async function boot(): Promise<void> {
   const addType = app.querySelector<HTMLSelectElement>('#add-type')!
   const dirtyDot = app.querySelector<HTMLSpanElement>('#dirty-dot')!
   const toast = app.querySelector<HTMLDivElement>('#toast')!
+  const validationOutput = app.querySelector<HTMLDivElement>('#validation-output')!
+  const structureSearch = app.querySelector<HTMLInputElement>('#structure-search')!
+  const structureSearchResults = app.querySelector<HTMLDivElement>('#structure-search-results')!
+  const btnRoadHelp = app.querySelector<HTMLButtonElement>('#btn-road-help')!
+  const roadHelp = app.querySelector<HTMLDivElement>('#road-help')!
+  const roadHelpClose = app.querySelector<HTMLButtonElement>('#road-help-close')!
   const backdropLock = app.querySelector<HTMLInputElement>('#backdrop-lock')!
   const backdropScale = app.querySelector<HTMLInputElement>('#backdrop-scale')!
   const btnBuildingTransparent = app.querySelector<HTMLButtonElement>('#btn-building-transparent')!
@@ -229,6 +257,7 @@ async function boot(): Promise<void> {
     canvas.setMode(mode)
     modeButtons.forEach((candidate) => candidate.classList.toggle('active', candidate === button))
     statusBar.textContent = `${button.textContent}模式 · 网格 ${canvas.getGridSettings().spacing} · 吸附优先：节点/交叉点/锚点 → 网格`
+    showToast(button.title || `已切换到${button.textContent}模式`, 'ok')
   }))
   const updateGrid = () => {
     canvas.setGridSettings({ visible: gridVisible.checked, snap: gridSnap.checked, angleSnap: angleSnap.checked, spacing: Number(gridSpacing.value) || 10 })
@@ -258,6 +287,9 @@ async function boot(): Promise<void> {
     btnMergeRoad.disabled = !roadSelected || readOnly
     btnMergeNode.disabled = store.selection?.kind !== 'road-node' || readOnly
   }
+
+  btnRoadHelp.addEventListener('click', () => { roadHelp.hidden = false })
+  roadHelpClose.addEventListener('click', () => { roadHelp.hidden = true })
 
   let activeView: '2d' | '3d' = '2d'
   let threeRenderScheduled = false
@@ -356,24 +388,75 @@ async function boot(): Promise<void> {
     canvasHost.hidden = view !== '2d'
     sceneHost.hidden = view !== '3d'
     app.querySelectorAll<HTMLButtonElement>('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === view))
+    modeButtons.forEach((button) => { button.disabled = view === '3d' })
+    backdropLock.disabled = view === '3d'
+    backdropScale.disabled = view === '3d'
+    btnBuildingTransparent.disabled = view === '3d'
     if (view === '3d') {
       // 2D 期间数据可能已被就地修改，切回 3D 时强制重建一次场景。
       syncScene()
       scene3d.resize()
-      scene3d.focusSelection()
+      if (store.selection) scene3d.focusSelection()
+      else scene3d.setOverviewCamera()
       request3dRender()
     }
+    statusBar.textContent = view === '3d' ? '3D 检查 · 拖拽旋转 · 滚轮缩放 · 右键平移 · 可点击选择对象' : `${canvas.getMode()} · 2D 几何编辑`
   }
   app.querySelectorAll<HTMLButtonElement>('[data-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view as '2d' | '3d')))
-  btnFocus.addEventListener('click', () => activeView === '3d' ? scene3d.focusSelection() : canvas.fitToData())
-  btnTopdown.addEventListener('click', () => { setView('3d'); scene3d.setTopDown(true) })
-  threeEdit.addEventListener('change', () => scene3d.setEditorEditMode(threeEdit.checked))
-  btnSplitRoad.addEventListener('click', () => canvas.splitSelectedRoad())
+  btnFocus.addEventListener('click', () => {
+    if (!store.selection) {
+      if (activeView === '3d') scene3d.setOverviewCamera()
+      else canvas.fitToData()
+      showToast('未选择对象，已适应全图', 'ok')
+    } else if (activeView === '3d') scene3d.focusSelection()
+    else canvas.focusSelection()
+    request3dRender()
+  })
+  let topDown = false
+  btnTopdown.addEventListener('click', () => {
+    setView('3d')
+    topDown = !topDown
+    scene3d.setTopDown(topDown)
+    btnTopdown.classList.toggle('active', topDown)
+    btnTopdown.textContent = topDown ? '退出顶视图' : '顶视图'
+    request3dRender()
+  })
+  threeEdit.addEventListener('change', () => {
+    if (threeEdit.checked) setView('3d')
+    scene3d.setEditorEditMode(threeEdit.checked)
+    showToast(threeEdit.checked ? '3D 地面编辑已开启：拖动选中对象进行平移' : '3D 地面编辑已关闭', 'ok')
+  })
+  btnSplitRoad.addEventListener('click', () => {
+    if (!canvas.splitSelectedRoad()) showToast('请选择包含内部节点的道路后再拆分', 'err')
+    else showToast('道路已拆分，请检查两个新道路对象', 'ok')
+  })
   btnMergeRoad.addEventListener('click', () => {
     if (!canvas.mergeSelectedRoadWithNearest()) showToast('未找到可合并的相邻道路', 'err')
   })
   btnMergeNode.addEventListener('click', () => {
     if (!canvas.mergeSelectedRoadNodeWithNearest()) showToast('未找到可合并的相邻节点', 'err')
+  })
+
+  const renderStructureSearch = (): void => {
+    const results = editorSearchResults(store.data, structureSearch.value)
+    structureSearchResults.innerHTML = results.map((result, index) => `<button type="button" class="structure-search-result" data-result-index="${index}"><strong>${escapeHtml(result.label)}</strong><small>${escapeHtml(result.meta)}</small></button>`).join('')
+    structureSearchResults.hidden = results.length === 0
+  }
+  structureSearch.addEventListener('input', renderStructureSearch)
+  structureSearchResults.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-result-index]')
+    if (!button) return
+    const result = editorSearchResults(store.data, structureSearch.value)[Number(button.dataset.resultIndex)]
+    if (!result?.selection) return
+    store.select(result.selection)
+    structureSearch.value = result.label
+    structureSearchResults.hidden = true
+    if (activeView === '3d') scene3d.focusSelection(result.selection)
+    else canvas.focusSelection(result.selection)
+    showToast(`已定位：${result.label}`, 'ok')
+  })
+  structureSearch.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { structureSearch.value = ''; structureSearchResults.hidden = true }
   })
 
 
@@ -396,10 +479,26 @@ async function boot(): Promise<void> {
   btnUndo.addEventListener('click', () => store.undo())
   btnRedo.addEventListener('click', () => store.redo())
 
+  const showValidationErrors = (errors: string[]): void => {
+    validationOutput.hidden = errors.length === 0
+    validationOutput.innerHTML = errors.length === 0 ? '' : `<strong>校验失败（${errors.length} 项）</strong><ul>${errors.map((error, index) => `<li><button type="button" data-error-index="${index}">${escapeHtml(error)}</button></li>`).join('')}</ul>`
+  }
+  validationOutput.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-error-index]')
+    if (!button) return
+    const errors = validateCampusData(store.data)
+    const selection = selectionForValidationError(store.data, errors[Number(button.dataset.errorIndex)] ?? '')
+    if (!selection) { showToast('该错误暂时无法自动定位，请使用快速查找', 'err'); return }
+    store.select(selection)
+    if (activeView === '3d') scene3d.focusSelection(selection)
+    showToast('已定位到相关结构', 'ok')
+  })
+
   const validateBeforeSave = (): boolean => {
     const errors = validateCampusData(store.data)
+    showValidationErrors(errors)
     if (errors.length) {
-      showToast(`校验失败：${errors.slice(0, 2).join('；')}${errors.length > 2 ? `（还有 ${errors.length - 2} 项）` : ''}`, 'err')
+      showToast(`校验失败：${errors.length} 项，点击下方错误可定位`, 'err')
       return false
     }
     showToast('数据校验通过', 'ok')
@@ -455,7 +554,21 @@ async function boot(): Promise<void> {
       const key = input.dataset.layer as keyof LayerFlags
       layers[key] = input.checked
       canvas.setLayers({ ...layers })
+      scene3d.setDisplayOptions({
+        showBuildings: layers.buildings,
+        showPaths: layers.roads,
+        showZones: layers.zones,
+        showWater: layers.waters,
+        showFields: layers.fields,
+        showPois: layers.pois,
+        showTrees: layers.trees,
+      })
+      request3dRender()
     })
+  })
+
+  window.addEventListener('resize', () => {
+    if (activeView === '3d') { scene3d.resize(); request3dRender() }
   })
 
   window.addEventListener('beforeunload', (event) => {

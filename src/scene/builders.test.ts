@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { CampusData } from '../data/campusData'
 import { buildRoadNetwork } from '../data/roadNetwork'
-import { buildRoadJunctions, buildRoads } from './builders'
+import { buildFields, buildRoadJunctions, buildRoads, buildRoadStrokeGeometries } from './builders'
+import { LAYER } from './theme'
 import * as THREE from 'three'
 
 function campus(): CampusData {
@@ -31,5 +32,29 @@ describe('road render batching', () => {
     const box = new THREE.Box3().setFromObject(junctions[0])
     expect(box.getCenter(new THREE.Vector3()).x).toBeCloseTo(50, 0)
     expect(box.getCenter(new THREE.Vector3()).z).toBeCloseTo(0, 0)
+  })
+
+  it('preserves the full authored width through a sharp bend', () => {
+    const geometries = buildRoadStrokeGeometries([[0, 0], [20, 0], [20, 20]], 10)
+    const group = new THREE.Group()
+    geometries.forEach((geometry) => group.add(new THREE.Mesh(geometry)))
+    const box = new THREE.Box3().setFromObject(group)
+    expect(box.min.x).toBeCloseTo(-5, 1)
+    expect(box.max.x).toBeCloseTo(25, 1)
+    expect(box.min.z).toBeCloseTo(-5, 1)
+    expect(box.max.z).toBeCloseTo(25, 1)
+  })
+})
+
+describe('sports field layering', () => {
+  it('keeps an inner pitch above its authored track footprint', () => {
+    const data = campus()
+    data.fields = [
+      { id: 'track', name: 'running', center: [0, 0], size: [100, 160], footprint: [[-50, -80], [50, -80], [50, 80], [-50, 80]] },
+      { id: 'pitch', name: 'soccer', center: [0, 0], size: [70, 120], footprint: [[-35, -60], [35, -60], [35, 60], [-35, 60]] },
+    ]
+    const fields = buildFields(data)
+    expect(fields[0].children[0].position.y).toBe(LAYER.field)
+    expect(fields[1].children[0].position.y).toBe(LAYER.fieldSurface)
   })
 })

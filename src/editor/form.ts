@@ -99,7 +99,7 @@ export class FormPanel {
         return { title: b?.name || '建筑', sub: `建筑 · ${b?.category ?? ''}` }
       }
       case 'road':
-        return { title: `道路 ${sel.index + 1}`, sub: `道路 · ${data.roads[sel.index]?.points.length ?? 0} 个节点` }
+        return { title: data.roads[sel.index]?.name || data.roads[sel.index]?.id || `道路 ${sel.index + 1}`, sub: `道路 · ${data.roads[sel.index]?.points.length ?? 0} 个节点` }
       case 'road-node': {
         const node = data.roadNetwork?.nodes.find((candidate) => candidate.id === sel.id)
         return { title: node?.kind === 'junction' ? '道路路口节点' : '道路节点', sub: `${node?.kind ?? 'waypoint'} · ${node?.sourceIds?.length ?? 0} 条关联道路` }
@@ -528,6 +528,7 @@ export class FormPanel {
           if (road.routing?.sourceIds) road.routing.sourceIds = [...new Set(road.routing.sourceIds.map((sourceId) => sourceId === previousId ? id : sourceId))]
         },
       },
+      { id: 'name', label: '名称（便于搜索，可空）', kind: 'text', get: () => r().name ?? '', apply: (v) => { r().name = v.trim() || undefined } },
       {
         id: 'kind',
         label: '显示类型',

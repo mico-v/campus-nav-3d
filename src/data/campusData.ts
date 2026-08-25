@@ -46,6 +46,8 @@ export interface Building {
 
 export interface Road {
   id: string
+  /** Optional human-readable label; id remains the stable routing key. */
+  name?: string
   points: [number, number][]
   width: number
   color?: string

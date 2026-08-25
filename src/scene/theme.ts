@@ -3,13 +3,15 @@ export const LAYER = {
   // Keep the ground below all authored map layers and building footprints.
   // This avoids coplanar depth competition when the camera moves around a building.
   ground: -0.2,
-  zone: 0.05,
-  field: 0.1,
-  water: 0.15,
-  roadCasing: 0.18,
-  road: 0.2,
-  building: 0.25,
-  marker: 0.25,
+  zone: 0.02,
+  field: 0.08,
+  fieldSurface: 0.12,
+  water: 0.16,
+  roadSidewalk: 0.28,
+  roadCasing: 0.34,
+  road: 0.42,
+  building: 0.5,
+  marker: 0.55,
 } as const
 
 export const COLORS = {

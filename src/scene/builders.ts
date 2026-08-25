@@ -3,7 +3,7 @@ import type { Building, CampusData, PoiMarker } from '../data/campusData'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { LAYER, COLORS, BUILDING_COLOR } from './theme'
 import { classifyRoad, getDisplayRoads, isTrackField, roadDisplayWidth, resolvedPois, zoneOpacity, type RoadDisplayOptions } from './displayRules'
-import { flatPolygon, extrudeFootprint, footprintShape, buildRoadCorridor } from './geo'
+import { flatPolygon, extrudeFootprint, footprintShape } from './geo'
 import type { RoadSegment } from '../data/roadNetwork'
 
 export interface BuiltLabel {
@@ -106,35 +106,29 @@ export function buildWaters(data: CampusData): THREE.Object3D[] {
 export function buildFields(data: CampusData): THREE.Object3D[] {
   return data.fields.map((field) => {
     const group = new THREE.Group()
-    const baseMaterial = new THREE.MeshStandardMaterial({ color: field.color ?? '#9fd9ad', roughness: 1 })
+    const trackField = isTrackField(field)
+    const baseMaterial = new THREE.MeshStandardMaterial({
+      color: field.color ?? (trackField ? '#c9784d' : '#6faa63'),
+      roughness: 1,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    })
     const hasFootprint = field.footprint && field.footprint.length >= 3
+    // Track outlines and inner pitches are separate authored field records.
+    // Keep the track below other sports surfaces so the pitch reads as the
+    // infield instead of z-fighting with a second full-size plane.
+    const surfaceY = trackField ? LAYER.field : LAYER.fieldSurface
 
     if (hasFootprint) {
       const base = new THREE.Mesh(flatPolygon(field.footprint!), baseMaterial)
-      base.position.set(0, LAYER.field, 0)
+      base.position.set(0, surfaceY, 0)
       group.add(base)
     } else {
       const base = new THREE.Mesh(new THREE.PlaneGeometry(field.size[0], field.size[1]), baseMaterial)
       base.rotation.x = -Math.PI / 2
-      base.position.y = LAYER.field
+      base.position.y = surfaceY
       group.add(base)
-    }
-
-    if (isTrackField(field)) {
-      const track = new THREE.Mesh(
-        new THREE.RingGeometry(field.size[0] / 2 + 2, field.size[0] / 2 + 6, 48),
-        new THREE.MeshStandardMaterial({ color: '#e0a35f', roughness: 1 }),
-      )
-      track.scale.set(1, field.size[1] / field.size[0], 1)
-      track.rotation.x = -Math.PI / 2
-
-      if (hasFootprint) {
-        track.position.set(field.center[0], LAYER.field + 0.005, field.center[1])
-        group.add(track)
-      } else {
-        track.position.y = LAYER.field + 0.005
-        group.add(track)
-      }
     }
 
     if (hasFootprint) group.position.set(0, 0, 0)
@@ -183,6 +177,42 @@ function mergeRoadGeometry(geometries: THREE.BufferGeometry[]): THREE.BufferGeom
 }
 
 /**
+ * Match an SVG round-line stroke with simple, non-self-intersecting pieces.
+ * A single outline polygon becomes unreliable at the tight turns present in
+ * authored campus roads; segment quads plus round point joins preserve the
+ * requested width at every bend and can still be merged into one draw call.
+ */
+export function buildRoadStrokeGeometries(points: [number, number][], width: number): THREE.BufferGeometry[] {
+  const clean = points.filter((point, index) => index === 0 || point[0] !== points[index - 1][0] || point[1] !== points[index - 1][1])
+  if (clean.length < 2) return []
+  const halfWidth = Math.max(0.005, Math.abs(width) / 2)
+  const geometries: THREE.BufferGeometry[] = []
+  for (let index = 0; index < clean.length - 1; index += 1) {
+    const start = clean[index]
+    const end = clean[index + 1]
+    const dx = end[0] - start[0]
+    const dz = end[1] - start[1]
+    const length = Math.hypot(dx, dz)
+    if (length <= 1e-9) continue
+    const nx = -dz / length * halfWidth
+    const nz = dx / length * halfWidth
+    geometries.push(flatPolygon([
+      [start[0] + nx, start[1] + nz],
+      [end[0] + nx, end[1] + nz],
+      [end[0] - nx, end[1] - nz],
+      [start[0] - nx, start[1] - nz],
+    ]))
+  }
+  clean.forEach(([x, z]) => {
+    const join = new THREE.CircleGeometry(halfWidth, 16)
+    join.rotateX(-Math.PI / 2)
+    join.translate(x, 0, z)
+    geometries.push(join)
+  })
+  return geometries
+}
+
+/**
  * Build one render group per authored road rather than one group per generated
  * topology segment. The topology remains the source for geometry, but merging
  * compatible corridor meshes cuts the default campus from hundreds of road
@@ -207,17 +237,14 @@ export function buildRoads(data: CampusData, options: RoadDisplayOptions = {}): 
       casingColor: isCanal ? '#b5d4e8' : COLORS.roadCasing,
       hasSidewalk: false,
     }
-    const outline = buildRoadCorridor(road.points, w, { join: 'miter', cap: 'round', miterLimit: 3 })
     const casingWidth = w + Math.max(1.2, w * 0.2)
-    const casingOutline = buildRoadCorridor(road.points, casingWidth, { join: 'bevel', cap: 'round' })
-    if (outline.length >= 3) bucket.surface.push(flatPolygon(outline))
-    if (casingOutline.length >= 3) bucket.casing.push(flatPolygon(casingOutline))
+    bucket.surface.push(...buildRoadStrokeGeometries(road.points, w))
+    bucket.casing.push(...buildRoadStrokeGeometries(road.points, casingWidth))
 
     const sidewalk = road.sidewalk ?? (road.displayKind === 'road' && w >= 10)
     if (sidewalk) {
       const sidewalkWidth = Math.max(1.4, Math.min(3.5, w * 0.16))
-      const sidewalkOutline = buildRoadCorridor(road.points, w + sidewalkWidth * 2, { join: 'bevel', cap: 'round' })
-      if (sidewalkOutline.length >= 3) bucket.sidewalk.push(flatPolygon(sidewalkOutline))
+      bucket.sidewalk.push(...buildRoadStrokeGeometries(road.points, w + sidewalkWidth * 2))
       bucket.hasSidewalk = true
     }
     buckets.set(key, bucket)
@@ -227,20 +254,32 @@ export function buildRoads(data: CampusData, options: RoadDisplayOptions = {}): 
     const group = new THREE.Group()
     const casingGeometry = mergeRoadGeometry(bucket.casing)
     if (casingGeometry) {
-      const casing = new THREE.Mesh(casingGeometry, new THREE.MeshStandardMaterial({ color: bucket.casingColor, roughness: 1, metalness: 0 }))
+      const casing = new THREE.Mesh(casingGeometry, new THREE.MeshStandardMaterial({
+        color: bucket.casingColor, roughness: 1, metalness: 0,
+        polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+      }))
       casing.position.y = LAYER.roadCasing
+      casing.renderOrder = 31
       group.add(casing)
     }
     const surfaceGeometry = mergeRoadGeometry(bucket.surface)
     if (surfaceGeometry) {
-      const surface = new THREE.Mesh(surfaceGeometry, new THREE.MeshStandardMaterial({ color: bucket.surfaceColor, roughness: 1, metalness: 0 }))
+      const surface = new THREE.Mesh(surfaceGeometry, new THREE.MeshStandardMaterial({
+        color: bucket.surfaceColor, roughness: 1, metalness: 0,
+        polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+      }))
       surface.position.y = LAYER.road
+      surface.renderOrder = 32
       group.add(surface)
     }
     const sidewalkGeometry = mergeRoadGeometry(bucket.sidewalk)
     if (sidewalkGeometry) {
-      const sidewalk = new THREE.Mesh(sidewalkGeometry, new THREE.MeshStandardMaterial({ color: '#c7c1b7', roughness: 1, metalness: 0 }))
-      sidewalk.position.y = LAYER.roadCasing - 0.005
+      const sidewalk = new THREE.Mesh(sidewalkGeometry, new THREE.MeshStandardMaterial({
+        color: '#c7c1b7', roughness: 1, metalness: 0,
+        polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+      }))
+      sidewalk.position.y = LAYER.roadSidewalk
+      sidewalk.renderOrder = 30
       group.add(sidewalk)
     }
     group.userData = { kind: 'road-structure', id: bucket.id, sourceIndex: bucket.sourceIndex, displayKind: bucket.displayKind, hasSidewalk: bucket.hasSidewalk }

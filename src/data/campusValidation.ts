@@ -148,6 +148,7 @@ export function validateCampusDataValue(value: unknown): string[] {
   ;(value.roads as unknown[]).forEach((raw) => {
     if (!isRecord(raw)) return
     const id = String(raw.id)
+    if (raw.name !== undefined && (typeof raw.name !== 'string' || !raw.name.trim())) errors.push(`道路 ${id} name 无效`)
     const points = raw.points
     if (!Array.isArray(points) || points.length < 2) errors.push(`道路 ${id} 至少需要 2 个节点`)
     else {

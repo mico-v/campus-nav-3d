@@ -11,7 +11,7 @@ import {
   type ViewState,
   type ViewBounds,
 } from './projection.ts'
-import { areaPolygon, buildingPolygon, getDisplayRoads, pointInWorldPolygon, polygonExtent, resolvedPois, roadDisplayWidth, waterPolygon, type DisplayRoad } from '../scene/displayRules.ts'
+import { areaPolygon, buildingPolygon, getDisplayRoads, pointInWorldPolygon, polygonExtent, resolvedPois, roadDisplayWidth, waterPolygon, zoneOpacity, type DisplayRoad } from '../scene/displayRules.ts'
 import {
   polygonCentroid,
   polygonBounds,
@@ -290,6 +290,40 @@ export class Canvas2D {
     this.render()
   }
 
+  /** Center and zoom the 2D editor on the current selection. */
+  focusSelection(selection: Selection = this.store.selection): boolean {
+    if (!selection) return false
+    const data = this.store.data
+    let points: Point[] = []
+    if (selection.kind === 'building') points = data.buildings[selection.index] ? buildingPolygon(data.buildings[selection.index]) : []
+    else if (selection.kind === 'road') points = data.roads[selection.index]?.points ?? []
+    else if (selection.kind === 'road-node') {
+      const node = data.roadNetwork?.nodes.find((candidate) => candidate.id === selection.id)
+      if (node) points = [node.position]
+    } else if (selection.kind === 'zone') points = data.zones[selection.index] ? areaPolygon(data.zones[selection.index]) : []
+    else if (selection.kind === 'water') points = data.waters[selection.index] ? waterPolygon(data.waters[selection.index]) : []
+    else if (selection.kind === 'field') points = data.fields[selection.index] ? areaPolygon(data.fields[selection.index]) : []
+    else if (selection.kind === 'poi') {
+      const poi = resolvedPois(data)[selection.index]
+      if (poi) points = [[poi.position[0], poi.position[2]]]
+    }
+    if (!points.length) return false
+    const extent = polygonExtent(points)
+    const span = Math.max(extent.maxX - extent.minX, extent.maxZ - extent.minZ, 30)
+    const bounds = {
+      minX: (extent.minX + extent.maxX) / 2 - span * 0.7,
+      maxX: (extent.minX + extent.maxX) / 2 + span * 0.7,
+      minZ: (extent.minZ + extent.maxZ) / 2 - span * 0.7,
+      maxZ: (extent.minZ + extent.maxZ) / 2 + span * 0.7,
+    }
+    const rect = this.host.getBoundingClientRect()
+    if (rect.width < 2 || rect.height < 2) return false
+    this.view = fitView(bounds, rect.width, rect.height, FIT_PAD)
+    this.viewInitialized = true
+    this.render()
+    return true
+  }
+
   protected toScreen(x: number, z: number): [number, number] {
     return worldToScreen(this.view, x, z)
   }
@@ -435,11 +469,11 @@ export class Canvas2D {
 
   cancelRoadDraft(): void { this.roadDraft = []; this.render() }
 
-  splitSelectedRoad(): void {
+  splitSelectedRoad(): boolean {
     const sel = this.store.selection
-    if (!sel || sel.kind !== 'road') return
+    if (!sel || sel.kind !== 'road') return false
     const road = this.store.data.roads[sel.index]
-    if (!road || road.points.length < 2) return
+    if (!road || road.points.length < 2) return false
     let index = -1
     let point: Point | null = null
     if (road.points.length >= 3) {
@@ -458,9 +492,10 @@ export class Canvas2D {
       })
       if (node) { index = 0; point = node.position }
     }
-    if (index < 0 || !point) return
+    if (index < 0 || !point) return false
     this.store.mutate('split-road', (data) => splitCanonicalRoad(data, sel.index, index, point))
     this.store.select(null)
+    return true
   }
 
   mergeSelectedRoads(first: number, second: number): boolean {
@@ -717,6 +752,19 @@ export class Canvas2D {
     // 0b) 底图解锁(对齐模式) → 左键拖动平移底图，暂停元素编辑
     if (!this.backdropLocked) {
       this.startDrag({ kind: 'backdrop' }, world, screen, event.pointerId)
+      return
+    }
+
+    // These scoped modes intentionally bypass generic vertex picking so the
+    // user can reach roads or large areas hidden beneath buildings.
+    if (this.mode === 'split-merge' || this.mode === 'area') {
+      const hit = this.hitTest(world, screen)
+      this.activeVertex = null
+      this.store.select(hit)
+      if (hit && this.mode === 'area') {
+        const move = this.moveDragFor(hit)
+        if (move) this.startDrag(move, world, screen, event.pointerId)
+      }
       return
     }
 
@@ -1091,6 +1139,35 @@ export class Canvas2D {
   protected hitTest(world: Point, _screen: [number, number]): Selection {
     const data = this.store.data
     const pois = this.getResolvedPois()
+    const areasOnly = this.mode === 'area'
+    if (areasOnly) {
+      for (const kind of ['field', 'water', 'zone'] as const) {
+        if (kind === 'field' && !this.layers.fields) continue
+        if (kind === 'water' && !this.layers.waters) continue
+        if (kind === 'zone' && !this.layers.zones) continue
+        const list = kind === 'field' ? data.fields : kind === 'water' ? data.waters : data.zones
+        for (let i = list.length - 1; i >= 0; i--) {
+          const item = list[i]
+          const polygon = kind === 'water' ? waterPolygon(item) : areaPolygon(item)
+          if (pointInWorldPolygon(world, polygon)) return { kind, index: i }
+        }
+      }
+      return null
+    }
+    if (this.mode === 'split-merge') {
+      if (!this.layers.roads) return null
+      const nodes = data.roadNetwork?.nodes ?? []
+      for (let i = nodes.length - 1; i >= 0; i -= 1) {
+        const node = nodes[i]
+        if (distance(node.position, world) <= this.worldThreshold(VERTEX_HIT_PX)) return { kind: 'road-node', id: node.id }
+      }
+      for (const road of this.getDisplayRoads()) {
+        const index = data.roads.findIndex((item) => road.sourceIds?.includes(item.id) || item.id === road.id)
+        const edge = nearestEdge(road.points, world, this.worldThreshold(EDGE_HIT_PX + roadDisplayWidth(road) / 2))
+        if (edge && index >= 0) return { kind: 'road', index }
+      }
+      return null
+    }
     if (this.layers.roads) {
       const nodes = data.roadNetwork?.nodes ?? []
       for (let i = nodes.length - 1; i >= 0; i -= 1) {
@@ -1193,7 +1270,7 @@ export class Canvas2D {
 
     if (this.layers.zones) {
       const g = this.layerGroup('zones')
-      data.zones.forEach((zone, index) => this.drawArea(g, areaPolygon(zone), zone.color, 0.28, selection?.kind === 'zone' && selection.index === index))
+      data.zones.forEach((zone, index) => this.drawArea(g, areaPolygon(zone), zone.color, zoneOpacity(zone), selection?.kind === 'zone' && selection.index === index))
     }
     if (this.layers.waters) {
       const g = this.layerGroup('waters')

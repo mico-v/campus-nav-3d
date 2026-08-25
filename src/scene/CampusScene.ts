@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { CampusData } from '../data/campusData'
 import type { Selection } from '../editor/types'
 import { COLORS } from './theme'
-import { buildGround, buildZones, buildWaters, buildFields, buildTrees, buildRoads, buildRoadJunctions, buildBuilding, buildPois, buildingColor, type BuiltLabel } from './builders'
+import { buildGround, buildZones, buildWaters, buildFields, buildTrees, buildRoads, buildBuilding, buildPois, buildingColor, type BuiltLabel } from './builders'
 import { deriveCampusBounds, poiDisplayLevel, resolvedPoi, type RoadDisplayOptions } from './displayRules'
 import { areaPolygon, buildingPolygon, waterPolygon } from './displayRules'
 import { buildRoadOutline } from './geo'
@@ -317,7 +317,6 @@ export class CampusScene {
         }
         this.campusGroup.add(group)
       })
-      buildRoadJunctions(this.data).forEach((o) => this.campusGroup.add(o))
     }
     if (this.displayOptions.showWater !== false) buildWaters(this.data).forEach((o, index) => {
       o.userData = { kind: 'water', index }
@@ -598,7 +597,7 @@ export class CampusScene {
   }
 
   resize(): void {
-    const w = this.host.clientWidth, h = this.host.clientHeight
+    const w = Math.max(1, this.host.clientWidth), h = Math.max(1, this.host.clientHeight)
     this.renderer.setSize(w, h)
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
