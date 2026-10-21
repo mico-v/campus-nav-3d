@@ -35,11 +35,19 @@ if (import.meta.env.DEV) {
     __campusRenderBudget?: (budget: Parameters<CampusScene['evaluateRenderBudget']>[0]) => ReturnType<CampusScene['evaluateRenderBudget']>
     __campusRender?: () => void
     __campusResetMetrics?: () => void
+    __campusFocus?: (name: string) => boolean
   }
   debugWindow.__campusRenderMetrics = () => campus.getRenderMetrics()
   debugWindow.__campusRenderBudget = (budget) => campus.evaluateRenderBudget(budget)
   debugWindow.__campusRender = () => campus.render(performance.now() / 1000)
   debugWindow.__campusResetMetrics = () => campus.resetRenderMetrics()
+  debugWindow.__campusFocus = (name) => {
+    const index = data.buildings.findIndex((building) => building.name.includes(name))
+    if (index < 0) return false
+    campus.setEditorSelection({ kind: 'building', index })
+    campus.focusBuilding(index)
+    return true
+  }
 }
 let renderScheduled = false
 let renderPending = true
@@ -57,6 +65,7 @@ const requestRender = (): void => {
 campus.controls.addEventListener('change', requestRender)
 campus.setDisplayOptions({ ...display, showEditorAids: false })
 campus.setDataAndSelection(data, 0)
+campus.resize()
 campus.setOverviewCamera()
 
 const layerDefs = [

@@ -1,6 +1,5 @@
-import type { CampusData } from '../data/campusData.ts'
+import { prepareCampusData, type CampusData } from '../data/campusData.ts'
 import { assertValidCampusData } from '../data/campusValidation.ts'
-import { normalizeCampusData } from '../data/roadNormalization.ts'
 
 const ENDPOINT = '/api/campus'
 
@@ -34,7 +33,7 @@ export async function loadCampus(): Promise<CampusData> {
   }
   const raw: unknown = await response.json()
   assertValidCampusData(raw)
-  return normalizeCampusData(raw)
+  return prepareCampusData(raw)
 }
 
 /** Persist campus data via the dev backend. Throws Error with the server message on failure. */

@@ -1,6 +1,7 @@
 import campusJson from './campus.json'
 import { normalizeCampusData } from './roadNormalization'
 import { validateCampusDataValue } from './campusValidation'
+import { enhanceCampusData } from './campusEnhancements'
 import type { RoadAccess, RoadClass, RoadNetwork, RoadSurface } from './roadNetwork'
 
 export type ZoneCategory = 'dorm' | 'academic' | 'landscape' | 'sports' | 'service' | 'admin'
@@ -123,8 +124,15 @@ export function cloneCampusData(data: CampusData): CampusData {
   return JSON.parse(JSON.stringify(data)) as CampusData
 }
 
+/** Apply presentation data fixes without mutating the source returned by the editor API. */
+export function prepareCampusData(data: CampusData): CanonicalCampusData {
+  const prepared = cloneCampusData(data)
+  enhanceCampusData(prepared)
+  return normalizeCampusData(prepared)
+}
+
 export function createDefaultCampusData(): CanonicalCampusData {
-  return normalizeCampusData(cloneCampusData(baseCampusData))
+  return prepareCampusData(baseCampusData)
 }
 
 /** Return actionable errors before an edited dataset is serialized. */

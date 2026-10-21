@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { CampusData } from '../data/campusData'
 import type { Selection } from '../editor/types'
 import { COLORS } from './theme'
-import { buildGround, buildZones, buildWaters, buildFields, buildTrees, buildRoads, buildBuilding, buildPois, buildingColor, type BuiltLabel } from './builders'
+import { buildGround, buildZones, buildWaters, buildFields, buildTrees, buildRoads, buildRoadJunctions, buildBuilding, buildPois, buildingColor, type BuiltLabel } from './builders'
 import { deriveCampusBounds, poiDisplayLevel, resolvedPoi, type RoadDisplayOptions } from './displayRules'
 import { areaPolygon, buildingPolygon, waterPolygon } from './displayRules'
 import { buildRoadOutline } from './geo'
@@ -74,6 +74,8 @@ export class CampusScene {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.shadowMap.enabled = false
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+    this.renderer.toneMappingExposure = 1.08
     host.appendChild(this.renderer.domElement)
 
     this.scene.background = new THREE.Color(COLORS.background)
@@ -95,12 +97,15 @@ export class CampusScene {
   }
 
   private addLights(): void {
-    const hemi = new THREE.HemisphereLight('#ffffff', '#cdd6df', 2.0)
+    const hemi = new THREE.HemisphereLight('#ffffff', '#bdc8c4', 1.65)
     this.scene.add(hemi)
-    const key = new THREE.DirectionalLight('#ffffff', 0.6)
-    key.position.set(-120, 220, 90)
+    const key = new THREE.DirectionalLight('#fff8eb', 1.5)
+    key.position.set(-280, 420, 180)
     key.castShadow = false
     this.scene.add(key)
+    const fill = new THREE.DirectionalLight('#dcecf7', 0.45)
+    fill.position.set(260, 180, -240)
+    this.scene.add(fill)
   }
 
   setData(data: CampusData): void {
@@ -317,11 +322,19 @@ export class CampusScene {
         }
         this.campusGroup.add(group)
       })
+      buildRoadJunctions(this.data).forEach((junction) => {
+        junction.userData = { ...junction.userData, kind: 'road', index: -1 }
+        this.campusGroup.add(junction)
+      })
     }
-    if (this.displayOptions.showWater !== false) buildWaters(this.data).forEach((o, index) => {
-      o.userData = { kind: 'water', index }
-      this.clickableObjects.push(o)
-      this.campusGroup.add(o)
+    if (this.displayOptions.showWater !== false) buildWaters(this.data).forEach((structure, index) => {
+      const group = new THREE.Group()
+      structure.traverse((child) => {
+        child.userData = { ...child.userData, kind: 'water', index }
+        if (child instanceof THREE.Mesh) this.clickableObjects.push(child)
+      })
+      group.add(structure)
+      this.campusGroup.add(group)
     })
     if (this.displayOptions.showFields !== false) buildFields(this.data).forEach((o, index) => {
       o.userData = { kind: 'field', index }
@@ -560,14 +573,61 @@ export class CampusScene {
   }
 
   setOverviewCamera(): void {
+    if (!this.data) return
     const rawBounds = deriveCampusBounds(this.data, this.roadDisplayOptions)
-    const bounds = { ...rawBounds, width: rawBounds.width + 280, depth: rawBounds.depth + 280 }
-    const maxDim = Math.max(bounds.width, bounds.depth)
-    const target = new THREE.Vector3(bounds.center[0], 0, bounds.center[1])
+    const maxDim = Math.max(rawBounds.width, rawBounds.depth)
+    const target = new THREE.Vector3(rawBounds.center[0], 0, rawBounds.center[1])
+    const viewportAspect = this.host.clientWidth / Math.max(1, this.host.clientHeight)
+    const portrait = viewportAspect < 0.9
+    const viewDirection = portrait
+      ? new THREE.Vector3(-0.98, 0.5, 0.06)
+      : new THREE.Vector3(-0.62, 0.52, 0.62)
+    viewDirection.normalize()
+    const halfWidth = rawBounds.width / 2 + 70
+    const halfDepth = rawBounds.depth / 2 + 70
+    const maxHeight = Math.max(12, ...this.data.buildings.map((building) => building.height)) + 8
+    const framingPoints: THREE.Vector3[] = []
+    for (const y of [0, maxHeight]) {
+      for (const x of [rawBounds.center[0] - halfWidth, rawBounds.center[0] + halfWidth]) {
+        for (const z of [rawBounds.center[1] - halfDepth, rawBounds.center[1] + halfDepth]) {
+          framingPoints.push(new THREE.Vector3(x, y, z))
+        }
+      }
+    }
+
+    // Choose the closest camera distance whose full campus projection still
+    // clears the toolbar and the mobile selection toast.
+    const maxNdcX = portrait ? 0.9 : 0.86
+    const maxNdcY = portrait ? 0.72 : 0.78
+    const fits = (distance: number): boolean => {
+      this.camera.near = 5
+      this.camera.far = Math.max(5000, distance * 4)
+      this.camera.up.set(0, 1, 0)
+      this.camera.position.copy(target).addScaledVector(viewDirection, distance)
+      this.camera.lookAt(target)
+      this.camera.updateProjectionMatrix()
+      this.camera.updateMatrixWorld(true)
+      return framingPoints.every((point) => {
+        this.tempVector.copy(point).project(this.camera)
+        return Math.abs(this.tempVector.x) <= maxNdcX && Math.abs(this.tempVector.y) <= maxNdcY && this.tempVector.z < 1
+      })
+    }
+    let nearDistance = Math.max(40, maxDim * 0.2)
+    let farDistance = Math.max(800, maxDim * 8)
+    for (let step = 0; step < 28; step += 1) {
+      const distance = (nearDistance + farDistance) / 2
+      if (fits(distance)) farDistance = distance
+      else nearDistance = distance
+    }
+
     this.controls.target.copy(target)
-    this.camera.position.set(target.x - maxDim * 0.72, maxDim * 0.42, target.z + maxDim * 0.68)
-    this.camera.near = 10
-    this.camera.far = Math.max(5000, maxDim * 4)
+    this.camera.up.set(0, 1, 0)
+    this.camera.position.copy(target).addScaledVector(viewDirection, farDistance)
+    this.camera.lookAt(target)
+    this.camera.near = 5
+    this.camera.far = Math.max(5000, farDistance * 4)
+    this.controls.maxDistance = Math.max(4200, farDistance * 3)
+    this.controls.maxPolarAngle = Math.PI / 2.08
     this.camera.updateProjectionMatrix()
     this.controls.update()
   }
@@ -626,22 +686,22 @@ export class CampusScene {
 
   private updateLabels(): void {
     const w = this.host.clientWidth, h = this.host.clientHeight
-    const placed: { x: number; y: number }[] = []
-    const minGap = 46
+    const placed: { x: number; y: number; width: number }[] = []
     const level = poiDisplayLevel(this.camera.position.distanceTo(this.controls.target), this.campusSize)
     const ranked = this.labels.map((t) => {
       this.tempVector.set(...t.marker.position).project(this.camera)
       const kindPriority = t.marker.kind === 'landmark' ? 0 : t.marker.kind === 'gate' ? 1 : 2
-      return { t, depth: this.tempVector.z, kindPriority, x: ((this.tempVector.x + 1) / 2) * w, y: ((-this.tempVector.y + 1) / 2) * h }
+      const width = Math.max(58, t.marker.name.length * 13 + 20)
+      return { t, depth: this.tempVector.z, kindPriority, width, x: ((this.tempVector.x + 1) / 2) * w, y: ((-this.tempVector.y + 1) / 2) * h }
     }).sort((a, b) => a.kindPriority - b.kindPriority || a.depth - b.depth)
     for (const [rank, r] of ranked.entries()) {
       const visible = rank < level.maxLabels && r.depth < 1 && r.depth > -1
       const inside = r.x >= -80 && r.x <= w + 80 && r.y >= -30 && r.y <= h + 30
-      const clashes = placed.some((p) => Math.abs(p.x - r.x) < minGap && Math.abs(p.y - r.y) < minGap * 0.5)
+      const clashes = placed.some((p) => Math.abs(p.x - r.x) < (p.width + r.width) / 2 + 8 && Math.abs(p.y - r.y) < 30)
       const show = this.displayOptions.showLabels !== false && visible && inside && !clashes
       r.t.element.style.opacity = show ? '1' : '0'
       r.t.element.style.transform = `translate(${r.x}px, ${r.y}px) translate(-50%, -50%)`
-      if (show) placed.push({ x: r.x, y: r.y })
+      if (show) placed.push({ x: r.x, y: r.y, width: r.width })
     }
   }
 }

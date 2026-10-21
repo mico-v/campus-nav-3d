@@ -344,6 +344,24 @@ h1 {
 }
 
 @media (max-width: 720px) {
+  .topbar {
+    align-items: flex-start;
+    padding: 10px 14px;
+  }
+
+  .topbar .brand {
+    max-width: 100%;
+  }
+
+  .topbar .hint {
+    display: none;
+  }
+
+  .map-toolbar {
+    top: 58px;
+    left: 14px;
+  }
+
   .selection-toast {
     right: 14px;
     left: 14px;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createDefaultCampusData } from '../src/data/campusData'
+import { createDefaultCampusData, prepareCampusData } from '../src/data/campusData'
 
 describe('campus 数据完整性', () => {
   const data = createDefaultCampusData()
@@ -39,5 +39,24 @@ describe('campus 数据完整性', () => {
     expect(data.roadNetwork?.segments.length).toBeGreaterThan(0)
     expect(data.roadNetwork?.nodes.every((node) => (node.sourceIds?.length ?? 0) > 0)).toBe(true)
     expect(data.roadNetwork?.segments.every((segment) => (segment.sourceIds?.length ?? 0) > 0)).toBe(true)
+  })
+
+  it('包含按参考图补齐的河道与慢行步道', () => {
+    const rivers = data.waters.filter((water) => water.id.startsWith('river-'))
+    const walkways = data.roads.filter((road) => road.roadClass === 'walkway')
+    expect(rivers.length).toBeGreaterThanOrEqual(5)
+    expect(walkways.length).toBeGreaterThanOrEqual(10)
+    expect(rivers.every((water) => (water.footprint?.length ?? 0) >= 3)).toBe(true)
+  })
+
+  it('编辑器载入数据也应用同一套高度修正且不修改源数据', () => {
+    const source = JSON.parse(JSON.stringify(data)) as typeof data
+    const library = source.buildings.find((building) => building.name === '图书馆')!
+    library.height = 100
+
+    const prepared = prepareCampusData(source)
+
+    expect(prepared.buildings.find((building) => building.name === '图书馆')?.height).toBe(40)
+    expect(library.height).toBe(100)
   })
 })

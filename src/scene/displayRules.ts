@@ -225,7 +225,7 @@ export interface PoiDisplayLevel {
 /** Keep overview markers legible without letting dozens of labels own the map. */
 export function poiDisplayLevel(cameraDistance: number, campusSize: number): PoiDisplayLevel {
   const ratio = cameraDistance / Math.max(campusSize, 1)
-  if (ratio > 0.9) return { maxLabels: 10, markerScale: 1.15 }
-  if (ratio > 0.45) return { maxLabels: 18, markerScale: 1 }
-  return { maxLabels: 32, markerScale: 0.9 }
+  if (ratio > 0.9) return { maxLabels: 7, markerScale: 1.15 }
+  if (ratio > 0.45) return { maxLabels: 14, markerScale: 1 }
+  return { maxLabels: 28, markerScale: 0.9 }
 }
