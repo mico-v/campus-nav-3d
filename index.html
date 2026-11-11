@@ -6,11 +6,11 @@
     <title>CampusNav 3D · 室内外一体的智慧校园导航</title>
     <meta
       name="description"
-      content="CampusNav 3D 是一个把室外路网、教学楼室内分层与实时课程 / 活动信息放进同一个浏览器 3D 场景的智慧校园导航项目，支持 VR 导航。大学生创新创业训练计划项目提案。"
+      content="CampusNav 3D 是一个把室外路网、教学楼室内分层与实时课程 / 活动信息放进同一个浏览器 3D 场景的智慧校园导航项目：在寻路之上做 AI 情境推荐、XR 场景互动发现与地点级校园社区，支持 VR 导航。大学生创新创业训练计划项目提案。"
     />
     <meta name="theme-color" content="#f7f9fa" />
     <meta property="og:title" content="CampusNav 3D · 室内外一体的智慧校园导航" />
-    <meta property="og:description" content="室外路网 + 室内分层建模 + 课程与活动地图 + WebXR 导航。" />
+    <meta property="og:description" content="室外路网 + 室内分层建模 + 课程与活动地图 + AI 情境推荐 + XR 场景发现 + 地点级社区 + WebXR 导航。" />
     <meta property="og:type" content="website" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <script>
@@ -46,6 +46,7 @@
         <nav class="nav" aria-label="站内导航">
           <a href="#why">为什么</a>
           <a href="#capability">核心能力</a>
+          <a href="#ai">AI 与社区</a>
           <a href="#stack">技术路线</a>
           <a href="#shipped">已有原型</a>
           <a href="#roadmap">路线图</a>
@@ -70,7 +71,7 @@
             <p class="badge"><span class="dot" aria-hidden="true"></span>大学生创新创业训练计划 · 项目提案</p>
             <h1>把整座校园，做成一张能走进去的地图</h1>
             <p class="lede">
-              CampusNav 3D 把室外路网、教学楼的室内楼层和课程 / 活动信息放进同一个浏览器 3D 场景：从校门口一路导航到教室门口。戴上头显，还能用第一人称走进去。
+              CampusNav 3D 把室外路网、教学楼的室内楼层和课程 / 活动信息放进同一个浏览器 3D 场景：从校门口一路导航到教室门口。戴上头显，还能用第一人称走进去；在场景里，它还会推荐下一步去哪、顺手发现楼里的东西，并把同学留下的内容挂回真实位置。
             </p>
             <div class="hero-actions">
               <a class="btn btn-filled" href="./demo.html">
@@ -84,6 +85,7 @@
             <div class="hero-facts">
               <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg>纯浏览器运行，不用装 App</span>
               <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg>代码与地图数据开源</span>
+              <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg>AI 推荐可解释、可关闭</span>
             </div>
           </div>
 
@@ -107,6 +109,11 @@
               <div class="fc-title"><span class="tag">VR</span>第一人称导航</div>
               <div class="fc-body">二号门 → C4-302</div>
               <div class="fc-meta">室外 480 m · 换层 2 次</div>
+            </div>
+            <div class="float-card fc-ai">
+              <div class="fc-title"><span class="tag ai">AI</span>下一节课 8 分钟后</div>
+              <div class="fc-body">走东侧楼梯，少 2 分钟</div>
+              <div class="fc-meta">可展开依据 · 也可一键关闭</div>
             </div>
             <div class="visual-caption" aria-hidden="true">
               <span class="floor-chips"><b>1F</b><b>2F</b><b class="on">3F</b><b>4F</b></span>
@@ -208,11 +215,91 @@
         </div>
       </section>
 
+      <section class="section wrap" id="ai">
+        <div class="section-head">
+          <p class="eyebrow">AI 与社区</p>
+          <h2>地图不只会被看，还会推荐、会被一起改</h2>
+          <p class="lede">寻路回答的是「怎么走」，AI 与社区回答「去哪、什么时候去、和谁一起」。三条线长在同一份空间数据上：情境推荐、XR 现场发现、地点级社区内容。</p>
+        </div>
+
+        <div class="ai-grid">
+          <article class="ai">
+            <p class="kicker">AI 情境推荐</p>
+            <h3>把「下一步做什么」写进地图</h3>
+            <p>输入的都已经在手边：课表、当前时间与所在楼栋、目标教室是否空闲、这栋楼正在发生什么。输出不是搜索框，而是几张小卡片——几点该出发、顺路能做什么。</p>
+            <ul>
+              <li>规则引擎打底保证可预期，小模型只负责重排与措辞</li>
+              <li>每张卡都能展开依据：来源、距离、时段一条条列出</li>
+              <li>整套推荐可以关掉，关掉就是一张普通导航图</li>
+            </ul>
+            <p class="stage">阶段五 · 情境推荐</p>
+          </article>
+
+          <article class="ai">
+            <p class="kicker">XR 场景互动发现</p>
+            <h3>站在楼里，才看得见的那一层信息</h3>
+            <p>室内定位或门口二维码锚定位置之后，AR 视图把门牌、空教室、社团招募点贴回它们真实所在的地方。再往前一步是「发现型」玩法：新生寻宝、社团打卡路线、校庆集章，都跑在同一套地点数据上。</p>
+            <ul>
+              <li>扫楼栋或门牌浮出该层可去的地点，点一下就是导航</li>
+              <li>现场发现新地点：饮水机、安静自习角、充电口，拍照上报</li>
+              <li>AI 先做位置与照片的一致性初筛，人工抽检后再上图</li>
+            </ul>
+            <p class="stage">阶段四 · XR 会话</p>
+          </article>
+
+          <article class="ai">
+            <p class="kicker">校园社区共建</p>
+            <h3>内容挂在地点上，而不是沉在群里</h3>
+            <p>失物招领、二手转让、组队自习、社团公告，本来就都带着一个地点。把它们按楼栋、按楼层聚起来，「这栋楼今晚有什么」「谁在 C4 捡到一张卡」才问得出口。</p>
+            <ul>
+              <li>地点级讨论串，按热度与时效衰减排序，过期内容自动沉底</li>
+              <li>公开通知整理成活动卡片，确认后才定位到楼栋</li>
+              <li>只让允许公开的字段上图，个人身份与行程不落地</li>
+            </ul>
+            <p class="stage">阶段五 · 社区内容</p>
+          </article>
+        </div>
+
+        <div class="ai-demo">
+          <div class="ai-demo-head">
+            <span class="pulse" aria-hidden="true"></span>
+            <span>AI 建议 · 18:02 · 一号教学楼 1F 大厅</span>
+          </div>
+          <div class="recs">
+            <article class="rec">
+              <p class="rec-tag">赶课</p>
+              <h4>C4-302 的课 8 分钟后开始</h4>
+              <p>走中轴路加东侧楼梯，580 m / 7 分钟，比走西门少 2 分钟。现在出发刚好，不用跑。</p>
+              <p class="rec-src">依据：课表 · 实时路径代价 · 楼梯拥挤度</p>
+            </article>
+            <article class="rec">
+              <p class="rec-tag">空教室</p>
+              <h4>隔壁楼 3F 还有空教室</h4>
+              <p>步行 4 分钟。靠窗一侧坐满了，中间区域还空着两间，适合两人自习。</p>
+              <p class="rec-src">依据：教室 × 时段占用 · 匿名聚合</p>
+            </article>
+            <article class="rec">
+              <p class="rec-tag">顺路</p>
+              <h4>报告厅 19:00 有一场公开讲座</h4>
+              <p>在你回宿舍的路上，提前 10 分钟还有座，散场时间不影响末班校车。</p>
+              <p class="rec-src">依据：公开活动卡片 · 你的当前位置</p>
+            </article>
+          </div>
+        </div>
+
+        <ul class="principles">
+          <li><strong>端侧优先</strong><span>个性化推理尽量在浏览器里算，课表与轨迹不出设备</span></li>
+          <li><strong>可解释</strong><span>每条推荐都能摊开依据，不做「猜你喜欢」的黑箱</span></li>
+          <li><strong>匿名聚合</strong><span>拥挤度、空座率只回传统计量，不关联到人</span></li>
+          <li><strong>人来把关</strong><span>社区内容与 AI 推断都要经过确认才上图</span></li>
+        </ul>
+      </section>
+
       <section class="section wrap" id="stack">
         <div class="section-head">
           <p class="eyebrow">技术路线</p>
-          <h2>四层结构，一层都不多余</h2>
-          <p class="lede">数据、算法、渲染、应用分开演进：地图数据可以被别的项目复用，寻路算法不依赖具体渲染器，渲染层也能换成别的引擎。</p>
+          <h2>五层结构，一层都不多余</h2>
+          <p class="lede">数据、算法、智能、渲染、应用分开演进：地图数据可以被别的项目复用，寻路算法不依赖具体渲染器，推荐层不绑定模型供应商，渲染层也能换成别的引擎。</p>
         </div>
         <div class="stack">
           <div class="layer">
@@ -227,6 +314,13 @@
             <div class="layer-body">
               <p>室外在道路拓扑上跑运行时 A*；室内在楼层图内搜索；楼梯电梯作为带代价的边，最后把两段路径在建筑入口缝合，得到一条连续的完整路线。</p>
               <div class="chips"><span class="chip">A*</span><span class="chip">楼层图</span><span class="chip">跨层代价</span><span class="chip">任意点位接入</span></div>
+            </div>
+          </div>
+          <div class="layer">
+            <div class="layer-label"><strong>智能层</strong><span>intelligence</span></div>
+            <div class="layer-body">
+              <p>确定性的判断写进规则：时段冲突、路线代价、数据分级。推荐顺序与措辞交给端侧小模型，地点与活动的文本走向量检索——先检索再生成，答不出来就说不知道，不凭空编地址。每条输出都带依据字段，界面能把理由摊开。</p>
+              <div class="chips"><span class="chip">规则引擎</span><span class="chip">端侧小模型</span><span class="chip">向量检索</span><span class="chip">依据字段</span></div>
             </div>
           </div>
           <div class="layer">
@@ -299,8 +393,8 @@
       <section class="section wrap" id="roadmap">
         <div class="section-head">
           <p class="eyebrow">路线图</p>
-          <h2>五个阶段，一年内走完</h2>
-          <p class="lede">每个阶段都有可以直接演示的产物，不等到最后一天才验收。</p>
+          <h2>六个阶段，一年半内走完</h2>
+          <p class="lede">每个阶段都有可以直接演示的产物，不等到最后一天才验收。AI 与社区排在后面，是因为它们都靠前面那份空间数据吃饭。</p>
         </div>
         <ol class="roadmap">
           <li class="phase" data-status="done">
@@ -312,16 +406,20 @@
             <p>定室内数据规范（楼层 / 房间 / 门 / 竖向交通），先做一栋教学楼样板，编辑器增加楼层编辑与剖切查看。</p>
           </li>
           <li class="phase">
-            <div class="phase-head"><h3>阶段三 · 课程与活动</h3><time>2027.03 – 2027.05</time><span class="status next">计划</span></div>
-            <p>接入公开课程表与活动数据，做「教室 × 时段」检索与地图定位，同时明确数据分级与脱敏规则。</p>
+            <div class="phase-head"><h3>阶段三 · 课程与活动</h3><time>2027.03 – 2027.04</time><span class="status next">计划</span></div>
+            <p>接入公开课程表与活动数据，做「教室 × 时段」检索与地图定位，同时明确数据分级与脱敏规则——这一步也是后面推荐与社区的地基。</p>
           </li>
           <li class="phase">
-            <div class="phase-head"><h3>阶段四 · VR 导航</h3><time>2027.06 – 2027.08</time><span class="status next">计划</span></div>
-            <p>WebXR 会话、第一人称引导与跨层提示，在移动端实机测帧率与发热，必要时做降级方案。</p>
+            <div class="phase-head"><h3>阶段四 · VR / XR 导航</h3><time>2027.05 – 2027.06</time><span class="status next">计划</span></div>
+            <p>WebXR 会话、第一人称引导与跨层提示，在移动端实机测帧率与发热；同时做门牌扫描与 AR 信息叠加的最小版本。</p>
           </li>
           <li class="phase">
-            <div class="phase-head"><h3>阶段五 · 试点与结题</h3><time>2027.09 – 2027.10</time><span class="status next">计划</span></div>
-            <p>单栋楼试点、真实使用者试用、指标回收，整理结题材料与演示视频。</p>
+            <div class="phase-head"><h3>阶段五 · AI 推荐与社区共建</h3><time>2027.07 – 2027.09</time><span class="status next">计划</span></div>
+            <p>情境推荐卡片、可解释依据、推荐开关；地点级讨论串与活动卡片，加上现场发现新地点的上报与审核流程。</p>
+          </li>
+          <li class="phase">
+            <div class="phase-head"><h3>阶段六 · 试点与结题</h3><time>2027.10 – 2027.11</time><span class="status next">计划</span></div>
+            <p>单栋楼试点、真实使用者试用、推荐命中率与找路耗时等指标回收，整理结题材料与演示视频。</p>
           </li>
         </ol>
       </section>
@@ -345,7 +443,7 @@
         <div class="footer-grid">
           <div>
             <h4>项目</h4>
-            <p>CampusNav 3D：室内外一体的智慧校园导航与活动地图，支持 VR 导航。面向大学生创新创业训练计划的项目提案与原型。</p>
+            <p>CampusNav 3D：室内外一体的智慧校园导航与活动地图，在寻路之上做 AI 情境推荐、XR 场景发现与地点级社区内容，支持 VR 导航。面向大学生创新创业训练计划的项目提案与原型。</p>
           </div>
           <div>
             <h4>入口</h4>

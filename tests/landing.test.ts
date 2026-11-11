@@ -17,10 +17,22 @@ describe('落地页结构', () => {
   })
 
   it('主要区块与锚点齐全', () => {
-    for (const id of ['why', 'capability', 'stack', 'shipped', 'roadmap']) {
+    for (const id of ['why', 'capability', 'ai', 'stack', 'shipped', 'roadmap']) {
       expect(landing).toContain(`id="${id}"`)
       expect(landing).toContain(`href="#${id}"`)
     }
+  })
+
+  it('AI 与社区区块盖住三个方向与四条原则', () => {
+    for (const keyword of ['AI 情境推荐', 'XR 场景互动发现', '校园社区共建']) {
+      expect(landing).toContain(keyword)
+    }
+    expect((landing.match(/class="ai"/g) ?? []).length).toBe(3)
+    expect((landing.match(/class="rec"/g) ?? []).length).toBeGreaterThanOrEqual(3)
+    for (const principle of ['端侧优先', '可解释', '匿名聚合', '人来把关']) {
+      expect(landing).toContain(principle)
+    }
+    expect(landing).toContain('class="rec-src"')
   })
 
   it('三个核心能力都在页面上', () => {
@@ -34,6 +46,11 @@ describe('落地页结构', () => {
     for (const target of ['./demo.html', './editor.html', './plan.html']) {
       expect(landing).toContain(`href="${target}"`)
     }
+  })
+
+  it('路线图排到六个阶段，AI 与社区有独立阶段', () => {
+    expect((landing.match(/class="phase"/g) ?? []).length).toBe(6)
+    expect(landing).toContain('AI 推荐与社区共建')
   })
 
   it('带上首屏主题脚本与样式表，避免闪白', () => {
