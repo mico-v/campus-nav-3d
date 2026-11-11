@@ -1,6 +1,19 @@
 # campus-nav-3d
 
-一个适合 GitHub Pages 的 3D 校园导航原型，使用 Vite + TypeScript + Three.js 构建。
+一个适合 GitHub Pages 的 3D 校园导航项目，使用 Vite + TypeScript + Three.js 构建。仓库根目录是项目站点：`index.html` 为项目首页（介绍 + 路线图），`plan.html` 为大创项目计划报告，`demo.html` 为三维地图原型，`editor.html` 为地图编辑器。
+
+线上地址：`https://mico-v.github.io/campus-nav-3d/`
+
+## 站点结构
+
+| 页面 | 文件 | 内容 |
+| --- | --- | --- |
+| 项目首页 | `index.html` | 项目定位、三个核心能力、技术路线、已有原型、路线图 |
+| 计划报告 | `plan.html` | 立项背景、研究内容、技术路线、进度、成果、预算、风险 |
+| 地图原型 | `demo.html` | 三维校园浏览与建筑信息 |
+| 地图编辑器 | `editor.html` | 道路 / 区域 / 建筑编辑与导出 |
+
+首页与计划报告共用 `src/landing/landing.css` 与 `src/landing/main.ts`（Material 3 设计令牌、深浅色主题、目录滚动高亮、打印）。主题在首屏前置内联脚本里恢复，避免刷新闪白。
 
 当前默认地图以 [`ZDaneel/usts-navigation-graph`](https://github.com/ZDaneel/usts-navigation-graph) 的地点位置和连通关系为基准，并叠加 OpenStreetMap 在 `31.251704,120.572537` 附近可明确匹配名称的建筑 footprint。
 
@@ -14,6 +27,13 @@
 - 使用相对 `base`，可直接部署到 GitHub Pages 项目页
 
 ## 代码结构
+
+站点入口：
+
+- `index.html` — 项目首页（落地页），样式与脚本在 `src/landing/`
+- `plan.html` — 计划报告，与首页共用同一套样式
+- `demo.html` — 三维地图应用，挂到 `src/main.ts`
+- `editor.html` — 地图编辑器，挂到 `src/editor/main.ts`
 
 渲染逻辑按职责拆分为独立模块：
 
@@ -36,6 +56,8 @@
 npm install
 npm run dev
 ```
+
+开发服务器根路径即项目首页，`/demo.html`、`/plan.html`、`/editor.html` 分别对应原型、报告和编辑器。
 
 ## 生产构建
 

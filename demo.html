@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="CampusNav 3D 的 3D 校园导航原型：室外三维校园、可寻路路网与建筑信息浏览。" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <title>3D 校园导航原型 · CampusNav 3D</title>
+    <style>
+      .back-home {
+        position: fixed;
+        right: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        z-index: 20;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(20, 102, 108, 0.22);
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(8px);
+        color: #0d3b3f;
+        font: 500 13px/1.2 'Inter', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        text-decoration: none;
+        box-shadow: 0 8px 24px -16px rgba(6, 32, 36, 0.5);
+      }
+      .back-home:hover { background: #d2eff0; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <a class="back-home" href="./index.html">← 项目首页</a>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

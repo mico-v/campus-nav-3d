@@ -13,6 +13,8 @@ export default defineConfig({
     rolldownOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
+        demo: resolve(__dirname, 'demo.html'),
+        plan: resolve(__dirname, 'plan.html'),
         editor: resolve(__dirname, 'editor.html'),
       },
       output: {

@@ -1,14 +1,371 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="一个适合 GitHub Pages 部署的 3D 校园导航原型。" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>CampusNav 3D · 室内外一体的智慧校园导航</title>
+    <meta
+      name="description"
+      content="CampusNav 3D 是一个把室外路网、教学楼室内分层与实时课程 / 活动信息放进同一个浏览器 3D 场景的智慧校园导航项目，支持 VR 导航。大学生创新创业训练计划项目提案。"
+    />
+    <meta name="theme-color" content="#f7f9fa" />
+    <meta property="og:title" content="CampusNav 3D · 室内外一体的智慧校园导航" />
+    <meta property="og:description" content="室外路网 + 室内分层建模 + 课程与活动地图 + WebXR 导航。" />
+    <meta property="og:type" content="website" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
-    <title>校园 3D 导航原型</title>
+    <script>
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('campusnav-theme')
+          var dark = stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', dark ? '#0d1417' : '#f7f9fa')
+        } catch (e) {}
+      })()
+    </script>
+    <link rel="stylesheet" href="./src/landing/landing.css" />
+    <script type="module" src="./src/landing/main.ts"></script>
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
+    <a class="skip" href="#main">跳到正文</a>
+
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="./index.html" aria-label="CampusNav 3D 首页">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9.5 12 4l9 5.5" />
+              <path d="M5 11v8h14v-8" />
+              <path d="M9.5 19v-4.5h5V19" />
+            </svg>
+          </span>
+          <span class="brand-text">CampusNav 3D<i>智慧校园导航</i></span>
+        </a>
+
+        <nav class="nav" aria-label="站内导航">
+          <a href="#why">为什么</a>
+          <a href="#capability">核心能力</a>
+          <a href="#stack">技术路线</a>
+          <a href="#shipped">已有原型</a>
+          <a href="#roadmap">路线图</a>
+          <a href="./plan.html">计划报告</a>
+        </nav>
+
+        <div class="topbar-actions">
+          <button class="icon-btn" id="theme-toggle" type="button" aria-label="切换深浅色主题" title="切换深浅色主题">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8Z" />
+            </svg>
+          </button>
+          <a class="btn btn-filled" href="./demo.html">进入原型</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero wrap">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <p class="badge"><span class="dot" aria-hidden="true"></span>大学生创新创业训练计划 · 项目提案</p>
+            <h1>把整座校园，做成一张能走进去的地图</h1>
+            <p class="lede">
+              CampusNav 3D 把室外路网、教学楼的室内楼层和课程 / 活动信息放进同一个浏览器 3D 场景：从校门口一路导航到教室门口。戴上头显，还能用第一人称走进去。
+            </p>
+            <div class="hero-actions">
+              <a class="btn btn-filled" href="./demo.html">
+                进入 3D 原型
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M5 12h13" /><path d="m12 5 7 7-7 7" />
+                </svg>
+              </a>
+              <a class="btn btn-outline" href="./plan.html">阅读计划报告</a>
+            </div>
+            <div class="hero-facts">
+              <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg>纯浏览器运行，不用装 App</span>
+              <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg>代码与地图数据开源</span>
+            </div>
+          </div>
+
+          <figure class="hero-visual" aria-label="校园等轴测示意图">
+                                                            <svg class="iso" viewBox="34 104 664 348" role="img" aria-label="等轴测校园示意：建筑群、可寻路道路，以及一栋按楼层分层建模的教学楼">
+            <title>等轴测校园示意</title>
+            <polygon points="402,108 777.8,325 402,542 26.2,325" fill="var(--iso-plate)"/>
+            <g class="iso-grid"><line x1="402" y1="108" x2="26.2" y2="325"/><line x1="402" y1="108" x2="777.8" y2="325"/><line x1="428.8" y1="123.5" x2="53" y2="340.5"/><line x1="375.2" y1="123.5" x2="751" y2="340.5"/><line x1="455.7" y1="139" x2="79.8" y2="356"/><line x1="348.3" y1="139" x2="724.2" y2="356"/><line x1="482.5" y1="154.5" x2="106.7" y2="371.5"/><line x1="321.5" y1="154.5" x2="697.3" y2="371.5"/><line x1="509.4" y1="170" x2="133.5" y2="387"/><line x1="294.6" y1="170" x2="670.5" y2="387"/><line x1="536.2" y1="185.5" x2="160.4" y2="402.5"/><line x1="267.8" y1="185.5" x2="643.6" y2="402.5"/><line x1="563.1" y1="201" x2="187.2" y2="418"/><line x1="240.9" y1="201" x2="616.8" y2="418"/><line x1="589.9" y1="216.5" x2="214.1" y2="433.5"/><line x1="214.1" y1="216.5" x2="589.9" y2="433.5"/><line x1="616.8" y1="232" x2="240.9" y2="449"/><line x1="187.2" y1="232" x2="563.1" y2="449"/><line x1="643.6" y1="247.5" x2="267.8" y2="464.5"/><line x1="160.4" y1="247.5" x2="536.2" y2="464.5"/><line x1="670.5" y1="263" x2="294.6" y2="480"/><line x1="133.5" y1="263" x2="509.4" y2="480"/><line x1="697.3" y1="278.5" x2="321.5" y2="495.5"/><line x1="106.7" y1="278.5" x2="482.5" y2="495.5"/><line x1="724.2" y1="294" x2="348.3" y2="511"/><line x1="79.8" y1="294" x2="455.7" y2="511"/><line x1="751" y1="309.5" x2="375.2" y2="526.5"/><line x1="53" y1="309.5" x2="428.8" y2="526.5"/><line x1="777.8" y1="325" x2="402" y2="542"/><line x1="26.2" y1="325" x2="402" y2="542"/></g>
+            <g><circle cx="428.8" cy="248.7" r="5" fill="var(--iso-green)" fill-opacity="0.4"/><circle cx="427" cy="246.89999999999998" r="3" fill="var(--iso-green-light)" fill-opacity="0.45"/><circle cx="568.4" cy="279.7" r="5" fill="var(--iso-green)" fill-opacity="0.4"/><circle cx="566.6" cy="277.9" r="3" fill="var(--iso-green-light)" fill-opacity="0.45"/><circle cx="377.8" cy="272" r="5" fill="var(--iso-green)" fill-opacity="0.4"/><circle cx="376" cy="270.2" r="3" fill="var(--iso-green-light)" fill-opacity="0.45"/><circle cx="598" cy="368" r="5" fill="var(--iso-green)" fill-opacity="0.4"/><circle cx="596.2" cy="366.2" r="3" fill="var(--iso-green-light)" fill-opacity="0.45"/><circle cx="310.7" cy="211.5" r="5" fill="var(--iso-green)" fill-opacity="0.4"/><circle cx="308.9" cy="209.7" r="3" fill="var(--iso-green-light)" fill-opacity="0.45"/><circle cx="402" cy="363.4" r="5" fill="var(--iso-green)" fill-opacity="0.4"/><circle cx="400.2" cy="361.59999999999997" r="3" fill="var(--iso-green-light)" fill-opacity="0.45"/><circle cx="203.3" cy="363.4" r="5" fill="var(--iso-green)" fill-opacity="0.4"/><circle cx="201.5" cy="361.59999999999997" r="3" fill="var(--iso-green-light)" fill-opacity="0.45"/><circle cx="506.7" cy="414.6" r="5" fill="var(--iso-green)" fill-opacity="0.4"/><circle cx="504.9" cy="412.8" r="3" fill="var(--iso-green-light)" fill-opacity="0.45"/><circle cx="219.4" cy="258" r="5" fill="var(--iso-green)" fill-opacity="0.4"/><circle cx="217.6" cy="256.2" r="3" fill="var(--iso-green-light)" fill-opacity="0.45"/></g>
+            <g><polygon points="345.6,167.2 402,199.7 402,253.7 345.6,221.2" fill="var(--iso-left)"/><polygon points="402,134.6 345.6,167.2 345.6,221.2 402,188.6" fill="var(--iso-right)"/><polygon points="402,134.6 458.4,167.2 402,199.7 345.6,167.2" fill="var(--iso-top)"/><polygon points="458.4,234.6 530.9,276.4 530.9,306.4 458.4,264.6" fill="var(--iso-left-2)"/><polygon points="501.3,209.8 458.4,234.6 458.4,264.6 501.3,239.8" fill="var(--iso-right-2)"/><polygon points="501.3,209.8 573.8,251.6 530.9,276.4 458.4,234.6" fill="var(--iso-top-2)"/><polygon points="533.5,293.9 581.9,321.8 581.9,363.8 533.5,335.9" fill="var(--iso-left)"/><polygon points="581.9,266 533.5,293.9 533.5,335.9 581.9,308" fill="var(--iso-right)"/><polygon points="581.9,266 630.2,293.9 581.9,321.8 533.5,293.9" fill="var(--iso-top)"/><polygon points="265.1,258.1 332.2,296.8 332.2,318.8 265.1,280.1" fill="var(--iso-left-2)"/><polygon points="302.7,236.4 265.1,258.1 265.1,280.1 302.7,258.4" fill="var(--iso-right-2)"/><polygon points="302.7,236.4 369.8,275.1 332.2,296.8 265.1,258.1" fill="var(--iso-top-2)"/><polygon points="463.7,362.5 504,385.8 504,411.8 463.7,388.5" fill="var(--iso-left-2)"/><polygon points="504,339.3 463.7,362.5 463.7,388.5 504,365.3" fill="var(--iso-right-2)"/><polygon points="504,339.3 544.3,362.5 504,385.8 463.7,362.5" fill="var(--iso-top-2)"/><polygon points="157.7,290.5 208.7,320 208.7,356 157.7,326.5" fill="var(--iso-left)"/><polygon points="203.3,264.2 157.7,290.5 157.7,326.5 203.3,300.2" fill="var(--iso-right)"/><polygon points="203.3,264.2 254.3,293.7 208.7,320 157.7,290.5" fill="var(--iso-top)"/><polygon points="265.1,352 340.3,395.4 340.3,413.4 265.1,370" fill="var(--iso-left-2)"/><polygon points="305.4,328.7 265.1,352 265.1,370 305.4,346.7" fill="var(--iso-right-2)"/><polygon points="305.4,328.7 380.5,372.1 340.3,395.4 265.1,352" fill="var(--iso-top-2)"/><polygon points="348.3,391.6 404.7,424.2 404.7,469.2 348.3,436.6" fill="var(--iso-left)"/><polygon points="399.3,362.2 348.3,391.6 348.3,436.6 399.3,407.2" fill="var(--iso-right)"/><polygon points="399.3,362.2 455.7,394.7 404.7,424.2 348.3,391.6" fill="var(--iso-top)"/><polygon points="372.5,317.8 434.2,353.5 434.2,366.5 372.5,330.8" fill="var(--iso-left)"/><polygon points="423.5,288.4 372.5,317.8 372.5,330.8 423.5,301.4" fill="var(--iso-right)"/><polygon points="423.5,288.4 485.2,324 434.2,353.5 372.5,317.8" fill="var(--iso-top)"/><polygon points="372.5,301.6 434.2,337.3 434.2,350.3 372.5,314.6" fill="var(--iso-left)"/><polygon points="423.5,272.2 372.5,301.6 372.5,314.6 423.5,285.2" fill="var(--iso-right)"/><polygon points="423.5,272.2 485.2,307.8 434.2,337.3 372.5,301.6" fill="var(--iso-top)"/><polygon points="372.5,285.4 434.2,321.1 434.2,334.1 372.5,298.4" fill="var(--iso-hero-left)"/><polygon points="423.5,256 372.5,285.4 372.5,298.4 423.5,269" fill="var(--iso-hero-right)"/><polygon points="423.5,256 485.2,291.6 434.2,321.1 372.5,285.4" fill="var(--iso-hero-top)"/><polygon points="372.5,269.2 434.2,304.9 434.2,317.9 372.5,282.2" fill="var(--iso-left)"/><polygon points="423.5,239.8 372.5,269.2 372.5,282.2 423.5,252.8" fill="var(--iso-right)"/><polygon points="423.5,239.8 485.2,275.4 434.2,304.9 372.5,269.2" fill="var(--iso-top)"/></g>
+            <polyline points="77.2,288.4 181.9,308.5 267.8,314.7 334.9,325.5 369.8,339.5" class="iso-route" fill="none" stroke-dasharray="7 7"/>
+            <circle cx="77.2" cy="288.4" r="4.4" class="iso-dot"/>
+            <circle cx="369.8" cy="339.5" r="4" class="iso-dot"/>
+            </svg>
+            <div class="float-card fc-floor">
+              <div class="fc-title"><span class="pulse" aria-hidden="true"></span>3F · 302 教室<span class="tag">正在上课</span></div>
+              <div class="fc-body">数据结构（Java 语言描述）</div>
+              <div class="fc-meta">08:00–09:40 · 还剩 3 站楼梯</div>
+            </div>
+            <div class="float-card fc-vr">
+              <div class="fc-title"><span class="tag">VR</span>第一人称导航</div>
+              <div class="fc-body">二号门 → C4-302</div>
+              <div class="fc-meta">室外 480 m · 换层 2 次</div>
+            </div>
+            <div class="visual-caption" aria-hidden="true">
+              <span class="floor-chips"><b>1F</b><b>2F</b><b class="on">3F</b><b>4F</b></span>
+              <span class="cap-text">楼层剖切 · 室内外连续寻路</span>
+            </div>
+          </figure>
+        </div>
+      </section>
+
+      <div class="wrap">
+        <div class="stats" role="list">
+          <div class="stat" role="listitem"><b>75</b><span>栋建筑已进入室外 3D</span></div>
+          <div class="stat" role="listitem"><b>38 / 41</b><span>路网节点 / 可寻路道路段</span></div>
+          <div class="stat" role="listitem"><b>154</b><span>项自动化测试全绿</span></div>
+          <div class="stat" role="listitem"><b>0</b><span>安装步骤，打开网页即用</span></div>
+        </div>
+      </div>
+
+      <section class="section wrap" id="why">
+        <div class="section-head">
+          <p class="eyebrow">问题</p>
+          <h2>校园地图，走到楼下就断了</h2>
+          <p class="lede">导航软件能把你送到校门口，剩下的路靠经验和运气。空间、课表和活动信息三者互不相通，这就是项目要解决的事。</p>
+        </div>
+        <div class="problem-grid">
+          <article class="problem">
+            <p class="num">01</p>
+            <h3>二维地图进不了楼</h3>
+            <p>教室在几层、走哪个楼梯、电梯在哪一侧，地图上都没有。新生、访客、来参加比赛的外校同学，只能靠群里的文字描述和路边问人。</p>
+          </article>
+          <article class="problem">
+            <p class="num">02</p>
+            <h3>课表和空间是两套系统</h3>
+            <p>教务里的「C4-302」和地图上的那栋楼之间没有链接，想知道「这间教室今晚空不空」，得先查课表再猜楼栋，最后还得自己去现场确认。</p>
+          </article>
+          <article class="problem">
+            <p class="num">03</p>
+            <h3>活动信息散落在群里</h3>
+            <p>讲座、社团活动、临时考试安排分散在通知群和公众号里。地图上没有任何入口能回答「这栋楼今晚有什么」。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section wrap" id="capability">
+        <div class="section-head">
+          <p class="eyebrow">核心能力</p>
+          <h2>一张地图，三层深度</h2>
+          <p class="lede">从「看得见楼」到「找得到教室」再到「走得到座位」，三件事在同一套数据上完成。</p>
+        </div>
+        <div class="cap-grid">
+          <article class="cap">
+            <span class="cap-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="m3 13 9 5 9-5" /><path d="m3 18 9 5 9-5" />
+              </svg>
+            </span>
+            <h3>室内分层建模</h3>
+            <p>每栋教学楼按楼层建成独立图层：房间、走廊、楼梯、电梯、出入口，全部是可参与计算的几何，不是贴图。</p>
+            <ul>
+              <li>房间带语义：教室 / 实验室 / 办公室 / 卫生间</li>
+              <li>楼梯、电梯是跨层边，参与寻路代价计算</li>
+              <li>与室外路网在建筑入口处接续，楼层可单独显示或剖切</li>
+            </ul>
+            <p class="stage">阶段二 · 规范与样板楼</p>
+          </article>
+
+          <article class="cap">
+            <span class="cap-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /><path d="M8 14h3M8 17h6" />
+              </svg>
+            </span>
+            <h3>课程与活动地图</h3>
+            <p>把课表和活动信息挂到空间上：在地图上直接看到哪间教室正在上什么课、哪栋楼今晚有活动、几点开始。</p>
+            <ul>
+              <li>教室 × 时段 × 课程三向索引，支持「现在哪里在上什么」</li>
+              <li>活动卡片定位到楼栋，点击直接导航到门口</li>
+              <li>按公开范围分级，只把允许公开的信息上图</li>
+            </ul>
+            <p class="stage">阶段三 · 数据接入</p>
+          </article>
+
+          <article class="cap">
+            <span class="cap-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 8h3.2a2 2 0 0 1 1.7 1l1.4 2.3a2 2 0 0 0 1.7 1h5.1" />
+                <rect x="2" y="6" width="7" height="6" rx="3" /><rect x="15" y="6" width="7" height="6" rx="3" />
+              </svg>
+            </span>
+            <h3>VR / 沉浸导航</h3>
+            <p>用 WebXR 直接在浏览器里进 VR，不需要另外装应用。第一人称路径引导，走完从室外到教室门口的全程。</p>
+            <ul>
+              <li>手机加 Cardboard、一体机头显都能进</li>
+              <li>路径贴地绘制，转弯与换层有明确提示</li>
+              <li>手柄与手势两套操作映射，桌面端可降级为第一人称漫游</li>
+            </ul>
+            <p class="stage">阶段四 · 沉浸会话</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section wrap" id="stack">
+        <div class="section-head">
+          <p class="eyebrow">技术路线</p>
+          <h2>四层结构，一层都不多余</h2>
+          <p class="lede">数据、算法、渲染、应用分开演进：地图数据可以被别的项目复用，寻路算法不依赖具体渲染器，渲染层也能换成别的引擎。</p>
+        </div>
+        <div class="stack">
+          <div class="layer">
+            <div class="layer-label"><strong>数据层</strong><span>data</span></div>
+            <div class="layer-body">
+              <p>室外几何来自 OpenStreetMap 与开源校园路网工程，室内楼层由自研编辑器维护，两者统一为可版本化的 JSON；课程与活动通过只读接口接入，不落地个人数据。</p>
+              <div class="chips"><span class="chip">campus.json</span><span class="chip">楼层 JSON</span><span class="chip">GeoJSON</span><span class="chip">只读 API</span></div>
+            </div>
+          </div>
+          <div class="layer">
+            <div class="layer-label"><strong>算法层</strong><span>algorithm</span></div>
+            <div class="layer-body">
+              <p>室外在道路拓扑上跑运行时 A*；室内在楼层图内搜索；楼梯电梯作为带代价的边，最后把两段路径在建筑入口缝合，得到一条连续的完整路线。</p>
+              <div class="chips"><span class="chip">A*</span><span class="chip">楼层图</span><span class="chip">跨层代价</span><span class="chip">任意点位接入</span></div>
+            </div>
+          </div>
+          <div class="layer">
+            <div class="layer-label"><strong>渲染层</strong><span>rendering</span></div>
+            <div class="layer-body">
+              <p>Three.js 负责场景与按需渲染，没有常驻动画循环，静止时不烧 GPU 和电量；WebXR 负责沉浸会话。同一份几何同时驱动 2D 编辑器和 3D 场景，避免两套数据打架。</p>
+              <div class="chips"><span class="chip">Three.js</span><span class="chip">WebXR</span><span class="chip">按需渲染</span><span class="chip">实例化</span></div>
+            </div>
+          </div>
+          <div class="layer">
+            <div class="layer-label"><strong>应用层</strong><span>application</span></div>
+            <div class="layer-body">
+              <p>纯静态前端，可直接部署在 GitHub Pages，没有必要就别加服务器；可安装为 PWA。编辑器与公开地图共用一套数据管线，改完数据就地校验、导出、上线。</p>
+              <div class="chips"><span class="chip">Vite</span><span class="chip">TypeScript</span><span class="chip">PWA</span><span class="chip">GitHub Pages</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section wrap" id="shipped">
+        <div class="shipped">
+          <div>
+            <p class="eyebrow">已有原型</p>
+            <h2>不是从零开始</h2>
+            <p class="lede">室外三维校园、可寻路的道路拓扑，以及一个能直接改数据的可视化编辑器都已经跑起来。下面这些现在就能点开看。</p>
+            <ul class="checklist" style="margin-top: 24px">
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg>
+                <span><strong>三维校园场景</strong>：75 栋建筑、7 个分区、水体与操场，拖拽旋转、滚轮缩放、点击查看建筑信息。</span>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg>
+                <span><strong>可寻路的路网</strong>：14 条逻辑道路拆成 38 个拓扑节点、41 个道路段，支持任意点位接入与运行时 A* 寻路。</span>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg>
+                <span><strong>可视化地图编辑器</strong>：画道路、拖顶点、拆分合并、撤销重做、校验与导出，改动直接落回 JSON。</span>
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg>
+                <span><strong>性能与质量</strong>：按需渲染、渲染指标与预算检查；154 项自动化测试覆盖数据、几何、导航算法与编辑器交互。</span>
+              </li>
+            </ul>
+            <div class="hero-actions">
+              <a class="btn btn-tonal" href="./demo.html">打开地图原型</a>
+              <a class="btn btn-outline" href="./editor.html">打开编辑器</a>
+            </div>
+          </div>
+
+          <div class="console" aria-label="构建与测试输出示例">
+            <div class="console-bar"><i></i><i></i><i></i><span>campus-nav-3d</span></div>
+            <pre><span class="k">$</span> npm test
+ <span class="ok">✓</span> 27 files · <span class="ok">154</span> tests passed
+
+<span class="k">$</span> npm run build
+ <span class="ok">✓</span> dist/ · 4 entries
+ <span class="ok">✓</span> three-vendor  147 kB gzip
+
+<span class="k">$</span> jq '.buildings | length' \
+    src/data/campus.json
+ <span class="ok">75</span>
+
+<span class="k">$</span> jq '.roads | length' \
+    src/data/campus.json
+ <span class="ok">14</span>   <span class="muted">→ 41 segments</span></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="section wrap" id="roadmap">
+        <div class="section-head">
+          <p class="eyebrow">路线图</p>
+          <h2>五个阶段，一年内走完</h2>
+          <p class="lede">每个阶段都有可以直接演示的产物，不等到最后一天才验收。</p>
+        </div>
+        <ol class="roadmap">
+          <li class="phase" data-status="done">
+            <div class="phase-head"><h3>阶段一 · 室外底座</h3><time>2026.06 – 2026.11</time><span class="status done">已完成</span></div>
+            <p>三维校园场景、道路拓扑、运行时寻路与可视化编辑器，配套自动化测试与性能预算。</p>
+          </li>
+          <li class="phase" data-status="now">
+            <div class="phase-head"><h3>阶段二 · 室内建模</h3><time>2026.12 – 2027.02</time><span class="status now">进行中</span></div>
+            <p>定室内数据规范（楼层 / 房间 / 门 / 竖向交通），先做一栋教学楼样板，编辑器增加楼层编辑与剖切查看。</p>
+          </li>
+          <li class="phase">
+            <div class="phase-head"><h3>阶段三 · 课程与活动</h3><time>2027.03 – 2027.05</time><span class="status next">计划</span></div>
+            <p>接入公开课程表与活动数据，做「教室 × 时段」检索与地图定位，同时明确数据分级与脱敏规则。</p>
+          </li>
+          <li class="phase">
+            <div class="phase-head"><h3>阶段四 · VR 导航</h3><time>2027.06 – 2027.08</time><span class="status next">计划</span></div>
+            <p>WebXR 会话、第一人称引导与跨层提示，在移动端实机测帧率与发热，必要时做降级方案。</p>
+          </li>
+          <li class="phase">
+            <div class="phase-head"><h3>阶段五 · 试点与结题</h3><time>2027.09 – 2027.10</time><span class="status next">计划</span></div>
+            <p>单栋楼试点、真实使用者试用、指标回收，整理结题材料与演示视频。</p>
+          </li>
+        </ol>
+      </section>
+
+      <div class="wrap">
+        <div class="cta">
+          <div>
+            <h2>立项依据、技术细节与预算都在报告里</h2>
+            <p>计划报告把背景、研究内容、关键问题、进度安排与经费预算写成一份可以直接打印的文档。</p>
+          </div>
+          <div class="cta-actions">
+            <a class="btn btn-filled" href="./plan.html">打开计划报告</a>
+            <a class="btn btn-outline" href="./demo.html">先看原型</a>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <div class="footer-grid">
+          <div>
+            <h4>项目</h4>
+            <p>CampusNav 3D：室内外一体的智慧校园导航与活动地图，支持 VR 导航。面向大学生创新创业训练计划的项目提案与原型。</p>
+          </div>
+          <div>
+            <h4>入口</h4>
+            <ul>
+              <li><a href="./demo.html">3D 地图原型</a></li>
+              <li><a href="./editor.html">地图编辑器</a></li>
+              <li><a href="./plan.html">计划报告</a></li>
+              <li><a href="https://github.com/mico-v/campus-nav-3d">GitHub 仓库</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4>数据与说明</h4>
+            <p>室外几何整理自 OpenStreetMap 与开源校园路网工程；室内楼层、课程与活动数据为项目自建，只展示允许公开的信息。本站是项目展示页，不代表学校官方系统。</p>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>© <span id="year">2026</span> CampusNav 3D · 苏州科技大学</span>
+          <span>内容为项目设想与原型演示，欢迎指正</span>
+        </div>
+      </div>
+    </footer>
   </body>
 </html>

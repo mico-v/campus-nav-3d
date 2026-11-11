@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>计划报告 · CampusNav 3D</title>
+    <meta name="description" content="CampusNav 3D 项目计划报告：立项背景、研究内容、技术路线、创新点、进度安排、预期成果、经费预算与风险应对。" />
+    <meta name="theme-color" content="#f7f9fa" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <script>
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('campusnav-theme')
+          var dark = stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', dark ? '#0d1417' : '#f7f9fa')
+        } catch (e) {}
+      })()
+    </script>
+    <link rel="stylesheet" href="./src/landing/landing.css" />
+    <script type="module" src="./src/landing/main.ts"></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">跳到正文</a>
+
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="./index.html" aria-label="CampusNav 3D 首页">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9.5 12 4l9 5.5" /><path d="M5 11v8h14v-8" /><path d="M9.5 19v-4.5h5V19" />
+            </svg>
+          </span>
+          <span class="brand-text">CampusNav 3D<i>计划报告</i></span>
+        </a>
+
+        <nav class="nav" aria-label="站内导航">
+          <a href="./index.html#why">为什么</a>
+          <a href="./index.html#capability">核心能力</a>
+          <a href="./index.html#roadmap">路线图</a>
+          <a href="./demo.html">3D 原型</a>
+        </nav>
+
+        <div class="topbar-actions">
+          <button class="icon-btn" id="theme-toggle" type="button" aria-label="切换深浅色主题" title="切换深浅色主题">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8Z" />
+            </svg>
+          </button>
+          <button class="btn btn-outline" type="button" id="print-btn">打印 / 存 PDF</button>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="wrap doc-head">
+        <p class="eyebrow">大学生创新创业训练计划 · 项目计划报告</p>
+        <h1>CampusNav 3D<br />室内外一体的智慧校园导航</h1>
+        <p class="lede">
+          用一套三维数据把校园的室外空间、教学楼室内楼层和课程 / 活动信息连起来，让「去 C4-302 上课」变成一次连续导航，而不是三次问路。
+        </p>
+        <div class="meta">
+          <span>方向：计算机应用 · 空间信息</span>
+          <span>周期：12 个月</span>
+          <span>形式：创新训练项目</span>
+          <span>状态：原型已跑通，待立项</span>
+        </div>
+      </div>
+
+      <div class="wrap doc-layout">
+        <nav class="toc" aria-label="报告目录">
+          <h4>目录</h4>
+          <ol>
+            <li><a href="#s1">1 项目概述</a></li>
+            <li><a href="#s2">2 立项背景</a></li>
+            <li><a href="#s3">3 现状与差距</a></li>
+            <li><a href="#s4">4 研究内容</a></li>
+            <li><a href="#s5">5 技术路线</a></li>
+            <li><a href="#s6">6 创新点</a></li>
+            <li><a href="#s7">7 进度安排</a></li>
+            <li><a href="#s8">8 预期成果</a></li>
+            <li><a href="#s9">9 团队与分工</a></li>
+            <li><a href="#s10">10 经费预算</a></li>
+            <li><a href="#s11">11 风险与应对</a></li>
+            <li><a href="#s12">12 数据与合规</a></li>
+          </ol>
+        </nav>
+
+        <article class="doc">
+          <section id="s1">
+            <h2><span class="idx">01</span>项目概述</h2>
+            <p>
+              CampusNav 3D 是一个运行在浏览器里的三维校园导航系统。它在已有的室外三维校园与可寻路路网之上，继续解决三件现有地图做不到的事：<strong>进得了楼</strong>（教学楼按楼层建模，支持室内寻路与跨层换乘）、<strong>看得到信息</strong>（课程与校园活动挂接到具体教室和时段）、<strong>走得进去</strong>（WebXR 第一人称沉浸导航）。
+            </p>
+            <div class="table-wrap">
+              <table>
+                <tbody>
+                  <tr><td>项目名称</td><td>CampusNav 3D：室内外一体的智慧校园导航与活动地图</td></tr>
+                  <tr><td>项目类型</td><td>大学生创新创业训练计划 · 创新训练项目</td></tr>
+                  <tr><td>学科方向</td><td>计算机科学与技术 / 空间信息与可视化</td></tr>
+                  <tr><td>关键词</td><td>三维重建、室内导航、路径规划、WebXR、校园信息化</td></tr>
+                  <tr><td>研究周期</td><td>12 个月（阶段一已完成，其余四个阶段按季度推进）</td></tr>
+                  <tr><td>成果形式</td><td>可运行的开源系统 + 数据规范 + 演示视频 + 结题报告</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="s2">
+            <h2><span class="idx">02</span>立项背景</h2>
+            <h3>2.1 校园里的「最后一百米」没人管</h3>
+            <p>
+              通用地图应用的覆盖范围到建筑轮廓为止。而真实校园生活的大部分路径发生在建筑内部：从宿舍到教学楼上四层找一间教室，从实验楼到另一栋楼找一间办公室，带来访的家长找到报告厅。这段路目前完全依赖经验和口头指引，对新生、访客和跨校区参加活动的人尤其不友好。
+            </p>
+            <h3>2.2 空间信息与业务信息彼此隔离</h3>
+            <p>
+              课表系统知道「周三第 3-4 节在 C4-302」，地图知道「C4 在哪」，两边的数据从来没有在同一个界面上出现过。结果是：查课表要打开一个应用，找教室要打开另一个应用，最后还要在楼下看指示牌。活动信息更分散，散落在通知群、公众号和海报里，没有任何空间维度的索引。
+            </p>
+            <h3>2.3 已有的技术基础</h3>
+            <p>
+              项目不是从空白起步：室外三维校园、由中心线迁移而来的可寻路路网、以及一个支持画路、拖点、拆分合并、校验导出的可视化编辑器都已经实现并通过测试。这意味着项目的主要风险集中在室内数据规范与数据接入，而不是渲染工程本身。
+            </p>
+            <h3>2.4 项目意义</h3>
+            <ul>
+              <li><strong>实用价值</strong>：直接服务新生入学、访客接待、跨楼上课与活动参与，属于典型的高频低门槛场景。</li>
+              <li><strong>技术价值</strong>：把室外路网与室内楼层图合成一张连续的可导航图，涉及数据规范、跨层代价建模与渲染性能三方面的工程问题。</li>
+              <li><strong>可复用价值</strong>：地图数据、寻路算法与编辑器都以开源形式组织，其他学校或园区替换数据即可复用整套管线。</li>
+            </ul>
+          </section>
+
+          <section id="s3">
+            <h2><span class="idx">03</span>现状与差距</h2>
+            <p>与三类现有方案对比，可以看清本项目的定位：</p>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>方案类型</th><th>能做到</th><th>做不到</th></tr></thead>
+                <tbody>
+                  <tr><td>通用地图应用</td><td>室外定位、公交换乘、建筑轮廓</td><td>室内楼层、教室级目的地、校园活动</td></tr>
+                  <tr><td>校园 2D 平面图 / 导览屏</td><td>静态楼层平面、部分指示</td><td>跨楼连续寻路、实时课表与活动、沉浸式游览</td></tr>
+                  <tr><td>商业室内定位方案</td><td>高精度室内定位</td><td>成本高、依赖蓝牙信标部署、难以在开源项目中复现</td></tr>
+                  <tr><td>本项目</td><td>室外 + 室内连续寻路、课程活动上图、WebXR</td><td>不追求亚米级室内定位，先用结构化空间数据解决「找得到」</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="callout">
+              <strong>定位取舍：</strong>项目主动放弃「实时室内定位」这条重资产路线，改为把重点放在<strong>空间数据建模与路径规划</strong>上。这样既不依赖硬件部署，也能覆盖「第一次来这栋楼」这个最需要帮助的场景。
+            </div>
+          </section>
+
+          <section id="s4">
+            <h2><span class="idx">04</span>研究内容</h2>
+            <h3>4.1 室内楼层数据规范与建模方法</h3>
+            <p>定义楼层、房间、门、走廊、竖向交通（楼梯 / 电梯）的数据结构，明确几何与语义的分工：几何负责渲染，语义负责检索与代价计算。目标是一栋教学楼的建模工作量控制在可接受范围内，并且能被编辑器直接维护。</p>
+            <h3>4.2 室内外一体的路径规划</h3>
+            <p>把室外路网、建筑入口、楼层图拼成一张多层图，在图上做统一搜索。研究跨层代价的设定方式（楼梯与电梯的代价不同、不同楼层的可达性不同），以及在同一栋楼内多次换层时的路线合理性。</p>
+            <h3>4.3 课程与校园活动的空间挂接</h3>
+            <p>设计「教室 × 时段 × 课程 / 活动」的索引结构，支持按当前时间检索「哪个教室在上什么」与「哪里正在办活动」。研究公开信息的边界：哪些字段可以上图、哪些必须聚合或脱敏。</p>
+            <h3>4.4 WebXR 沉浸导航与性能约束</h3>
+            <p>在浏览器内实现 VR 会话、第一人称路径引导与楼层提示；同时研究在移动端有限算力下的渲染策略，用实例化、按需渲染与层级控制保证帧率。</p>
+          </section>
+
+          <section id="s5">
+            <h2><span class="idx">05</span>技术路线</h2>
+            <p>整体按四层组织，每层都可以独立验证：</p>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>层次</th><th>关键工作</th><th>验证方式</th></tr></thead>
+                <tbody>
+                  <tr><td>数据层</td><td>室外几何整理、室内楼层规范、编辑器维护、课程 / 活动只读接口</td><td>数据校验脚本 + 编辑器校验 + 单元测试</td></tr>
+                  <tr><td>算法层</td><td>室外 A*、室内楼层图搜索、跨层代价、路径缝合</td><td>路径正确性与最短路一致性测试</td></tr>
+                  <tr><td>渲染层</td><td>Three.js 场景、楼层剖切、WebXR 会话、按需渲染</td><td>渲染指标与预算检查、目标设备实测</td></tr>
+                  <tr><td>应用层</td><td>公开地图、编辑器、移动端适配、静态部署</td><td>端到端走查 + 构建产物检查</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <h3>5.1 关键问题</h3>
+            <ul>
+              <li><strong>跨层代价怎么定</strong>：电梯快但要等，楼梯慢但确定。用可配置的代价函数而不是硬编码，方便按楼栋调整。</li>
+              <li><strong>入口如何接续</strong>：室外路径终点与楼层图起点必须在同一坐标上对齐，这是最容易出现「差几米」问题的地方。</li>
+              <li><strong>数据怎么维护</strong>：室内建模成本高，必须让编辑器承担这件事，否则数据一定会过期。</li>
+            </ul>
+            <h3>5.2 开发方法</h3>
+            <p>采用测试先行的方式推进：纯函数（坐标映射、图构建、寻路）先写测试再实现，界面与渲染改动则以构建通过加手动走查作为验收。项目已有 154 项自动化测试作为基线，新增模块沿用同一套约定。</p>
+          </section>
+
+          <section id="s6">
+            <h2><span class="idx">06</span>创新点</h2>
+            <ul>
+              <li><strong>室内外真正接成一张图</strong>：不是在两张地图之间跳转，而是把建筑入口作为接缝，搜索时一次算完整条路线。</li>
+              <li><strong>空间与业务信息同屏</strong>：课表与活动不再脱离空间独立存在，地图本身成为查询入口，这是现有校园地图普遍缺失的一层。</li>
+              <li><strong>零硬件的沉浸导览</strong>：用 WebXR 在浏览器里直接进 VR，不依赖专用设备与客户端安装，降低展示与试用门槛。</li>
+              <li><strong>数据可自维护</strong>：编辑器、校验与测试构成闭环，让地图数据像代码一样被版本化管理。</li>
+            </ul>
+          </section>
+
+          <section id="s7">
+            <h2><span class="idx">07</span>进度安排</h2>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>阶段</th><th>时间</th><th>主要内容</th><th>验收物</th></tr></thead>
+                <tbody>
+                  <tr><td>阶段一</td><td>2026.06 – 2026.11</td><td>室外三维场景、路网拓扑、运行时寻路、可视化编辑器</td><td>可访问的原型 + 自动化测试</td></tr>
+                  <tr><td>阶段二</td><td>2026.12 – 2027.02</td><td>室内数据规范、样板教学楼建模、编辑器楼层能力</td><td>一栋楼的完整楼层数据与演示</td></tr>
+                  <tr><td>阶段三</td><td>2027.03 – 2027.05</td><td>课程与活动数据接入、空间检索、数据分级</td><td>「教室 × 时段」查询与地图定位</td></tr>
+                  <tr><td>阶段四</td><td>2027.06 – 2027.08</td><td>WebXR 会话、第一人称引导、移动端性能优化</td><td>可用的 VR 导航演示</td></tr>
+                  <tr><td>阶段五</td><td>2027.09 – 2027.10</td><td>试点运行、指标回收、结题材料</td><td>结题报告 + 演示视频 + 试用反馈</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="muted" style="font-size: 13px">时间安排为初步方案，实际以学校立项通知与教学日历为准。</p>
+          </section>
+
+          <section id="s8">
+            <h2><span class="idx">08</span>预期成果</h2>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>成果</th><th>内容</th><th>可检验指标</th></tr></thead>
+                <tbody>
+                  <tr><td>开源系统</td><td>三维校园导航站点与地图编辑器</td><td>可公开访问，核心功能可演示</td></tr>
+                  <tr><td>数据规范</td><td>室外 + 室内楼层数据格式与校验规则</td><td>通过校验的完整样板楼数据</td></tr>
+                  <tr><td>技术文档</td><td>数据格式说明、寻路接口约定、部署方式</td><td>第三方可按文档替换数据复现</td></tr>
+                  <tr><td>演示材料</td><td>演示视频、使用说明</td><td>覆盖室外、室内、信息查询、VR 四段</td></tr>
+                  <tr><td>结题报告</td><td>研究过程、实验数据与结论</td><td>按学校模板提交</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="s9">
+            <h2><span class="idx">09</span>团队与分工</h2>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>角色</th><th>主要职责</th></tr></thead>
+                <tbody>
+                  <tr><td>项目负责人</td><td>总体方案、技术选型、核心模块开发、进度与对外沟通</td></tr>
+                  <tr><td>数据与建模</td><td>室外数据整理、室内楼层建模规范、样板楼数据生产</td></tr>
+                  <tr><td>前端与可视化</td><td>场景渲染、交互与移动端适配、WebXR 接入</td></tr>
+                  <tr><td>测试与文档</td><td>测试用例、数据校验、文档与演示材料</td></tr>
+                  <tr><td>指导教师</td><td>方向把关、技术评审与资源协调</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="muted" style="font-size: 13px">具体成员名单与学号在提交版本中填写，公开页面只保留角色分工。</p>
+          </section>
+
+          <section id="s10">
+            <h2><span class="idx">10</span>经费预算</h2>
+            <p>项目本身以开源软件与现有设备为主，主要开销集中在设备补充、数据采集与展示材料：</p>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>科目</th><th>用途</th><th>预算（元）</th></tr></thead>
+                <tbody>
+                  <tr><td>VR / 头显设备</td><td>一体机头显或手机 VR 套件，用于沉浸导航实测</td><td>2000</td></tr>
+                  <tr><td>移动测试设备</td><td>低端安卓机，用于性能下限验证</td><td>1000</td></tr>
+                  <tr><td>数据采集</td><td>现场测绘工具、楼层平面资料整理</td><td>600</td></tr>
+                  <tr><td>云资源与域名</td><td>构建、演示托管与证书</td><td>400</td></tr>
+                  <tr><td>资料与打印</td><td>参考书、图纸打印、结题材料装订</td><td>500</td></tr>
+                  <tr><td>合计</td><td>初步估算，按实际立项额度调整</td><td>4500</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="muted" style="font-size: 13px">预算为申报阶段的估算值，采购前按学校财务规定执行。</p>
+          </section>
+
+          <section id="s11">
+            <h2><span class="idx">11</span>风险与应对</h2>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>风险</th><th>影响</th><th>应对</th></tr></thead>
+                <tbody>
+                  <tr><td>室内建模工作量大</td><td>进度延后</td><td>先做一栋样板楼验证流程，固化模板后再批量复制；把建模交给编辑器而不是手改数据</td></tr>
+                  <tr><td>课程 / 活动数据不易获取</td><td>功能无法落地</td><td>先做可导入的本地演示数据，接口就绪后再切换；不把项目成败绑定在单一数据源上</td></tr>
+                  <tr><td>移动端与 VR 性能不足</td><td>体验下降</td><td>按需渲染、实例化与层级裁剪；为目标设备设定帧率预算，不达标则降级为平面楼层模式</td></tr>
+                  <tr><td>数据过期或失真</td><td>导航不可信</td><td>数据带版本与更新时间；提供反馈入口；把校验纳入构建流程</td></tr>
+                  <tr><td>隐私与合规</td><td>数据被滥用</td><td>只处理允许公开的信息，个人课表不上图，具体规则见下一节</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="s12">
+            <h2><span class="idx">12</span>数据与合规</h2>
+            <ul>
+              <li><strong>地图数据来源</strong>：室外几何整理自 OpenStreetMap 与开源校园路网工程，按各自的开放许可使用并保留署名。</li>
+              <li><strong>室内数据</strong>：楼层与房间几何由项目自行测绘与整理，不复制第三方商业地图数据。</li>
+              <li><strong>课程与活动信息</strong>：只展示允许公开的内容（课程名称、教室、时段、活动安排）；个人课表、成绩、联系方式不上图、不入库。</li>
+              <li><strong>最小化原则</strong>：能聚合展示就不逐条展示，能本地处理就不上传服务器；站点为纯静态前端，不设用户账号体系。</li>
+              <li><strong>定位</strong>：本项目为教学与创新实践项目，与学校官方系统无隶属关系，正式对外使用前需按规定报备。</li>
+            </ul>
+          </section>
+
+          <hr />
+          <div class="doc-actions">
+            <a class="btn btn-outline" href="./index.html">← 返回项目首页</a>
+            <a class="btn btn-tonal" href="./demo.html">查看 3D 原型</a>
+            <button class="btn btn-outline" type="button" onclick="window.print()">打印 / 存 PDF</button>
+          </div>
+        </article>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <div class="footer-bottom" style="border-top: 0; padding-top: 0; margin-top: 0">
+          <span>© <span id="year">2026</span> CampusNav 3D · 苏州科技大学</span>
+          <span>本报告为项目提案文本，数据与预算为初步方案</span>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
