@@ -76,6 +76,13 @@ describe('计划报告', () => {
     }
   })
 
+  it('AI 与社区在报告里落到研究内容、技术路线与阶段', () => {
+    for (const keyword of ['情境推荐', '现场发现', '地点级社区内容', '智能层', '阶段六', 'AI 处理边界']) {
+      expect(plan).toContain(keyword)
+    }
+    expect((plan.match(/<tr><td>阶段[一二三四五六]</g) ?? []).length).toBe(6)
+  })
+
   it('公开页面不写个人联系方式', () => {
     for (const page of [landing, plan]) {
       expect(page).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/)
