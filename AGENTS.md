@@ -1,5 +1,11 @@
 # Repository Guidelines
 
+## 项目侧的 agent 配置
+
+本仓的项目人格与项目记忆在 `docs/agent/`：`persona.md`（项目管家人格）、`memory.md`（台账：
+里程碑、已定决策、已知坑、未决问题）、`pipeline.md`（切片模板与门禁）、`README.md`（怎么 `@` 角色）。
+CNB 上的 NPC 角色定义在 `.cnb/settings.yml`，改人格就改这两处。
+
 ## Project Structure & Module Organization
 
 This repository is a Vite + TypeScript + Three.js project site for a 3D campus navigation system. The repo root hosts four HTML entries: `index.html` is the project landing page (positioning, capabilities, roadmap) and uses `src/landing/main.ts` with `src/landing/landing.css`; `plan.html` is the innovation-project plan report sharing the same landing styles; `demo.html` is the interactive 3D map built by `src/main.ts`; `editor.html` mounts the map editor from `src/editor/main.ts`. Shared map types and the default campus dataset live in `src/data/campusData.ts`; this is the main place to edit buildings, zones, roads, POIs, routes, and labels. `dist/` contains built static output for preview or deployment, and `.github/workflows/deploy.yml` contains deployment automation.
