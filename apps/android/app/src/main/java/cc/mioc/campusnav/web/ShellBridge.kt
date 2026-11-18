@@ -31,7 +31,7 @@ class ShellBridge(
         private fun parseString(payload: String?, key: String): String? {
             if (payload == null) return null
             return try {
-                JSONObject(payload).optString(key, "")
+                JSONObject(payload).opt(key) as? String
             } catch (error: Exception) {
                 null
             }
@@ -40,8 +40,7 @@ class ShellBridge(
         private fun parseBoolean(payload: String?, key: String): Boolean? {
             if (payload == null) return null
             return try {
-                val json = JSONObject(payload)
-                if (json.isNull(key)) null else json.optBoolean(key)
+                JSONObject(payload).opt(key) as? Boolean
             } catch (error: Exception) {
                 null
             }
