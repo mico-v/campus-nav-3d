@@ -16,11 +16,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import cc.mioc.campusnav.ui.ThemeTokens
 
 /**
  * 壳里的 WebView：站内链接自己扛，外链交给系统；主框架失败才报离线。
- * 刷新用 token 驱动，避免把 WebView 实例透传到 Activity 层。
+ * 主题变化用 evaluateJavascript 推给页面 CSS 变量，桥对象只暴露白名单。
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -28,20 +30,38 @@ fun ShellWebView(
     reloadToken: Int,
     modifier: Modifier = Modifier,
     url: String = UrlPolicy.ENTRY_URL,
+    themeTokens: ThemeTokens? = null,
     onWebViewReady: (WebView) -> Unit = {},
+    onTitleChanged: (String) -> Unit = {},
+    onBackStateChanged: (Boolean) -> Unit = {},
     onOfflineChange: (Boolean) -> Unit = {},
 ) {
+    val context = LocalContext.current
     var webView by remember { mutableStateOf<WebView?>(null) }
     var handledToken by remember { mutableIntStateOf(reloadToken) }
+    var appliedTheme by remember { mutableStateOf<ThemeTokens?>(null) }
+    var titleHandler by remember { mutableStateOf(onTitleChanged) }
+    var backHandler by remember { mutableStateOf(onBackStateChanged) }
+    var offlineHandler by remember { mutableStateOf(onOfflineChange) }
+    titleHandler = onTitleChanged
+    backHandler = onBackStateChanged
+    offlineHandler = onOfflineChange
 
     AndroidView(
         modifier = modifier,
-        factory = { context ->
+        factory = {
             WebView(context).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.useWideViewPort = true
                 settings.loadWithOverviewMode = true
+                addJavascriptInterface(
+                    ShellBridge(
+                        onTitle = { titleHandler(it) },
+                        onBackStateChanged = { backHandler(it) },
+                    ),
+                    ShellBridge.INTERFACE_NAME,
+                )
                 webViewClient = object : WebViewClient() {
                     override fun shouldOverrideUrlLoading(
                         view: WebView,
@@ -58,7 +78,8 @@ fun ShellWebView(
                     }
 
                     override fun onPageFinished(view: WebView, url: String) {
-                        onOfflineChange(false)
+                        appliedTheme?.let { view.evaluateJavascript(ThemeBridge.applyScript(it), null) }
+                        offlineHandler(false)
                     }
 
                     override fun onReceivedError(
@@ -66,7 +87,7 @@ fun ShellWebView(
                         request: WebResourceRequest,
                         error: WebResourceError,
                     ) {
-                        if (request.isForMainFrame) onOfflineChange(true)
+                        if (request.isForMainFrame) offlineHandler(true)
                     }
 
                     override fun onReceivedHttpError(
@@ -74,7 +95,7 @@ fun ShellWebView(
                         request: WebResourceRequest,
                         errorResponse: WebResourceResponse,
                     ) {
-                        onOfflineChange(
+                        offlineHandler(
                             OfflinePolicy.isOffline(
                                 requestIsForMainFrame = request.isForMainFrame,
                                 httpStatus = errorResponse.statusCode,
@@ -93,6 +114,13 @@ fun ShellWebView(
         if (reloadToken != handledToken) {
             handledToken = reloadToken
             webView?.reload()
+        }
+    }
+
+    LaunchedEffect(themeTokens) {
+        if (themeTokens != null && themeTokens != appliedTheme) {
+            appliedTheme = themeTokens
+            webView?.evaluateJavascript(ThemeBridge.applyScript(themeTokens), null)
         }
     }
 }
