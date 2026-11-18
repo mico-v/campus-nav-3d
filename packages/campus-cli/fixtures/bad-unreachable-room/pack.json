@@ -1,0 +1,93 @@
+{
+  "schema": "campus-pack/2",
+  "id": "demo-pack",
+  "name": "Fixture",
+  "crs": "local-meters",
+  "bounds": {
+    "min": [
+      0,
+      0
+    ],
+    "max": [
+      100,
+      100
+    ]
+  },
+  "units": "meter",
+  "license": "CC-BY-SA-4.0",
+  "buildings": [
+    {
+      "id": "b-main",
+      "name": "Main",
+      "footprint": [
+        [
+          0,
+          0
+        ],
+        [
+          30,
+          0
+        ],
+        [
+          30,
+          30
+        ],
+        [
+          0,
+          30
+        ]
+      ],
+      "height": 10,
+      "levels": [
+        {
+          "index": 0,
+          "name": "1F",
+          "elevation": 0,
+          "height": 4,
+          "verticals": []
+        },
+        {
+          "index": 1,
+          "name": "2F",
+          "elevation": 4,
+          "height": 4,
+          "verticals": [
+            {
+              "id": "stair-return",
+              "kind": "stairs",
+              "at": [
+                5,
+                5
+              ],
+              "to": 0
+            }
+          ],
+          "units": [
+            {
+              "id": "r-lab",
+              "name": "Lab",
+              "polygon": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  5,
+                  0
+                ],
+                [
+                  5,
+                  5
+                ],
+                [
+                  0,
+                  5
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

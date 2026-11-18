@@ -1,0 +1,12 @@
+{
+  "name": "@campus/cli",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "campus-validate": "./src/main.ts"
+  },
+  "scripts": {
+    "validate": "node --experimental-strip-types ./src/main.ts validate"
+  }
+}
