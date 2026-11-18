@@ -1,16 +1,19 @@
 #!/usr/bin/env -S node --experimental-strip-types
 import { basename, resolve } from 'node:path'
+import { bundlePack, writeBundle } from './bundle.ts'
 import { validatePackDir, type ValidationReport } from './validate.ts'
 
-export const HELP_TEXT = `campus-validate — campus-pack/2 自检
+export const HELP_TEXT = `campus-validate — campus-pack/2 自检与打包
 
 用法：
   campus-validate validate <pack-dir> [--json] [--with-schema]
+  campus-validate bundle <pack-dir> <out-dir> [--chunk-size <bytes>]
   campus-validate --help
 
 选项：
   --json          输出结构化 JSON
   --with-schema   把 campus-schema 的结构性错误也计入报告
+  --chunk-size    分片字节上限（默认 65536）
   -h, --help      显示帮助
 
 退出码：0 表示零错误，1 表示存在错误。
@@ -39,13 +42,55 @@ export function run(argv: string[], cwd = process.cwd()): CliResult {
   if (!command || command === '--help' || command === '-h' || command === 'help') {
     return { code: 0, stdout: HELP_TEXT, stderr: '' }
   }
-  if (command !== 'validate') {
+  if (command !== 'validate' && command !== 'bundle') {
     return { code: 1, stdout: '', stderr: `未知命令：${command}\n${HELP_TEXT}` }
   }
 
-  const positional = rest.filter((arg) => !arg.startsWith('--'))
+  const flagValue = (name: string): string | undefined => {
+    const index = rest.indexOf(name)
+    return index >= 0 ? rest[index + 1] : undefined
+  }
+  const positional: string[] = []
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index]!
+    if (arg.startsWith('--')) {
+      if (!arg.includes('=') && rest[index + 1] && !rest[index + 1]!.startsWith('--')) index += 1
+      continue
+    }
+    positional.push(arg)
+  }
   const json = rest.includes('--json')
   const withSchema = rest.includes('--with-schema')
+
+  if (command === 'bundle') {
+    if (positional.length < 2) {
+      return { code: 1, stdout: '', stderr: `缺少 pack 目录或输出目录\n${HELP_TEXT}` }
+    }
+    const packDir = resolve(cwd, positional[0]!)
+    const outDir = resolve(cwd, positional[1]!)
+    const rawChunkSize = flagValue('--chunk-size')
+    try {
+      const result = bundlePack(
+        packDir,
+        rawChunkSize === undefined ? {} : { chunkSize: Number(rawChunkSize) },
+      )
+      writeBundle(outDir, result)
+      const summary = {
+        pack: result.manifest.id,
+        out: outDir,
+        checksum: result.manifest.checksum,
+        files: result.manifest.files.length,
+        chunks: result.chunks.size,
+      }
+      const stdout = json
+        ? `${JSON.stringify(summary, null, 2)}\n`
+        : `${summary.pack}: ${summary.files} 个文件 / ${summary.chunks} 个分片\nchecksum=${summary.checksum}\n→ ${outDir}\n`
+      return { code: 0, stdout, stderr: '' }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { code: 1, stdout: '', stderr: `bundle 失败：${message}\n` }
+    }
+  }
   if (positional.length === 0) {
     return { code: 1, stdout: '', stderr: `缺少 pack 目录\n${HELP_TEXT}` }
   }
