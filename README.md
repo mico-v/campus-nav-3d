@@ -136,3 +136,22 @@ npm run preview
 - 2/3/4/5/6/7/8 号教学楼
 - 音乐楼 / 音乐学院
 - 南体育场及 OSM 运动场地
+
+## 许可证
+
+- 代码：**AGPL-3.0-only**，全文见 [`LICENSE`](./LICENSE)。衍生作品须以同一许可开放；再分发时必须保留版权声明与许可全文；修改过的文件需标注来源与修改日期；部署为对外网络服务同样需要向使用者提供对应源码。
+- 校园空间数据（`packs/**`）：**CC BY-SA 4.0**。
+- 第三方来源（OpenStreetMap 派生轮廓与地点、外部导航图基准、三维模型）逐项在 [`NOTICE.md`](./NOTICE.md) 中说明署名与许可要求，分发时请一并保留该文件。
+
+## 开发与验收环境
+
+本机（低内存服务器）只负责编辑、单测与类型检查；构建与浏览器内验证在云端完成：
+
+```
+# GitHub Codespaces（2 核 7.9G；npm ci + build 约 20s，168 项测试 11s）
+gh codespace create -R mico-v/campus-nav-3d -m basicLinux32gb --idle-timeout 30m
+gh codespace ssh -c <name> -- "cd /workspaces/campus-nav-3d && npm ci && npm test"
+gh codespace stop -c <name>
+```
+
+仓库还带有 `.cnb.yml`（推送 / MR 三件套检查与云原生开发环境）与 `.cnb/settings.yml`（三个 NPC 角色：审查员、切片工、建模员）。设计文档在 [`docs/design-overview-v2.md`](./docs/design-overview-v2.md)，按分层书写，第一屏就是结论。

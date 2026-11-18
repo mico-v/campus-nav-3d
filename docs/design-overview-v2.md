@@ -1,6 +1,6 @@
 # 校园时空导航 · 总体设计方案 v2
 
-版本 v2.0 · 2026-11-18 · 适用仓 `campus-nav-3d`（线上 map.mioc.cc）
+版本 v2.1 · 2026-11-18 · 适用仓 `campus-nav-3d`（线上 map.mioc.cc）
 本文分层书写：第一屏是给人看的结论，后面才是给实现看的细节。读到哪一层由你决定。
 
 ---
@@ -14,7 +14,7 @@
 - **信息的单位是地点**：一条活动、一条通知都挂在具体房间/场地，分享出去就是一条能直接开始导航的链接。
 - **UI 学 StuDev**：高信息密度、克制的状态色、时间刻度尺、深浅双主题、零装饰动效。
 - **开发模式**：agent 主导编码，人只做方向评审与验收；验收全部脚本化，靠 CI 门禁说话。
-- **本机只做编辑与单测**，构建、e2e、截图、打包一律上 GitHub Actions，产物回传本机做视觉验收。
+- **本机只做编辑与单测**，构建与 e2e 上 Codespaces（实测 2 核 7.9G，168 项测试 11s）与 CNB 云原生开发（免费 1600 核时/月），Actions 只做对外兜底。
 
 一句话：把「导航工具」升级成「校园空间操作系统」，用 agent 的产能把它做完整。
 
@@ -161,7 +161,7 @@ Vite + TypeScript + Three.js（3D）+ Canvas/SVG 或 MapLibre（2D），共享�
 ### 2.4 多校适配与许可
 
 - 一个仓可以放多个包：`packs/usts-tianping/`、`packs/usts-jiangfeng/`，站点用 `?campus=` 或子路径切换。
-- 代码 AGPL-3.0 或 MIT（待定）；数据 CC BY-SA 4.0；模型在包内单独标 `license` 与 `attribution` 字段，OSM 派生的必须署名 ODbL。
+- 代码 **AGPL-3.0-only**（已定，见 `LICENSE` 与 `NOTICE.md`）：衍生作品必须同许可开放、保留版权声明与许可全文、标注修改，网络部署同样触发开源；数据 CC BY-SA 4.0；模型在包内单独标 `license` 与 `attribution`，OSM 派生的必须署名 ODbL。
 - 校名、logo 不进数据层（`branding.json` 可选），避免 fork 的人被绑死在一所学校的视觉上。
 
 ---
@@ -496,47 +496,66 @@ packages/
 
 ---
 
-## 10. 我的环境约束与优化
+## 10. 算力：本机 / Codespaces / CNB 三层
 
-现状：2 vCPU / 1.6G 内存 / 40G 盘的 ECS，可用内存约 700MB。启一个 Vite dev server 尚可，跑 Vitest 全量尚可，跑 Playwright 或三端构建必死。
+本机是 2 vCPU / 1.6G 的 ECS，可用内存约 700MB。编辑、单测、类型检查都没问题，`npm run build` 与 Playwright 一定死。GitHub Actions 虽然能跑，但每次排队 + 冷装依赖 + 上传产物，一轮 3–6 分钟，改一行 CSS 要等一杯咖啡。
 
-### 10.1 本机 vs 云端分工
+解法是把执行环境按「改–验–交」分三层，各干各的活。
 
-| 工作 | 在哪跑 | 理由 |
-|---|---|---|
-| 写代码、改文档、生成 PDF | 本机 | 不吃内存 |
-| 纯逻辑单测（core/） | 本机（tmux + 内存限额） | 全量 168 项约 44s |
-| 类型检查 / lint | 本机 | 轻 |
-| `npm run build` | 云端 | 本机曾 OOM |
-| Playwright e2e / 截图 | 云端 | 本机无完整 chromium |
-| 模型导出、批量 glb 压缩 | 云端 | 吃 CPU 与内存 |
-| 离线包构建 | 云端 | 产出 artifact |
-| 真机验证 | 人（手机） | 无法代劳，但可引导 |
+### 10.1 三层分工（实测，2026-11-18）
 
-### 10.2 四条具体改法
+| 层 | 规格 | 用在哪 | 免费额度 | 实测 |
+|---|---|---|---|---|
+| 本机 ECS | 2 vCPU / 1.6G | 编辑、单测、类型检查、文档、PDF | — | 168 项测试 44s |
+| GitHub Codespaces | 2 核 / 7.9GB 可用 / 32GB 盘 / Ubuntu 24.04 / node 24 | 构建、全量测试、e2e 截图 | 个人账号 120 核时/月（2 核 ≈ 60h） | `npm ci` + `build` 20s；`vitest` 168 项 11.1s（build 单独 5.8s） |
+| CNB 云原生开发 | 1–64 核自选（内存 = 核数×2G） | 长时段开发、建模导出、离线包 | 1600 核时/月（≈4 核 400h） | 未接（缺账号，见 10.3） |
+| CNB 云原生构建 | 容器化流水线 | 每次 push 的三件套 | 160 核时/月 | 未接 |
+| CNB NPC（`@CodeBuddy`） | 云端 agent | Issue 里派活、跑流水线、开 PR | 500 AI credits/月 | 未接 |
+| GitHub Actions | 2 核 / 7GB | 只做对外可验证的兜底 | 公开仓不限（有并发限） | 不推荐当主通道 |
 
-**一、把 CI 当“本地命令”用。** 定义 `ci/` 下的四个 workflow：`check`（typecheck+lint+unit）、`build`（构建 + 体积预算）、`visual`（Playwright 截图 + 像素 diff）、`pack`（离线包 + 模型校验）。本机只跑 `check`，其余用 `gh workflow run -f pr=...` 触发，告一段落用 `gh run view --log-failed` 拿结论。
+同一套 168 项测试：本机 44s，Codespaces 11.1s。差距来自核数与磁盘，不在网络。
 
-**二、产物回传做视觉验收。** `visual` 产出截图 zip 作为 artifact，本机 `gh run download` 拿下来直接看图。这样即使本机没浏览器，也能用图像完成 UI 验收。
+### 10.2 Codespaces 打通记录（原先 403 的真相）
 
-**三、内存硬约束写成习惯。** 本机任何构建放 tmux，外加 `systemd-run --scope -p MemoryMax=900M`；一次只跑一个；dev server 只看单页。
+2026-11-07 记过 `gh codespace list` 报 403「Must have admin rights to Repository」，当时补了 `codespace` scope 但没复测，于是一直按「不可用」处理。2026-11-18 复测：token 已含 `codespace` scope，`/user/codespaces` 正常返空列表，`/repos/{repo}/codespaces/machines` 三个仓都返回 `basicLinux32gb`（2 核 8G）与 `standardLinux32gb`（4 核 16G），真建一台 6 秒进 Provisioning、约 40 秒 Available。当初的 403 是旧 token 缺 scope 时的报错，现在不成立。
 
-**四、Codespaces 走不通就用 Actions。** 现在 `gh codespace` 报 403，短期不指望；GH 托管 runner 免费额度（公开仓不限）里已经能拿到 7GB 内存与 4 核，足够跑构建与截图。需要更大时再考虑自建 runner（可在现有 ECS 上跑只做轻任务的 runner，重任务不上）。
-
-### 10.3 视觉验收闭环
+本机一条命令就能用：
 
 ```
-agent 改 UI → push 分支 → Actions 截图（light/dark × 960/1440 × 3 状态）
+gh codespace create -R mico-v/campus-nav-3d -m basicLinux32gb --idle-timeout 30m
+gh codespace ssh -c <name> -- "cd /workspaces/campus-nav-3d && npm ci && npm test"
+gh codespace cp -e "<name>:/workspaces/campus-nav-3d/dist" .
+gh codespace stop -c <name>
+```
+
+三条经验：`--idle-timeout 30m` 让它自己停，不烧额度；停掉不删，下次 `start` 几秒回到原状（只计存储）；一个仓一台就够，多人共用同一台会打架。
+
+### 10.3 CNB 那条路（能免费，但要账号）
+
+CNB（腾讯云云原生构建社区版）对本项目有用的三件事：
+
+- **云原生开发**：免费 1600 核时/月，是 Codespaces 的 13 倍；WebIDE / VS Code / Cursor 直连；上限 18 小时，10 分钟无操作回收，超 8 小时且落在凌晨 4–6 点强制回收（不过夜）。
+- **`@CodeBuddy` NPC**：在 Issue 或 PR 评论里 `@` 即派活，云端 agent 自己读仓库、查流水线日志、写代码、推分支、开 PR；权限上限 Developer、限时、限仓。免费 500 AI credits/月（与内置 CodeBuddy 共池，用完即停）。
+- **云原生构建**：`.cnb.yml` 声明式流水线，push 与 PR 各跑一次三件套，免费 160 核时/月。
+
+这正对第 8 章那套工艺：切片写进 Issue，NPC 领活 → 开 PR → 审查员角色评审 → 人点合并。仓库里已放 `.cnb.yml`（push / pull_request / vscode 三条流水线）与 `.cnb/settings.yml`（三个 NPC 角色：审查员、切片工、建模员，提示词里写死三色门禁与“不做什么”铁律）。
+
+卡点只有一个：CNB 账号要人注册（微信/腾讯云登录），我没有凭证。拿到组织名与访问令牌后，我就能把 GitHub 仓镜像过去、跑通第一条流水线，并按实际效果把 NPC 提示词调一轮。
+
+### 10.4 视觉验收闭环
+
+```
+agent 改 UI → push 分支 → Codespaces 里 playwright 截图（light/dark × 960/1440 × 3 状态）
   → 像素 diff 超阈报警 → 人看 3 张关键图 → 一句话结论（可以 / 不行 + 哪不行）
 ```
 
-截图基准（baseline）入仓，diff 阈值 0.3%；预期变更需在同一 PR 更新 baseline 并写一句说明。这样「UI 裂了」不再靠人肉抽查。
+Codespaces 里能装完整 chromium（`npx playwright install --with-deps chromium`），这是本机做不到的一环：截图终于有地方跑，不必依赖 Actions 排队。截图基准（baseline）入仓，diff 阈值 0.3%，预期变更需在同一 PR 更新 baseline 并写一句说明。
 
-### 10.4 已知坑（写进 AGENTS.md）
+### 10.5 已知坑（写进 AGENTS.md）
 
 - tmux 里 `pnpm`/`npm` 不在 PATH，先 `export PATH=/usr/local/bin:/usr/bin:/bin`。
 - 本机 npm 官方源延迟高，用 npmmirror，偶尔 500 时回退官方源。
-- 无完整 chromium，截图一律云端；本机 `systemd-run` 包 headless_shell 也建不出 WebGL。
+- 本机无完整 chromium，截图只能在云端；`systemd-run` 包 headless_shell 也建不出 WebGL。
 - 构建包在 `systemd-run` 里会让 `dist/` 归属 root，干净验证前先清。
 - 重活别和 gateway 抢内存，否则连回复都发不出去。
 
@@ -564,15 +583,20 @@ agent 改 UI → push 分支 → Actions 截图（light/dark × 960/1440 × 3 �
 | agent 改坏架构 | 三色门禁 + `core/` 无框架依赖 + ADR 记录 |
 | CI 免费额度 | 缓存 node_modules 与构建产物；截图矩阵只跑关键页；公开仓额度宽裕 |
 | 多校适配变成大工程 | 只通用数据层，前端只做「可配置」，不做多租户后台 |
-| 许可 | 自有代码选 AGPL-3.0 或 MIT，OSM 派生数据必须 ODbL 署名，模型单独标 license |
+| 许可 | 代码 AGPL-3.0-only（已在仓内落地），OSM 派生数据 ODbL 署名，模型单独标 license；AGPL 的传染与署名要求对合作方提前说明 |
 
 需要拍板的五件事：
 
-1. 代码许可选 AGPL-3.0 还是 MIT（影响别人能不能闭源拿去用）。
-2. 原生壳要不要现在立项（Android Kotlin vs Capacitor 包一层）。
-3. UGC 首发范围：只给社团，还是也开匿名失物。
-4. 室内示范楼选哪四栋（建议：图书馆、一栋教学楼、食堂、体育馆）。
-5. 通用化做到「数据规范 + CLI」为止，还是连 UI 也要做成换皮就能用。
+已定：代码许可 **AGPL-3.0-only**（要传染、要保留声明），数据 CC BY-SA 4.0。与合作方沟通时先说明两条：改了哪里要标出来，部署成对外网站也要把源码提供回来。
+
+仍需拍板的四件：
+
+1. 原生壳要不要现在立项（Android Kotlin vs Capacitor 包一层）。
+2. UGC 首发范围：只给社团，还是也开匿名失物。
+3. 室内示范楼选哪四栋（建议：图书馆、一栋教学楼、食堂、体育馆）。
+4. 通用化做到「数据规范 + CLI」为止，还是连 UI 也要做成换皮就能用。
+
+另需主人代做的：注册 CNB 账号并建组织，给我一个访问令牌（见 10.3）。
 
 ---
 
