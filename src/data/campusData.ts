@@ -1,4 +1,6 @@
-import campusJson from './campus.json'
+import packDataJson from '../../packs/usts-tianping/campus.json'
+import packMetaJson from '../../packs/usts-tianping/pack.json'
+import { migrateCampusData } from '../../packages/campus-schema/src/migrate'
 import { normalizeCampusData } from './roadNormalization'
 import { validateCampusDataValue } from './campusValidation'
 import { enhanceCampusData } from './campusEnhancements'
@@ -118,7 +120,83 @@ export type CanonicalCampusData = Omit<MapDataset, 'roadNetwork'> & { roadNetwor
 
 // Sources: graph positions and connectivity from ZDaneel/usts-navigation-graph commit 6f251d8;
 // named OpenStreetMap building footprints are fitted into the graph coordinate system using matched landmarks.
-const baseCampusData: CampusData = campusJson as unknown as CampusData
+
+function packToLegacyData(data: unknown, meta: unknown): CampusData {
+  const migrated = migrateCampusData(data)
+  const pack = migrated
+  const network = pack.roadNetwork!
+  const zones: Zone[] = pack.zones!.map((zone) => ({
+    id: zone.id,
+    name: zone.name,
+    category: zone.category as ZoneCategory,
+    center: zone.center!,
+    size: zone.size!,
+    color: zone.color!,
+    footprint: zone.polygon as [number, number][],
+  }))
+  const buildings: Building[] = pack.buildings!.map((building) => ({
+    id: building.id,
+    name: building.name,
+    category: building.category as BuildingCategory,
+    position: building.position!,
+    size: building.size!,
+    height: building.height,
+    color: building.color,
+    zoneId: building.zoneId,
+    footprint: building.footprint as [number, number][],
+  }))
+  const roads: Road[] = pack.roads!.map((road) => ({
+    id: road.id,
+    name: road.name,
+    points: road.points as [number, number][],
+    width: road.width ?? 1,
+    kind: road.kind as Road['kind'],
+    sourceIds: road.sourceIds,
+  }))
+  const waters: WaterBody[] = pack.waters!.map((water) => ({
+    id: water.id,
+    name: water.name,
+    center: water.center!,
+    size: water.size!,
+    color: water.color,
+    footprint: water.footprint as [number, number][] | undefined,
+  }))
+  const fields: FieldArea[] = pack.fields!.map((field) => ({
+    id: field.id,
+    name: field.name,
+    center: field.center!,
+    size: field.size!,
+    color: field.color,
+    stripeColor: field.stripeColor,
+    footprint: field.footprint as [number, number][],
+  }))
+  return {
+    name: String((meta as Record<string, unknown>).name),
+    bounds: {
+      width: (meta as { bounds: { min: [number, number]; max: [number, number] } }).bounds.max[0] - (meta as { bounds: { min: [number, number]; max: [number, number] } }).bounds.min[0],
+      depth: (meta as { bounds: { min: [number, number]; max: [number, number] } }).bounds.max[1] - (meta as { bounds: { min: [number, number]; max: [number, number] } }).bounds.min[1],
+    },
+    zones,
+    buildings,
+    roads,
+    waters,
+    fields,
+    trees: pack.trees!.map((tree) => tree.at as [number, number]),
+    pois: [],
+    roadNetwork: {
+      nodes: network.nodes.map((node) => ({
+        id: node.id,
+        position: node.at as [number, number],
+        kind: node.kind as import('./roadNetwork').RoadNodeKind,
+        sourceIds: node.sourceIds,
+      })),
+      segments: network.segments as unknown as RoadNetwork['segments'],
+    },
+  }
+}
+
+
+const baseCampusData: CampusData = packToLegacyData(packDataJson, packMetaJson)
 
 export function cloneCampusData(data: CampusData): CampusData {
   return JSON.parse(JSON.stringify(data)) as CampusData
