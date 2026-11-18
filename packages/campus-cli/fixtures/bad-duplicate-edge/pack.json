@@ -1,0 +1,12 @@
+{
+  "schema": "campus-pack/2",
+  "id": "bad-duplicate-edge",
+  "name": "重复边样例",
+  "crs": "local-meters",
+  "bounds": {
+    "min": [0, 0],
+    "max": [100, 100]
+  },
+  "units": "meter",
+  "license": "CC-BY-SA-4.0"
+}

@@ -1,0 +1,12 @@
+{
+  "roadNetwork": {
+    "nodes": [
+      { "id": "node-0001", "at": [0, 0] },
+      { "id": "node-0002", "at": [10, 0] }
+    ],
+    "edges": [
+      { "from": "node-0001", "to": "node-0002", "cost": 10, "centerline": [[0, 0], [10, 0]] },
+      { "from": "node-0001", "to": "node-0002", "cost": 12, "centerline": [[0, 0], [10, 0.2]] }
+    ]
+  }
+}
