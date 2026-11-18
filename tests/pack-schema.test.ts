@@ -171,4 +171,82 @@ describe('campus-pack/2 校验器', () => {
     expect(issueCodes('not a pack')).toEqual(['pack.invalid'])
     expect(issueCodes(null)).toEqual(['pack.invalid'])
   })
+
+  it('带渲染提示的旧结构（roads / waters / fields / trees）能通过', () => {
+    const pack: CampusPack = {
+      ...basePack(),
+      zones: [
+        {
+          id: 'central',
+          name: '中心区',
+          category: 'academic',
+          polygon: [
+            [0, 0],
+            [50, 0],
+            [50, 50],
+          ],
+          center: [25, 25],
+          size: [50, 50],
+          color: '#eef7dd',
+        },
+      ],
+      buildings: [
+        {
+          id: 'b-library',
+          name: '图书馆',
+          footprint: [
+            [0, 0],
+            [20, 0],
+            [20, 20],
+          ],
+          height: 18,
+          position: [10, 10],
+          size: [20, 20],
+          color: '#dbe4f0',
+          zoneId: 'central',
+        },
+      ],
+      roads: [{ id: 'road-10', points: [[0, 0], [10, 10]], width: 3.2, kind: 'road', sourceIds: ['road-10'] }],
+      waters: [
+        { id: 'osm-water-1', name: '湖', center: [5, 5], size: [10, 10], color: '#7dd3fc', footprint: [[0, 0], [10, 0], [10, 10]] },
+      ],
+      fields: [
+        { id: 'osm-field-1', name: 'basketball', footprint: [[0, 0], [5, 0], [5, 5]], center: [2.5, 2.5], size: [5, 5], color: '#38bdf8', stripeColor: '#bbf7d0' },
+      ],
+      trees: [{ id: 'tree-1', at: [1, 1], radius: 1.5, color: '#2f7d32' }],
+      roadNetwork: {
+        nodes: [
+          { id: 'n1', at: [0, 0], kind: 'waypoint', sourceIds: ['road-10'] },
+          { id: 'n2', at: [10, 0] },
+        ],
+        edges: [
+          {
+            from: 'n1',
+            to: 'n2',
+            width: 3.2,
+            class: 'walkway',
+            surface: 'concrete',
+            access: { pedestrian: true, bicycle: true },
+            centerline: [[0, 0], [10, 0]],
+            sourceIds: ['road-10'],
+          },
+        ],
+        segments: [{ id: 'road-10--1', from: 'n1', to: 'n2' }],
+      },
+    }
+    expect(validateCampusPack(pack).issues).toEqual([])
+  })
+
+  it('道路折线不足两点、颜色非十六进制、size 非正数时均报错', () => {
+    const pack = basePack() as CampusPack
+    pack.roads = [{ id: 'road-10', points: [[0, 0]] }]
+    pack.fields = [
+      { id: 'osm-field-1', name: 'basketball', footprint: [[0, 0], [5, 0], [5, 5]], color: 'blue' },
+    ]
+    pack.buildings![0]!.size = [-1, 20]
+    const codes = issueCodes(pack)
+    expect(codes).toContain('polygon.too-few-vertices')
+    expect(codes).toContain('color.invalid')
+    expect(codes).toContain('building.size')
+  })
 })

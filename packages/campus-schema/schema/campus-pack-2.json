@@ -39,6 +39,10 @@
     },
     "zones": { "type": "array", "items": { "$ref": "#/$defs/zone" } },
     "buildings": { "type": "array", "items": { "$ref": "#/$defs/building" } },
+    "roads": { "type": "array", "items": { "$ref": "#/$defs/road" } },
+    "waters": { "type": "array", "items": { "$ref": "#/$defs/water" } },
+    "fields": { "type": "array", "items": { "$ref": "#/$defs/field" } },
+    "trees": { "type": "array", "items": { "$ref": "#/$defs/tree" } },
     "roadNetwork": { "$ref": "#/$defs/roadNetwork" },
     "indoorNetwork": { "$ref": "#/$defs/indoorNetwork" },
     "pois": { "type": "array", "items": { "$ref": "#/$defs/poi" } }
@@ -72,7 +76,67 @@
         "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
         "name": { "type": "string", "minLength": 1 },
         "category": { "type": "string" },
-        "polygon": { "$ref": "#/$defs/polygon" }
+        "polygon": { "$ref": "#/$defs/polygon" },
+        "center": { "$ref": "#/$defs/point" },
+        "size": { "$ref": "#/$defs/size" },
+        "color": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" }
+      }
+    },
+    "size": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "type": "number", "exclusiveMinimum": 0 }
+    },
+    "water": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "name": { "type": "string", "minLength": 1 },
+        "center": { "$ref": "#/$defs/point" },
+        "size": { "$ref": "#/$defs/size" },
+        "color": { "type": "string" },
+        "footprint": { "$ref": "#/$defs/polygon" }
+      }
+    },
+    "field": {
+      "type": "object",
+      "required": ["id", "name", "footprint"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "name": { "type": "string", "minLength": 1 },
+        "footprint": { "$ref": "#/$defs/polygon" },
+        "center": { "$ref": "#/$defs/point" },
+        "size": { "$ref": "#/$defs/size" },
+        "color": { "type": "string" },
+        "stripeColor": { "type": "string" }
+      }
+    },
+    "road": {
+      "type": "object",
+      "required": ["id", "points"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "name": { "type": "string" },
+        "points": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/point" } },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "kind": { "type": "string" },
+        "sourceIds": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "tree": {
+      "type": "object",
+      "required": ["id", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "at": { "$ref": "#/$defs/point" },
+        "radius": { "type": "number", "exclusiveMinimum": 0 },
+        "color": { "type": "string" }
       }
     },
     "unit": {
@@ -136,6 +200,10 @@
         "category": { "type": "string" },
         "footprint": { "$ref": "#/$defs/polygon" },
         "height": { "type": "number", "minimum": 0 },
+        "position": { "$ref": "#/$defs/point" },
+        "size": { "$ref": "#/$defs/size" },
+        "color": { "type": "string" },
+        "zoneId": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
         "levels": { "type": "array", "items": { "$ref": "#/$defs/level" } }
       }
     },
@@ -152,7 +220,9 @@
             "additionalProperties": false,
             "properties": {
               "id": { "type": "string" },
-              "at": { "$ref": "#/$defs/point" }
+              "at": { "$ref": "#/$defs/point" },
+              "kind": { "type": "string" },
+              "sourceIds": { "type": "array", "items": { "type": "string" } }
             }
           }
         },
@@ -166,9 +236,20 @@
               "from": { "type": "string" },
               "to": { "type": "string" },
               "cost": { "type": "number", "exclusiveMinimum": 0 },
-              "kind": { "type": "string" }
+              "kind": { "type": "string" },
+              "width": { "type": "number", "exclusiveMinimum": 0 },
+              "class": { "type": "string" },
+              "surface": { "type": "string" },
+              "access": { "type": "object", "additionalProperties": { "type": "boolean" } },
+              "centerline": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/point" } },
+              "sourceIds": { "type": "array", "items": { "type": "string" } }
             }
           }
+        },
+        "segments": {
+          "type": "array",
+          "description": "迁移期兼容：旧数据 segments 原样捎带，M1 收口后删除。",
+          "items": { "type": "object", "additionalProperties": true }
         }
       }
     },

@@ -28,6 +28,46 @@ export interface CampusZone {
   name: string
   category?: string
   polygon: Point[]
+  /** 渲染用提示：外接中心与尺寸（L0 直出时保留原始值）。 */
+  center?: Point
+  size?: Point
+  color?: string
+}
+
+export interface CampusWater {
+  id: string
+  name: string
+  center?: Point
+  size?: Point
+  color?: string
+  footprint?: Point[]
+}
+
+export interface CampusField {
+  id: string
+  name: string
+  footprint: Point[]
+  center?: Point
+  size?: Point
+  color?: string
+  stripeColor?: string
+}
+
+/** 旧版手工描的道路折线（渲染用）；拓扑与代价看 `roadNetwork.edges`。 */
+export interface CampusRoad {
+  id: string
+  name?: string
+  points: Point[]
+  width?: number
+  kind?: string
+  sourceIds?: string[]
+}
+
+export interface CampusTree {
+  id: string
+  at: Point
+  radius?: number
+  color?: string
 }
 
 export interface CampusUnit {
@@ -75,12 +115,19 @@ export interface CampusBuilding {
   category?: string
   footprint: Point[]
   height: number
+  /** 渲染用提示：体块中心、底面尺寸、主色与所属分区。 */
+  position?: Point
+  size?: Point
+  color?: string
+  zoneId?: string
   levels?: CampusLevel[]
 }
 
 export interface RoadNode {
   id: string
   at: Point
+  kind?: string
+  sourceIds?: string[]
 }
 
 export interface RoadEdge {
@@ -88,11 +135,19 @@ export interface RoadEdge {
   to: string
   cost?: number
   kind?: string
+  width?: number
+  class?: string
+  surface?: string
+  access?: Record<string, boolean>
+  centerline?: Point[]
+  sourceIds?: string[]
 }
 
 export interface CampusRoadNetwork {
   nodes: RoadNode[]
   edges: RoadEdge[]
+  /** 迁移期兼容：旧数据的 `segments` 先原样捎带，M1 收口时删除。 */
+  segments?: Record<string, unknown>[]
 }
 
 export interface IndoorNode {
@@ -143,6 +198,10 @@ export interface CampusPackMeta {
 export interface CampusPackData {
   zones?: CampusZone[]
   buildings?: CampusBuilding[]
+  roads?: CampusRoad[]
+  waters?: CampusWater[]
+  fields?: CampusField[]
+  trees?: CampusTree[]
   roadNetwork?: CampusRoadNetwork
   indoorNetwork?: CampusIndoorNetwork
   pois?: CampusPoi[]
@@ -307,6 +366,8 @@ function checkZones(collector: Collector, zones: unknown): void {
     collector.slug(zone.id, `${path}.id`)
     if (!isNonEmptyString(zone.name)) collector.add(`${path}.name`, 'zone.name', 'name 不能为空')
     collector.polygon(zone.polygon, `${path}.polygon`, { required: true })
+    optionalCenterSize(collector, zone, path)
+    optionalColor(collector, zone.color, `${path}.color`)
   })
   checkIdsUnique(
     collector,
@@ -314,6 +375,28 @@ function checkZones(collector: Collector, zones: unknown): void {
     'zones',
     'zone.id.duplicate',
   )
+}
+
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+
+function isPositivePair(value: unknown): value is Point {
+  return isPoint(value) && value[0] > 0 && value[1] > 0
+}
+
+/** 可选的颜色提示（#rgb / #rrggbb / #rrggbbaa）。 */
+function optionalColor(collector: Collector, value: unknown, path: string): void {
+  if (value === undefined) return
+  if (typeof value !== 'string' || !HEX_COLOR.test(value)) {
+    collector.add(path, 'color.invalid', '颜色必须是 #rgb / #rrggbb / #rrggbbaa')
+  }
+}
+
+/** 可选的渲染提示字段：center 是点，size 是两个正数。 */
+function optionalCenterSize(collector: Collector, record: UnknownRecord, path: string): void {
+  if (record.center !== undefined) collector.point(record.center, `${path}.center`)
+  if (record.size !== undefined && !isPositivePair(record.size)) {
+    collector.add(`${path}.size`, 'size.invalid', 'size 必须是两个正数')
+  }
 }
 
 function checkLevels(collector: Collector, levels: unknown, buildingPath: string): void {
@@ -431,6 +514,14 @@ function checkBuildings(collector: Collector, buildings: unknown): void {
     if (!isFiniteNumber(building.height) || building.height < 0) {
       collector.add(`${path}.height`, 'building.height', 'height 必须是非负数字')
     }
+    optionalColor(collector, building.color, `${path}.color`)
+    if (building.position !== undefined) collector.point(building.position, `${path}.position`)
+    if (building.size !== undefined && !isPositivePair(building.size)) {
+      collector.add(`${path}.size`, 'building.size', 'size 必须是两个正数')
+    }
+    if (building.zoneId !== undefined && !isSlug(building.zoneId)) {
+      collector.add(`${path}.zoneId`, 'building.zoneId', 'zoneId 必须是小写连字符 slug')
+    }
     if (building.levels !== undefined) checkLevels(collector, building.levels, path)
   })
   checkIdsUnique(
@@ -439,6 +530,84 @@ function checkBuildings(collector: Collector, buildings: unknown): void {
     'buildings',
     'building.id.duplicate',
   )
+}
+
+function checkWaters(collector: Collector, waters: unknown): void {
+  if (!Array.isArray(waters)) {
+    collector.add('waters', 'waters.invalid', 'waters 必须是数组')
+    return
+  }
+  waters.forEach((water, index) => {
+    const path = `waters[${index}]`
+    if (!isRecord(water)) {
+      collector.add(path, 'water.invalid', '水体必须是对象')
+      return
+    }
+    collector.slug(water.id, `${path}.id`)
+    if (!isNonEmptyString(water.name)) collector.add(`${path}.name`, 'water.name', 'name 不能为空')
+    optionalCenterSize(collector, water, path)
+    optionalColor(collector, water.color, `${path}.color`)
+    if (water.footprint !== undefined) collector.polygon(water.footprint, `${path}.footprint`)
+  })
+}
+
+function checkFields(collector: Collector, fields: unknown): void {
+  if (!Array.isArray(fields)) {
+    collector.add('fields', 'fields.invalid', 'fields 必须是数组')
+    return
+  }
+  fields.forEach((field, index) => {
+    const path = `fields[${index}]`
+    if (!isRecord(field)) {
+      collector.add(path, 'field.invalid', '场地必须是对象')
+      return
+    }
+    collector.slug(field.id, `${path}.id`)
+    if (!isNonEmptyString(field.name)) collector.add(`${path}.name`, 'field.name', 'name 不能为空')
+    collector.polygon(field.footprint, `${path}.footprint`, { required: true })
+    optionalCenterSize(collector, field, path)
+    optionalColor(collector, field.color, `${path}.color`)
+    optionalColor(collector, field.stripeColor, `${path}.stripeColor`)
+  })
+}
+
+function checkRoads(collector: Collector, roads: unknown): void {
+  if (!Array.isArray(roads)) {
+    collector.add('roads', 'roads.invalid', 'roads 必须是数组')
+    return
+  }
+  roads.forEach((road, index) => {
+    const path = `roads[${index}]`
+    if (!isRecord(road)) {
+      collector.add(path, 'road.invalid', '道路必须是对象')
+      return
+    }
+    collector.slug(road.id, `${path}.id`)
+    collector.polygon(road.points, `${path}.points`, { required: true, minVertices: 2 })
+    if (road.width !== undefined && (!isFiniteNumber(road.width) || road.width <= 0)) {
+      collector.add(`${path}.width`, 'road.width', 'width 必须大于 0')
+    }
+  })
+}
+
+function checkTrees(collector: Collector, trees: unknown): void {
+  if (!Array.isArray(trees)) {
+    collector.add('trees', 'trees.invalid', 'trees 必须是数组')
+    return
+  }
+  trees.forEach((tree, index) => {
+    const path = `trees[${index}]`
+    if (!isRecord(tree)) {
+      collector.add(path, 'tree.invalid', '树必须是对象')
+      return
+    }
+    collector.slug(tree.id, `${path}.id`)
+    collector.point(tree.at, `${path}.at`)
+    if (tree.radius !== undefined && (!isFiniteNumber(tree.radius) || tree.radius <= 0)) {
+      collector.add(`${path}.radius`, 'tree.radius', 'radius 必须大于 0')
+    }
+    optionalColor(collector, tree.color, `${path}.color`)
+  })
 }
 
 function checkRoadNetwork(collector: Collector, network: unknown): void {
@@ -564,6 +733,10 @@ export function validateCampusPack(value: unknown): PackValidationResult {
   checkMeta(collector, value)
   if (value.zones !== undefined) checkZones(collector, value.zones)
   if (value.buildings !== undefined) checkBuildings(collector, value.buildings)
+  if (value.roads !== undefined) checkRoads(collector, value.roads)
+  if (value.waters !== undefined) checkWaters(collector, value.waters)
+  if (value.fields !== undefined) checkFields(collector, value.fields)
+  if (value.trees !== undefined) checkTrees(collector, value.trees)
   if (value.roadNetwork !== undefined) checkRoadNetwork(collector, value.roadNetwork)
   if (value.indoorNetwork !== undefined) checkIndoorNetwork(collector, value.indoorNetwork)
   if (value.pois !== undefined) {
