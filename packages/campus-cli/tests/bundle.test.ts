@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { bundlePack, MANIFEST_NAME, writeBundle } from '../src/bundle.ts'
+import { run } from '../src/main.ts'
 import { validatePackDir } from '../src/validate.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -117,5 +118,26 @@ describe('demo-empty 最小包', () => {
     const { manifest } = bundlePack(join(root, 'packs/demo-empty'))
     expect(manifest.id).toBe('demo-empty')
     expect(manifest.files.map((file) => file.path)).toEqual(['campus.json', 'pack.json'])
+  })
+})
+
+describe('CLI bundle 子命令', () => {
+  it('能写出 manifest，重复执行 checksum 不变', () => {
+    const pack = join(root, 'packs/demo-empty')
+    const outA = join(tempDir(), 'a')
+    const outB = join(tempDir(), 'b')
+    const first = run(['bundle', pack, outA], root)
+    const second = run(['bundle', pack, outB], root)
+    expect(first.code).toBe(0)
+    expect(second.code).toBe(0)
+    const manifestA = JSON.parse(readFileSync(join(outA, MANIFEST_NAME), 'utf8'))
+    const manifestB = JSON.parse(readFileSync(join(outB, MANIFEST_NAME), 'utf8'))
+    expect(manifestA.checksum).toBe(manifestB.checksum)
+  })
+
+  it('缺少输出目录时退出码 1 且提示用法', () => {
+    const result = run(['bundle', join(root, 'packs/demo-empty')], root)
+    expect(result.code).toBe(1)
+    expect(result.stderr).toContain('campus-validate bundle')
   })
 })
