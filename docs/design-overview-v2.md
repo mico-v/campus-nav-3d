@@ -594,12 +594,14 @@ Codespaces 里能装完整 chromium（`npx playwright install --with-deps chromi
 
 已定：代码许可 **AGPL-3.0-only**（要传染、要保留声明），数据 CC BY-SA 4.0。与合作方沟通时先说明两条：改了哪里要标出来，部署成对外网站也要把源码提供回来。
 
-仍需拍板的四件：
+仍需拍板的三件：
 
-1. 原生壳要不要现在立项（Android Kotlin vs Capacitor 包一层）。
-2. UGC 首发范围：只给社团，还是也开匿名失物。
-3. 室内示范楼选哪四栋（建议：图书馆、一栋教学楼、食堂、体育馆）。
-4. 通用化做到「数据规范 + CLI」为止，还是连 UI 也要做成换皮就能用。
+1. UGC 首发范围：只给社团，还是也开匿名失物。
+2. 室内示范楼选哪四栋（建议：图书馆、一栋教学楼、食堂、体育馆）。
+3. 通用化做到「数据规范 + CLI」为止，还是连 UI 也要做成换皮就能用。
+
+已定（2026-11-18）：原生壳立项为 Android 原生，Kotlin + Jetpack Compose + Material 3 动态取色，不走 Capacitor；
+构建在 GitHub Actions，与 web 侧的 CNB 流水线分开。
 
 另需主人代做的：注册 CNB 账号并建组织，给我一个访问令牌（见 10.3）。
 

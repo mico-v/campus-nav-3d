@@ -3,6 +3,7 @@
 #       https://docs.cnb.cool/zh/workspaces/custom-dev-pipeline.html
 #
 # 分工：本机只做编辑、单测、类型检查；构建与 e2e 交给 CNB 云原生构建或 Codespaces；
+# Android 原生壳（apps/android）不在本文件里跑，构建走 .github/workflows/android.yml。
 # GitHub Actions 只保留为对外可验证的兜底通道。
 #
 # 分支键支持三种写法：精确名（main）、glob（feature/*）、兜底（$）。
