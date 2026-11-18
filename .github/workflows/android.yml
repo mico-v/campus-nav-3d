@@ -31,8 +31,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: 接受 Android SDK 许可
+        run: |
+          echo "SDK: ${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          yes | "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
