@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "status": "node tools/project-status.mjs",
+    "validate:pack": "node --experimental-strip-types packages/campus-cli/src/main.ts validate packs/usts-tianping"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

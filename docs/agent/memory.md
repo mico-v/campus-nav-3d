@@ -24,10 +24,10 @@ UI 各校自持；差异化压在室内精度、地点级 UGC、深链三件事�
 
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
-| M1 | 通用化底座：JSON Schema + `campus-import` / `campus-validate` / `campus-bundle` 三 CLI，数据迁入 `packs/usts-tianping/` | S1/S2/S3 已合（PR #8/#10/#11）；S4/S5 派工中（CNB #6/#7） |
+| M1 | 通用化底座：JSON Schema + `campus-import` / `campus-validate` / `campus-bundle` 三 CLI，数据迁入 `packs/usts-tianping/` | 已完成：S1–S5 全部合入（PR #8/#10/#11/#13/#12），三子命令可用，232 项单测全绿 |
 | M2 | 双模与室内：3D/2D 共享 `ViewState`；楼层层多边形拉伸 + 显式竖向连接表 | 未开工，依赖 M1 |
 | M3 | 信息与活动：地点级 post/event（必须锚 `placeId`、带 `expiresAt`） | 未开工 |
-| M4 | 客户端与开放：原生壳、深链 `/go?...` 与短链、开放数据 | 原生壳骨架已合（PR #9，Android CI 绿）；N2 排队（CNB #8） |
+| M4 | 客户端与开放：原生壳、深链 `/go?...` 与短链、开放数据 | 原生壳骨架已合（PR #9）；N2 搜索与 JS 桥在复核（PR #14） |
 
 ## 已定决策（带日期）
 
@@ -44,6 +44,8 @@ UI 各校自持；差异化压在室内精度、地点级 UGC、深链三件事�
 - 2026-11-18：M1-S1（PR #8）与 M4-N1（PR #9）由项目管家在「放开干」授权下自查后合并：181 项单测全绿、build 通过、Android CI 2m2s 绿。
 - 2026-11-18：M1-S2（PR #10）与 M1-S3（PR #11）由 CNB NPC 实现、项目管家复核合并；单测从 181 升到 211 项，`campus-validate packs/usts-tianping` 零错误。
 - 2026-11-18：`campus-validate` 的路网重复边按**有向**判定（同向重复才算错，反向边合法），因为真实路网里存在双向边。
+- 2026-11-18：M1 整阶段完成——`campus-validate` 现有 `validate` / `import` / `bundle` 三个子命令，`packs/usts-tianping` 与 `packs/demo-empty` 均零错误，232 项单测全绿。
+- 2026-11-18：新增 `tools/project-status.mjs`（`npm run status`）作为唯一追踪入口：里程碑、在飞 PR、派工 issue、停滞提醒四段；WIP 上限 3。
 
 ## 已知坑
 
@@ -53,6 +55,8 @@ UI 各校自持；差异化压在室内精度、地点级 UGC、深链三件事�
 - 本机无完整 chromium，e2e 与 WebGL 截图不可用；需要时在 CNB 节点上跑。
 - CNB NPC 的分支常基于旧 `main`：直接看 diff 会把它未包含的后续提交当作「删除」，复核时必须 `git merge` 对齐，不能直接覆盖。
 - CNB NPC 会顺手改 `docs/agent/*` 这类非切片文件，复核时一律丢弃；派工时要在 Issue 里写清「不做什么」。
+- NPC 常漏「接线」：模块写完但没接进 CLI（S4/S5 都是这样），验收里必须写「能被 CLI 调用 + 一条 CLI 层测试」。
+- Android 侧本机无法编译，NPC 的 Kotlin 代码错误只能由 GitHub Actions 暴露；合 Android 片前必须先看该 PR 的 Android check。
 
 ## 进行中的人与事
 
