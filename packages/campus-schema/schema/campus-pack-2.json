@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://map.mioc.cc/schema/campus-pack-2.json",
+  "title": "Campus Pack v2",
+  "description": "多校可复用的校园数据包。L0 底图 + L1 建筑 + 可选 L2 室内；L3 动态内容不在此处。",
+  "type": "object",
+  "required": ["schema", "id", "name", "crs", "bounds", "units", "license"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "campus-pack/2" },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "小写连字符 slug，与目录名一致"
+    },
+    "name": { "type": "string", "minLength": 1 },
+    "crs": { "enum": ["local-meters", "wgs84"] },
+    "origin": {
+      "type": "object",
+      "required": ["lat", "lng"],
+      "additionalProperties": false,
+      "properties": {
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "lng": { "type": "number", "minimum": -180, "maximum": 180 },
+        "rotation": { "type": "number" }
+      }
+    },
+    "bounds": { "$ref": "#/$defs/bounds" },
+    "units": { "const": "meter" },
+    "license": { "type": "string", "minLength": 1 },
+    "attribution": { "type": "array", "items": { "type": "string" } },
+    "branding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "logo": { "type": "string" },
+        "colors": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "zones": { "type": "array", "items": { "$ref": "#/$defs/zone" } },
+    "buildings": { "type": "array", "items": { "$ref": "#/$defs/building" } },
+    "roadNetwork": { "$ref": "#/$defs/roadNetwork" },
+    "indoorNetwork": { "$ref": "#/$defs/indoorNetwork" },
+    "pois": { "type": "array", "items": { "$ref": "#/$defs/poi" } }
+  },
+  "$defs": {
+    "point": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "type": "number" }
+    },
+    "polygon": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "$ref": "#/$defs/point" }
+    },
+    "bounds": {
+      "type": "object",
+      "required": ["min", "max"],
+      "additionalProperties": false,
+      "properties": {
+        "min": { "$ref": "#/$defs/point" },
+        "max": { "$ref": "#/$defs/point" }
+      }
+    },
+    "zone": {
+      "type": "object",
+      "required": ["id", "name", "polygon"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "name": { "type": "string", "minLength": 1 },
+        "category": { "type": "string" },
+        "polygon": { "$ref": "#/$defs/polygon" }
+      }
+    },
+    "unit": {
+      "type": "object",
+      "required": ["id", "name", "polygon"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "name": { "type": "string", "minLength": 1 },
+        "polygon": { "$ref": "#/$defs/polygon" },
+        "capacity": { "type": "integer", "minimum": 0 },
+        "type": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "portal": {
+      "type": "object",
+      "required": ["id", "kind", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "enum": ["door", "gate", "entrance", "exit"] },
+        "at": { "$ref": "#/$defs/point" },
+        "to": { "type": ["string", "null"] }
+      }
+    },
+    "vertical": {
+      "type": "object",
+      "required": ["id", "kind", "at", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "enum": ["stairs", "elevator", "escalator", "ramp"] },
+        "at": { "$ref": "#/$defs/point" },
+        "to": { "type": "integer" }
+      }
+    },
+    "level": {
+      "type": "object",
+      "required": ["index", "name", "elevation", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "index": { "type": "integer" },
+        "name": { "type": "string", "minLength": 1 },
+        "elevation": { "type": "number" },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "outline": { "$ref": "#/$defs/polygon" },
+        "units": { "type": "array", "items": { "$ref": "#/$defs/unit" } },
+        "portals": { "type": "array", "items": { "$ref": "#/$defs/portal" } },
+        "verticals": { "type": "array", "items": { "$ref": "#/$defs/vertical" } }
+      }
+    },
+    "building": {
+      "type": "object",
+      "required": ["id", "name", "footprint", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "name": { "type": "string", "minLength": 1 },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "category": { "type": "string" },
+        "footprint": { "$ref": "#/$defs/polygon" },
+        "height": { "type": "number", "minimum": 0 },
+        "levels": { "type": "array", "items": { "$ref": "#/$defs/level" } }
+      }
+    },
+    "roadNetwork": {
+      "type": "object",
+      "required": ["nodes", "edges"],
+      "additionalProperties": false,
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "at"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "at": { "$ref": "#/$defs/point" }
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from", "to"],
+            "additionalProperties": false,
+            "properties": {
+              "from": { "type": "string" },
+              "to": { "type": "string" },
+              "cost": { "type": "number", "exclusiveMinimum": 0 },
+              "kind": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "indoorNetwork": {
+      "type": "object",
+      "required": ["nodes", "edges"],
+      "additionalProperties": false,
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "at", "level", "building"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "at": { "$ref": "#/$defs/point" },
+              "level": { "type": "integer" },
+              "building": { "type": "string" }
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from", "to"],
+            "additionalProperties": false,
+            "properties": {
+              "from": { "type": "string" },
+              "to": { "type": "string" },
+              "cost": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "poi": {
+      "type": "object",
+      "required": ["id", "name", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "name": { "type": "string", "minLength": 1 },
+        "at": { "$ref": "#/$defs/point" },
+        "level": { "type": "integer" },
+        "building": { "type": ["string", "null"] },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

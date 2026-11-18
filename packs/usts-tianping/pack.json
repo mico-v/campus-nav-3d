@@ -1,0 +1,20 @@
+{
+  "schema": "campus-pack/2",
+  "id": "usts-tianping",
+  "name": "苏州科技大学 · 天平校区",
+  "crs": "local-meters",
+  "origin": {
+    "lat": 31.2821,
+    "lng": 120.5563,
+    "rotation": 0
+  },
+  "bounds": {
+    "min": [-1535, -765],
+    "max": [1535, 765]
+  },
+  "units": "meter",
+  "license": "CC-BY-SA-4.0",
+  "attribution": [
+    "校园边界与部分道路数据 © OpenStreetMap contributors, ODbL 1.0"
+  ]
+}
