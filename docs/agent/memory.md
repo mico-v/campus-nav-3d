@@ -27,7 +27,7 @@ UI 各校自持；差异化压在室内精度、地点级 UGC、深链三件事�
 | M1 | 通用化底座：JSON Schema + `campus-import` / `campus-validate` / `campus-bundle` 三 CLI，数据迁入 `packs/usts-tianping/` | 已完成：S1–S5 全部合入（PR #8/#10/#11/#13/#12），三子命令可用，232 项单测全绿 |
 | M2 | 双模与室内：3D/2D 共享 `ViewState`；楼层层多边形拉伸 + 显式竖向连接表 | 未开工，依赖 M1 |
 | M3 | 信息与活动：地点级 post/event（必须锚 `placeId`、带 `expiresAt`） | 未开工 |
-| M4 | 客户端与开放：原生壳、深链 `/go?...` 与短链、开放数据 | 原生壳骨架已合（PR #9）；N2 搜索与 JS 桥在复核（PR #14） |
+| M4 | 客户端与开放：原生壳、深链 `/go?...` 与短链、开放数据 | 原生壳骨架（PR #9）与 N2 搜索/JS 桥（PR #14）已合，Android CI 绿 |
 
 ## 已定决策（带日期）
 
@@ -46,6 +46,7 @@ UI 各校自持；差异化压在室内精度、地点级 UGC、深链三件事�
 - 2026-11-18：`campus-validate` 的路网重复边按**有向**判定（同向重复才算错，反向边合法），因为真实路网里存在双向边。
 - 2026-11-18：M1 整阶段完成——`campus-validate` 现有 `validate` / `import` / `bundle` 三个子命令，`packs/usts-tianping` 与 `packs/demo-empty` 均零错误，232 项单测全绿。
 - 2026-11-18：新增 `tools/project-status.mjs`（`npm run status`）作为唯一追踪入口：里程碑、在飞 PR、派工 issue、停滞提醒四段；WIP 上限 3。
+- 2026-11-18：M4-N2 合入（PR #14）：壳内 Material 3 搜索栏、底部两格导航、白名单 JS 桥、主题变量注入；Android 侧单测 13 项在 GitHub Actions 上绿。
 
 ## 已知坑
 
@@ -57,11 +58,13 @@ UI 各校自持；差异化压在室内精度、地点级 UGC、深链三件事�
 - CNB NPC 会顺手改 `docs/agent/*` 这类非切片文件，复核时一律丢弃；派工时要在 Issue 里写清「不做什么」。
 - NPC 常漏「接线」：模块写完但没接进 CLI（S4/S5 都是这样），验收里必须写「能被 CLI 调用 + 一条 CLI 层测试」。
 - Android 侧本机无法编译，NPC 的 Kotlin 代码错误只能由 GitHub Actions 暴露；合 Android 片前必须先看该 PR 的 Android check。
+- Android 单元测试跑在 JVM 上，`android.jar` 里的 `org.json` 是桩：需要 `testImplementation("org.json:json:…")` 才能测桥接解析。
+- Kotlin 里构造参数名与成员方法同名（`onTitle`）会互相遮蔽，`onTitle(title)` 会递归调自身；回调属性要另起名（`titleListener`）。
 
 ## 进行中的人与事
 
 - 角色分工：负责人（本人）、数据建模、前端可视化、测试文档、指导老师。公开文档只写角色，不写姓名。
-- 当前动作：M1 前 3 片已合入 main；S4（`campus-import osm`）与 S5（`campus-bundle` + `demo-empty`）已派给 CNB NPC；M4-N2 壳内搜索与 JS 桥也已派工。
+- 当前动作：M1 已完成（三 CLI 齐）、M4 前两片已合；下一步是 M2 双模与室内的切片拆分（待规划），以及 N3 深链 intent。
 - 同批待修项：节点数文案（38/41 → 39/42，随 #3 落地）与 README 的许可证/开发环境两节（已补）。
 
 ## 未决问题
