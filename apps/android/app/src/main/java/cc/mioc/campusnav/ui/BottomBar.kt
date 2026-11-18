@@ -1,7 +1,7 @@
 package cc.mioc.campusnav.ui
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -19,7 +19,7 @@ fun ShellBottomBar(
     modifier: Modifier = Modifier,
 ) {
     val tabs = listOf(
-        ShellTab("地图", Icons.Filled.Map),
+        ShellTab("地图", Icons.Filled.Place),
         ShellTab("我的", Icons.Filled.Person),
     )
     NavigationBar(modifier = modifier) {

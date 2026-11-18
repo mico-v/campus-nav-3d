@@ -18,7 +18,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import cc.mioc.campusnav.ui.ThemeTokens
 
 /**
  * 壳里的 WebView：站内链接自己扛，外链交给系统；主框架失败才报离线。

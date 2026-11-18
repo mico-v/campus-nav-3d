@@ -28,17 +28,23 @@ class ShellBridge(
         private const val KEY_TITLE = "title"
         private const val KEY_CAN_GO_BACK = "canGoBack"
 
-        private fun parseString(payload: String?, key: String): String? = try {
-            JSONObject(payload ?: return null).optString(key, "")
-        } catch (error: Exception) {
-            null
+        private fun parseString(payload: String?, key: String): String? {
+            if (payload == null) return null
+            return try {
+                JSONObject(payload).optString(key, "")
+            } catch (error: Exception) {
+                null
+            }
         }
 
-        private fun parseBoolean(payload: String?, key: String): Boolean? = try {
-            val json = JSONObject(payload ?: return null)
-            if (json.isNull(key)) null else json.optBoolean(key)
-        } catch (error: Exception) {
-            null
+        private fun parseBoolean(payload: String?, key: String): Boolean? {
+            if (payload == null) return null
+            return try {
+                val json = JSONObject(payload)
+                if (json.isNull(key)) null else json.optBoolean(key)
+            } catch (error: Exception) {
+                null
+            }
         }
     }
 }
