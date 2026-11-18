@@ -7,19 +7,22 @@ import org.json.JSONObject
  * 页面 -> 壳的桥。只暴露两个白名单方法；页面传来的字符串一律按不可信输入解析。
  */
 class ShellBridge(
-    private val onTitle: (String) -> Unit = {},
-    private val onBackStateChanged: (Boolean) -> Unit = {},
+    onTitle: (String) -> Unit = {},
+    onBackStateChanged: (Boolean) -> Unit = {},
 ) {
+    private val titleListener = onTitle
+    private val backStateListener = onBackStateChanged
+
     @JavascriptInterface
     fun onTitle(payload: String?) {
         val title = parseString(payload, KEY_TITLE) ?: return
-        if (title.isNotEmpty()) onTitle(title)
+        if (title.isNotEmpty()) titleListener(title)
     }
 
     @JavascriptInterface
     fun onBackStateChanged(payload: String?) {
         val canGoBack = parseBoolean(payload, KEY_CAN_GO_BACK) ?: return
-        onBackStateChanged(canGoBack)
+        backStateListener(canGoBack)
     }
 
     companion object {
