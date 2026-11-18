@@ -24,7 +24,7 @@ UI 各校自持；差异化压在室内精度、地点级 UGC、深链三件事�
 
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
-| M1 | 通用化底座：JSON Schema + `campus-import` / `campus-validate` / `campus-bundle` 三 CLI，数据迁入 `packs/usts-tianping/` | S1 已合（PR #8）；S2/S3 已派工（CNB #4/#5）；S4/S5 排队（CNB #6/#7） |
+| M1 | 通用化底座：JSON Schema + `campus-import` / `campus-validate` / `campus-bundle` 三 CLI，数据迁入 `packs/usts-tianping/` | S1/S2/S3 已合（PR #8/#10/#11）；S4/S5 派工中（CNB #6/#7） |
 | M2 | 双模与室内：3D/2D 共享 `ViewState`；楼层层多边形拉伸 + 显式竖向连接表 | 未开工，依赖 M1 |
 | M3 | 信息与活动：地点级 post/event（必须锚 `placeId`、带 `expiresAt`） | 未开工 |
 | M4 | 客户端与开放：原生壳、深链 `/go?...` 与短链、开放数据 | 原生壳骨架已合（PR #9，Android CI 绿）；N2 排队（CNB #8） |
@@ -42,6 +42,8 @@ UI 各校自持；差异化压在室内精度、地点级 UGC、深链三件事�
 - 2026-11-18：`core/`、数据 schema、寻路算法、渲染主循环、部署与许可仍是红区，改动要写清理由并全量评审。
 - 2026-11-18：开发通道改到 **cnb.cool**：切片落 CNB issue，派工时 `work_mode: true` 并 @CodeBuddy（或项目 NPC）直接写代码、开分支与 PR；GitHub 侧只留 PR 评审与 Pages 部署。
 - 2026-11-18：M1-S1（PR #8）与 M4-N1（PR #9）由项目管家在「放开干」授权下自查后合并：181 项单测全绿、build 通过、Android CI 2m2s 绿。
+- 2026-11-18：M1-S2（PR #10）与 M1-S3（PR #11）由 CNB NPC 实现、项目管家复核合并；单测从 181 升到 211 项，`campus-validate packs/usts-tianping` 零错误。
+- 2026-11-18：`campus-validate` 的路网重复边按**有向**判定（同向重复才算错，反向边合法），因为真实路网里存在双向边。
 
 ## 已知坑
 
@@ -49,11 +51,13 @@ UI 各校自持；差异化压在室内精度、地点级 UGC、深链三件事�
 - `.cnb.yml` 的分支键只认精确名、glob 和 `$` 兜底；写错（例如 `(**)`）不会报语法错，只是流水线永远不触发。
 - 本机 1.6G 内存跑不动大构建；vitest 全量在本机约 44s，在 CNB 4 核约 3.5s。
 - 本机无完整 chromium，e2e 与 WebGL 截图不可用；需要时在 CNB 节点上跑。
+- CNB NPC 的分支常基于旧 `main`：直接看 diff 会把它未包含的后续提交当作「删除」，复核时必须 `git merge` 对齐，不能直接覆盖。
+- CNB NPC 会顺手改 `docs/agent/*` 这类非切片文件，复核时一律丢弃；派工时要在 Issue 里写清「不做什么」。
 
 ## 进行中的人与事
 
 - 角色分工：负责人（本人）、数据建模、前端可视化、测试文档、指导老师。公开文档只写角色，不写姓名。
-- 当前动作：S1 与 N1 已合入 main；S2（`campus-validate`）与 S3（数据迁入）已派给 CNB NPC（CNB issue #4 / #5）；S4、S5、N2 排队等前序合入。
+- 当前动作：M1 前 3 片已合入 main；S4（`campus-import osm`）与 S5（`campus-bundle` + `demo-empty`）已派给 CNB NPC；M4-N2 壳内搜索与 JS 桥也已派工。
 - 同批待修项：节点数文案（38/41 → 39/42，随 #3 落地）与 README 的许可证/开发环境两节（已补）。
 
 ## 未决问题
