@@ -45,4 +45,8 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
+    // Android 单元测试跑在 JVM 上，android.jar 里的 org.json 是桩，必须用真实实现。
+    testImplementation("org.json:json:20240303")
+    testImplementation(platform("androidx.compose:compose-bom:2024.12.01"))
+    testImplementation("androidx.compose.ui:ui")
 }
