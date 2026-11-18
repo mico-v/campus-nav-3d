@@ -24,10 +24,10 @@ UI 各校自持；差异化压在室内精度、地点级 UGC、深链三件事�
 
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
-| M1 | 通用化底座：JSON Schema + `campus-import` / `campus-validate` / `campus-bundle` 三 CLI，数据迁入 `packs/usts-tianping/` | 已拆 5 片（#1–#5，索引 #7），S1 开工 |
+| M1 | 通用化底座：JSON Schema + `campus-import` / `campus-validate` / `campus-bundle` 三 CLI，数据迁入 `packs/usts-tianping/` | S1 已合（PR #8）；S2/S3 已派工（CNB #4/#5）；S4/S5 排队（CNB #6/#7） |
 | M2 | 双模与室内：3D/2D 共享 `ViewState`；楼层层多边形拉伸 + 显式竖向连接表 | 未开工，依赖 M1 |
 | M3 | 信息与活动：地点级 post/event（必须锚 `placeId`、带 `expiresAt`） | 未开工 |
-| M4 | 客户端与开放：原生壳、深链 `/go?...` 与短链、开放数据 | 原生壳立项，骨架切片 #6 排队 |
+| M4 | 客户端与开放：原生壳、深链 `/go?...` 与短链、开放数据 | 原生壳骨架已合（PR #9，Android CI 绿）；N2 排队（CNB #8） |
 
 ## 已定决策（带日期）
 
@@ -40,6 +40,8 @@ UI 各校自持；差异化压在室内精度、地点级 UGC、深链三件事�
 - 2026-11-18：原生壳立项为 Android 原生，Kotlin + Jetpack Compose + Material 3（动态取色，低版本回落品牌种子色），不走 Capacitor；构建放 GitHub Actions，web 侧仍走 CNB。
 - 2026-11-18：开发通道定为 issue 驱动 —— 需求先落切片 issue，再在 CNB 云原生开发环境或分支里实现，项目管家负责确认与统筹进度；范围放开到全仓，门禁三色与人审保留。
 - 2026-11-18：`core/`、数据 schema、寻路算法、渲染主循环、部署与许可仍是红区，改动要写清理由并全量评审。
+- 2026-11-18：开发通道改到 **cnb.cool**：切片落 CNB issue，派工时 `work_mode: true` 并 @CodeBuddy（或项目 NPC）直接写代码、开分支与 PR；GitHub 侧只留 PR 评审与 Pages 部署。
+- 2026-11-18：M1-S1（PR #8）与 M4-N1（PR #9）由项目管家在「放开干」授权下自查后合并：181 项单测全绿、build 通过、Android CI 2m2s 绿。
 
 ## 已知坑
 
@@ -51,7 +53,7 @@ UI 各校自持；差异化压在室内精度、地点级 UGC、深链三件事�
 ## 进行中的人与事
 
 - 角色分工：负责人（本人）、数据建模、前端可视化、测试文档、指导老师。公开文档只写角色，不写姓名。
-- 当前动作：M1 拆片完成（#1–#5，索引 #7）。S1（packs 骨架 + schema）已提 PR #8（181 项单测全绿、build 通过，门禁红等负责人）；原生壳骨架 #6 并行排队。
+- 当前动作：S1 与 N1 已合入 main；S2（`campus-validate`）与 S3（数据迁入）已派给 CNB NPC（CNB issue #4 / #5）；S4、S5、N2 排队等前序合入。
 - 同批待修项：节点数文案（38/41 → 39/42，随 #3 落地）与 README 的许可证/开发环境两节（已补）。
 
 ## 未决问题
