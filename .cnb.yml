@@ -1,0 +1,48 @@
+# CNB 云原生构建 / 云原生开发 配置
+# 文档：https://docs.cnb.cool/zh/build/grammar.html  https://docs.cnb.cool/zh/workspaces/custom-dev-pipeline.html
+#
+# 分工：本机只做编辑、单测、类型检查；构建与 e2e 交给 CNB 云原生构建或 Codespaces；
+# GitHub Actions 只保留为对外可验证的兜底通道。
+
+(**):
+  # 每次推送：类型检查 + 构建 + 单测，三件套全绿才算过
+  push:
+    - name: check
+      runner:
+        cpus: 4
+      docker:
+        image: node:24
+      stages:
+        - name: install
+          script: npm ci --registry=https://registry.npmmirror.com
+        - name: build-and-test
+          script:
+            - npm run build
+            - npm test
+
+  # 合并请求：同上，输出留给评审看
+  pull_request:
+    - name: pr-check
+      runner:
+        cpus: 4
+      docker:
+        image: node:24
+      stages:
+        - name: install
+          script: npm ci --registry=https://registry.npmmirror.com
+        - name: build-and-test
+          script:
+            - npm run build
+            - npm test
+
+  # 云原生开发：4 核 8G，进环境即装好依赖
+  vscode:
+    - runner:
+        cpus: 4
+      docker:
+        image: node:24
+      services:
+        - vscode
+      stages:
+        - name: deps
+          script: npm ci --registry=https://registry.npmmirror.com
