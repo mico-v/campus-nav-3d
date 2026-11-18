@@ -1,0 +1,42 @@
+{
+  "schema": "campus-pack/2",
+  "id": "demo-pack",
+  "name": "Fixture",
+  "crs": "local-meters",
+  "bounds": {
+    "min": [
+      0,
+      0
+    ],
+    "max": [
+      100,
+      100
+    ]
+  },
+  "units": "meter",
+  "license": "CC-BY-SA-4.0",
+  "zones": [
+    {
+      "id": "z-flat",
+      "name": "Flat",
+      "polygon": [
+        [
+          0,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ]
+    }
+  ]
+}
