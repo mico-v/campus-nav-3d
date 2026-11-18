@@ -1,48 +1,60 @@
 # CNB 云原生构建 / 云原生开发 配置
-# 文档：https://docs.cnb.cool/zh/build/grammar.html  https://docs.cnb.cool/zh/workspaces/custom-dev-pipeline.html
+# 文档：https://docs.cnb.cool/zh/build/grammar.html
+#       https://docs.cnb.cool/zh/workspaces/custom-dev-pipeline.html
 #
 # 分工：本机只做编辑、单测、类型检查；构建与 e2e 交给 CNB 云原生构建或 Codespaces；
 # GitHub Actions 只保留为对外可验证的兜底通道。
+#
+# 分支键支持三种写法：精确名（main）、glob（feature/*）、兜底（$）。
+# 以点开头的顶层键是 YAML 锚点，不会被当成分支。
 
-(**):
-  # 每次推送：类型检查 + 构建 + 单测，三件套全绿才算过
+.check: &check
+  name: check
+  runner:
+    cpus: 4
+  docker:
+    image: node:24
+  env:
+    NODE_OPTIONS: --max-old-space-size=3072
+  stages:
+    - name: install
+      script: npm ci --registry=https://registry.npmmirror.com
+    - name: build-and-test
+      script:
+        - npm run build
+        - npm test
+
+.pr-check: &pr-check
+  <<: *check
+  name: pr-check
+
+# 云原生开发：4 核 8G，进环境即装好依赖
+.vscode: &vscode
+  runner:
+    cpus: 4
+  docker:
+    image: node:24
+  services:
+    - vscode
+  stages:
+    - name: deps
+      script: npm ci --registry=https://registry.npmmirror.com
+
+main:
   push:
-    - name: check
-      runner:
-        cpus: 4
-      docker:
-        image: node:24
-      stages:
-        - name: install
-          script: npm ci --registry=https://registry.npmmirror.com
-        - name: build-and-test
-          script:
-            - npm run build
-            - npm test
-
-  # 合并请求：同上，输出留给评审看
+    - <<: *check
   pull_request:
-    - name: pr-check
-      runner:
-        cpus: 4
-      docker:
-        image: node:24
-      stages:
-        - name: install
-          script: npm ci --registry=https://registry.npmmirror.com
-        - name: build-and-test
-          script:
-            - npm run build
-            - npm test
-
-  # 云原生开发：4 核 8G，进环境即装好依赖
+    - <<: *pr-check
+  # 供 API 手动触发（POST /{repo}/-/build/start，event=api_trigger）
+  api_trigger:
+    - <<: *check
   vscode:
-    - runner:
-        cpus: 4
-      docker:
-        image: node:24
-      services:
-        - vscode
-      stages:
-        - name: deps
-          script: npm ci --registry=https://registry.npmmirror.com
+    - <<: *vscode
+
+$:
+  push:
+    - <<: *check
+  pull_request:
+    - <<: *pr-check
+  vscode:
+    - <<: *vscode
