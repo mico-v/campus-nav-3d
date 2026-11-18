@@ -1,7 +1,9 @@
-import { readFileSync, statSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { run } from '../src/main.ts'
 import {
   importOsmFromExport,
   OSM_ATTRIBUTION,
@@ -125,5 +127,44 @@ describe('campus-import osm', () => {
     expect(first.footprint).toHaveLength(4)
     expect(first.position).toHaveLength(2)
     expect((first.position as number[]).every(Number.isFinite)).toBe(true)
+  })
+})
+
+describe('campus-validate import 子命令', () => {
+  const tempDirs: string[] = []
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  })
+
+  function makePackDir(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'campus-import-'))
+    tempDirs.push(dir)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(
+      join(dir, 'pack.json'),
+      `${JSON.stringify({ schema: 'campus-pack/2', id: 'import-demo', name: 'Import', crs: 'local-meters', bounds: { min: [-500, -500], max: [500, 500] }, units: 'meter', license: 'CC-BY-SA-4.0' }, null, 2)}\n`,
+    )
+    writeFileSync(
+      join(dir, 'campus.json'),
+      `${JSON.stringify({ buildings: [{ id: 'b-manual', name: '手描楼', footprint: [[0, 0], [10, 0], [10, 10]], height: 9 }] }, null, 2)}\n`,
+    )
+    return dir
+  }
+
+  it('导入后追加建筑、保留手描建筑，并给 pack.json 补 ODbL 署名', () => {
+    const dir = makePackDir()
+    const first = run(['import', fixture, dir], root)
+    expect(first.code).toBe(0)
+    const campus = JSON.parse(readFileSync(join(dir, 'campus.json'), 'utf8')) as { buildings: Array<{ id: string }> }
+    expect(campus.buildings[0]!.id).toBe('b-manual')
+    expect(campus.buildings.length).toBeGreaterThan(1)
+    const meta = JSON.parse(readFileSync(join(dir, 'pack.json'), 'utf8')) as { attribution?: string[] }
+    expect(meta.attribution?.some((entry) => entry.includes('ODbL'))).toBe(true)
+
+    const second = run(['import', fixture, dir], root)
+    expect(second.code).toBe(0)
+    const after = JSON.parse(readFileSync(join(dir, 'campus.json'), 'utf8')) as { buildings: unknown[] }
+    expect(after.buildings).toHaveLength(campus.buildings.length)
+    expect(second.stdout).toContain('新增 0 栋')
   })
 })
