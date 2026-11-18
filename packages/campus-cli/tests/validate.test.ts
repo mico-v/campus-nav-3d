@@ -30,10 +30,23 @@ describe('campus-validate CLI', () => {
       'bad-id-format',
       'bad-one-way-vertical',
       'bad-unreachable-room',
+      'bad-duplicate-edge',
     ]) {
       expect(validatePackDir(fixture(name)).ok, name).toBe(false)
     }
     expect(validatePackDir(fixture('good-empty')).ok).toBe(true)
+  })
+
+  it('同向重复边报错，反向边合法（边是有向的，双向路就写两条）', () => {
+    const duplicate = validatePackDir(fixture('bad-duplicate-edge')).issues.filter(
+      (issue) => issue.code === 'roadEdge.duplicate',
+    )
+    expect(duplicate).toHaveLength(1)
+    expect(duplicate[0]!.path).toBe('roadNetwork.edges[1]')
+    const real = validatePackDir(join(root, 'packs/usts-tianping')).issues.filter(
+      (issue) => issue.code === 'roadEdge.duplicate',
+    )
+    expect(real).toHaveLength(0)
   })
 
   it('报告按 geometry / topology / naming 三类计数', () => {

@@ -272,7 +272,7 @@ export function inspectPack(value: unknown, options: ValidateOptions = {}): Vali
         if (!isRecord(edge)) return
         if (typeof edge.from !== 'string' || typeof edge.to !== 'string') return
         if (!nodeIds.has(edge.from) || !nodeIds.has(edge.to)) return
-        const pair = [edge.from, edge.to].sort().join('|')
+        const pair = `${edge.from}|${edge.to}`
         if (edgesByPair.has(pair)) {
           add(
             'topology',
