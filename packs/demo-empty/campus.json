@@ -1,0 +1,38 @@
+{
+  "zones": [
+    {
+      "id": "campus-boundary",
+      "name": "Campus Boundary",
+      "polygon": [
+        [-90, -70],
+        [90, -70],
+        [90, 70],
+        [-90, 70]
+      ]
+    }
+  ],
+  "buildings": [
+    {
+      "id": "building-a",
+      "name": "Building A",
+      "footprint": [
+        [-60, -30],
+        [-20, -30],
+        [-20, 10],
+        [-60, 10]
+      ],
+      "height": 12
+    },
+    {
+      "id": "building-b",
+      "name": "Building B",
+      "footprint": [
+        [20, -10],
+        [60, -10],
+        [60, 30],
+        [20, 30]
+      ],
+      "height": 16
+    }
+  ]
+}
