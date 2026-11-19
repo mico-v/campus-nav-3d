@@ -120,6 +120,46 @@ function pointsToPackTrees(points: unknown, previous: unknown): unknown[] {
   })
 }
 
+/**
+ * Pack zones carry `polygon`; the editor's `CampusData` shape carries `footprint`.
+ * Both sides must agree on the same geometry or the map and the editor render
+ * different campuses (and tree generation diverges on top of that).
+ */
+function packZonesToEditorZones(zones: unknown): unknown {
+  if (!Array.isArray(zones)) return zones
+  return zones.map((zone) => {
+    if (!isRecord(zone)) return zone
+    const { polygon, ...rest } = zone
+    return { ...rest, footprint: Array.isArray(zone.footprint) ? zone.footprint : polygon }
+  })
+}
+
+function rectFromCenterSize(center: unknown, size: unknown): [number, number][] | null {
+  if (!isPointPair(center) || !isPointPair(size) || size[0] <= 0 || size[1] <= 0) return null
+  const [x, z] = center
+  const [width, depth] = size
+  return [
+    [x - width / 2, z - depth / 2],
+    [x + width / 2, z - depth / 2],
+    [x + width / 2, z + depth / 2],
+    [x - width / 2, z + depth / 2],
+  ]
+}
+
+/** Editor `footprint` -> pack `polygon`, so a save stays a schema-valid pack. */
+function editorZonesToPackZones(zones: unknown): unknown {
+  if (!Array.isArray(zones)) return zones
+  return zones.map((zone, index) => {
+    if (!isRecord(zone)) return zone
+    const { footprint, ...rest } = zone
+    const polygon = Array.isArray(footprint) && footprint.length >= 3
+      ? footprint
+      : rectFromCenterSize(zone.center, zone.size)
+    if (!polygon) throw new Error(`zones[${index}] 缺少 footprint，且 center/size 无法生成多边形`)
+    return { ...rest, polygon }
+  })
+}
+
 /** Throws an actionable error when `value` is not a valid static map dataset. */
 export function validateCampusData(value: unknown): asserts value is CampusData {
   assertValidCampusData(value)
@@ -151,6 +191,7 @@ export async function loadPackCampusData(packPath: string, campusPath: string): 
 
   const merged: UnknownRecord = {
     ...pickKeys(rawGeometry, GEOMETRY_KEYS),
+    zones: packZonesToEditorZones(rawGeometry.zones),
     trees: packTreesToPoints(rawGeometry.trees),
     name: rawMeta.name,
     bounds: boundsToSize(rawMeta.bounds),
@@ -232,6 +273,7 @@ export async function savePackCampusData(
   }
 
   const nextGeometry = pickKeys(normalized as UnknownRecord, GEOMETRY_KEYS)
+  if ('zones' in nextGeometry) nextGeometry.zones = editorZonesToPackZones(nextGeometry.zones)
   nextGeometry.trees = pointsToPackTrees(
     normalized.trees,
     isRecord(currentGeometry) ? currentGeometry.trees : undefined,

@@ -3,9 +3,10 @@ import type { ServerResponse } from 'node:http'
 import { resolve } from 'node:path'
 import { loadPackCampusData, savePackCampusData } from './tools/campus-store.ts'
 
-const PACK_DIR = resolve(process.cwd(), 'packs/usts-tianping')
-const PACK_PATH = resolve(PACK_DIR, 'pack.json')
-const CAMPUS_PATH = resolve(PACK_DIR, 'campus.json')
+/** Canonical data source for both the dev API and the guard test. */
+export const PACK_DIR = resolve(process.cwd(), 'packs/usts-tianping')
+export const PACK_PATH = resolve(PACK_DIR, 'pack.json')
+export const CAMPUS_PATH = resolve(PACK_DIR, 'campus.json')
 const BACKUP_DIR = resolve(process.cwd(), '.editor-backups')
 const ROUTE = '/api/campus'
 

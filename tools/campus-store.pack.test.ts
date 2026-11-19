@@ -52,7 +52,11 @@ describe('pack 读写：GET 合并 / PUT 拆分', () => {
     expect(data.bounds).toEqual({ width: 3070, depth: 1530 })
     expect(data.buildings.length).toBe(75)
     expect(data.buildings).toEqual(geometry.buildings)
-    expect(data.zones).toEqual(geometry.zones)
+    // pack 的 zone 几何存在 `polygon`，编辑器/主应用的契约字段是 `footprint`
+    expect(data.zones.map((zone) => zone.footprint)).toEqual(
+      geometry.zones.map((zone: { polygon?: unknown; footprint?: unknown }) => zone.polygon ?? zone.footprint),
+    )
+    for (const zone of data.zones) expect('polygon' in zone).toBe(false)
     // meta 字段不泄漏进 CampusData 结果
     expect('crs' in data).toBe(false)
     expect('origin' in data).toBe(false)
@@ -76,9 +80,25 @@ describe('pack 读写：GET 合并 / PUT 拆分', () => {
     }
 
     expect(campus.buildings).toEqual(data.buildings)
-    expect(campus.zones).toEqual(data.zones)
+    // zone 以 `polygon` 写回 pack：footprint 优先，缺少 footprint 时按 center/size 补矩形
+    const zones = campus.zones as Array<Record<string, unknown>>
+    expect(zones).toHaveLength((data.zones as unknown[]).length)
+    expect(zones[0].id).toBe('z1')
+    expect(zones[0].polygon).toEqual([[-50, -25], [50, -25], [50, 25], [-50, 25]])
+    for (const zone of zones) expect('footprint' in zone).toBe(false)
     expect('name' in campus).toBe(false)
     expect('bounds' in campus).toBe(false)
+  })
+
+  it('zone 几何往返不变：GET 的 footprint 存回 pack 仍是同一个 polygon', async () => {
+    const data = await loadPackCampusData(packPath, campusPath)
+    const polygonsOf = async (): Promise<unknown[]> =>
+      (JSON.parse(await readFile(campusPath, 'utf8')).zones as Array<Record<string, unknown>>).map((zone) => zone.polygon)
+    const before = await polygonsOf()
+
+    await savePackCampusData(packPath, campusPath, backupDir, data, '2026-11-19T00:00:00.000Z')
+
+    expect(await polygonsOf()).toEqual(before)
   })
 
   it('PUT 保留两份备份，且失败时原文件不变', async () => {
