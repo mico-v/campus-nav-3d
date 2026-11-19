@@ -5,9 +5,19 @@ import { ViewState, type LayerKey } from './core/view/state'
 import { pickEntity, type PickedEntity } from './interaction'
 import { renderEntityList, renderDetails, searchEntities, updateSelectionToast, escapeHtml } from './ui/panel'
 import { chooseScaleBar, metersPerPixel } from './ui/scale'
+import { mountWebglFallback, probeWebgl } from './ui/webgl-fallback'
 
-const app = document.querySelector<HTMLDivElement>('#app')
-if (!app) throw new Error('App root not found')
+const appRoot = document.querySelector<HTMLDivElement>('#app')
+if (!appRoot) throw new Error('App root not found')
+const app: HTMLDivElement = appRoot
+
+// 兜底（§6.5）：壳内白屏查不动，所以建渲染器之前先探一次 WebGL。
+// 拿不到就把原因 / 地址 / UA 摆在页面上，人直接截图或复制回来。
+const webgl = probeWebgl(document)
+if (!webgl.ok) {
+  mountWebglFallback(app, { reason: webgl.reason, url: window.location.href, userAgent: navigator.userAgent })
+  throw new Error(`WebGL unavailable: ${webgl.reason}`)
+}
 
 // 布局按 docs/design-overview-v2.md §6：地图永久占满视区，顶栏 48px，面板浮在图上，
 // 窄屏把面板收成底部抽屉（closed / half / full 三档）。
@@ -62,7 +72,20 @@ const sceneHost = $<HTMLDivElement>('#scene'), labelLayer = $<HTMLDivElement>('#
 const data = createDefaultCampusData()
 const initialSelection: PickedEntity | null = data.buildings.length ? { kind: 'building', index: 0 } : null
 const view = new ViewState<PickedEntity>(initialSelection)
-const campus = new CampusScene(sceneHost, labelLayer)
+/** 探测过了也可能在建渲染器时抛（上下文数量到上限、驱动崩）：兜底提示之后照旧把错误抛出去。 */
+function createScene(host: HTMLDivElement, labels: HTMLDivElement): CampusScene {
+  try {
+    return new CampusScene(host, labels)
+  } catch (error) {
+    mountWebglFallback(app, {
+      reason: `WebGL 渲染器创建失败：${error instanceof Error ? error.message : String(error)}`,
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+    })
+    throw error
+  }
+}
+const campus = createScene(sceneHost, labelLayer)
 if (import.meta.env.DEV) {
   const debugWindow = window as Window & {
     __campusRenderMetrics?: () => ReturnType<CampusScene['getRenderMetrics']>

@@ -820,6 +820,101 @@ html[data-shell='1'] .back-home {
   display: none;
 }
 
+/* ---------- WebGL 兜底（§6.5） ----------
+   壳里拿不到 WebGL 时不留在白屏：把原因 / 地址 / UA 摆在页面上，能截图就能定位。 */
+
+.webgl-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--gap);
+  padding: calc(24px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
+    calc(24px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+  background: var(--bg);
+  color: var(--ink);
+  overflow: auto;
+}
+
+.webgl-fallback h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.webgl-fallback p {
+  margin: 0;
+  max-width: 640px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.wf-reason {
+  font-weight: 600;
+}
+
+.wf-hint {
+  color: var(--ink-2);
+}
+
+.wf-meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  max-width: 640px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.wf-meta dt {
+  font-weight: 600;
+}
+
+.wf-meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.wf-meta code {
+  padding: 1px 4px;
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.wf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap);
+}
+
+.wf-copy {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 14px;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.wf-link {
+  color: var(--primary);
+  font-size: 14px;
+}
+
+/* 壳里没有「回站点首页」这个出口 */
+html[data-shell='1'] .wf-link {
+  display: none;
+}
+
 /* ---------- 窄屏：地图全屏 + 底部抽屉 ---------- */
 
 @media (max-width: 959px) {
@@ -838,6 +933,8 @@ html[data-shell='1'] .back-home {
 
   #entity-search {
     height: var(--tap);
+    /* 16px 是 iOS 的硬门槛：字号再小，一点输入框整页就被放大 */
+    font-size: 16px;
   }
 
   .appbar {
@@ -940,9 +1037,10 @@ html[data-shell='1'] .back-home {
     bottom: calc(var(--drawer-h) + var(--gap) + env(safe-area-inset-bottom, 0px));
   }
 
+  /* 工具栏同样得让开抽屉：原来只让开 68px，半屏抽屉一拉就把它吃掉 */
   .map-tools {
     right: 10px;
-    bottom: calc(var(--tap) + 24px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--drawer-h) + var(--tap) + 16px + env(safe-area-inset-bottom, 0px));
   }
 }
 
