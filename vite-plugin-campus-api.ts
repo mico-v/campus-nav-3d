@@ -1,9 +1,11 @@
 import type { Plugin, ViteDevServer, Connect } from 'vite'
 import type { ServerResponse } from 'node:http'
 import { resolve } from 'node:path'
-import { loadCampusData, saveCampusData } from './tools/campus-store.ts'
+import { loadPackCampusData, savePackCampusData } from './tools/campus-store.ts'
 
-const DATA_PATH = resolve(process.cwd(), 'src/data/campus.json')
+const PACK_DIR = resolve(process.cwd(), 'packs/usts-tianping')
+const PACK_PATH = resolve(PACK_DIR, 'pack.json')
+const CAMPUS_PATH = resolve(PACK_DIR, 'campus.json')
 const BACKUP_DIR = resolve(process.cwd(), '.editor-backups')
 const ROUTE = '/api/campus'
 
@@ -27,7 +29,7 @@ function readBody(req: Connect.IncomingMessage): Promise<string> {
 async function handle(req: Connect.IncomingMessage, res: ServerResponse): Promise<void> {
   if (req.method === 'GET') {
     try {
-      const data = await loadCampusData(DATA_PATH)
+      const data = await loadPackCampusData(PACK_PATH, CAMPUS_PATH)
       sendJson(res, 200, data)
     } catch (error) {
       sendJson(res, 500, { error: `failed to load campus data: ${(error as Error).message}` })
@@ -44,7 +46,7 @@ async function handle(req: Connect.IncomingMessage, res: ServerResponse): Promis
       return
     }
     try {
-      const result = await saveCampusData(DATA_PATH, BACKUP_DIR, parsed, new Date().toISOString())
+      const result = await savePackCampusData(PACK_PATH, CAMPUS_PATH, BACKUP_DIR, parsed, new Date().toISOString())
       sendJson(res, 200, result)
     } catch (error) {
       // validation errors are the caller's fault -> 400
