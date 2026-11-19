@@ -14,27 +14,35 @@ import { fileURLToPath } from 'node:url'
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const read = (rel: string): string => readFileSync(join(repoRoot, rel), 'utf8')
 const css = read('src/style.css')
+/** 通用色板搬到 src/theme/tokens.css 了（地图页与 landing 同一张表），
+    令牌相关的断言必须两张表一起看，否则会误判成「深色没覆盖」。 */
+const tokensCss = read('src/theme/tokens.css')
+const themedCss = `${tokensCss}\n${css}`
 const mainTs = read('src/main.ts')
 const demoHtml = read('demo.html')
 
-/** 取出某个选择器块里「令牌名 → 值」，用来比较深浅两套令牌是不是同一张表。 */
+/** 取出所有匹配选择器的令牌块，按出现顺序合并（同名的后者覆盖前者）。 */
 function tokenEntries(source: string, selector: RegExp): Array<[string, string]> {
-  const match = selector.exec(source)
-  if (!match) throw new Error(`找不到令牌块：${selector}`)
-  const start = source.indexOf('{', match.index)
-  let depth = 0
-  let end = start
-  for (let i = start; i < source.length; i += 1) {
-    if (source[i] === '{') depth += 1
-    else if (source[i] === '}') {
-      depth -= 1
-      if (depth === 0) { end = i; break }
+  const flags = selector.flags.includes('g') ? selector.flags : `${selector.flags}g`
+  const re = new RegExp(selector.source, flags)
+  const merged = new Map<string, string>()
+  for (const match of source.matchAll(re)) {
+    const start = match.index + match[0].length - 1
+    let depth = 0
+    let end = start
+    for (let i = start; i < source.length; i += 1) {
+      if (source[i] === '{') depth += 1
+      else if (source[i] === '}') {
+        depth -= 1
+        if (depth === 0) { end = i; break }
+      }
+    }
+    for (const m of source.slice(start, end).matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
+      merged.set(m[1], m[2].trim())
     }
   }
-  const block = source.slice(start, end)
-  return [...block.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(
-    (m) => [m[1], m[2].trim()] as [string, string],
-  )
+  if (!merged.size) throw new Error(`找不到令牌块：${selector}`)
+  return [...merged.entries()]
 }
 
 function tokenNames(source: string, selector: RegExp): string[] {
@@ -47,8 +55,8 @@ const isThemeToken = ([, value]: [string, string]): boolean => /#|rgba?\(|hsla?\
 /** 去掉令牌块后的样式正文：这里不允许再出现裸色值。 */
 function stripTokenBlocks(source: string): string {
   return source
-    .replace(/^:root\s*\{[\s\S]*?\n\}/m, '')
-    .replace(/^:root\[data-theme='dark'\]\s*\{[\s\S]*?\n\}/m, '')
+    .replace(/^:root\s*\{[\s\S]*?\n\}/gm, '')
+    .replace(/^:root\[data-theme='dark'\]\s*\{[\s\S]*?\n\}/gm, '')
 }
 
 const ruleFor = (selector: string): string => {
@@ -107,26 +115,26 @@ describe('地图浮层：工具栏 / 图例 / 比例尺', () => {
 
 describe('颜色只走令牌', () => {
   it('深浅两套颜色令牌是同一张表，几何令牌只声明一次', () => {
-    const light = tokenEntries(css, /^:root\s*\{/m)
+    const light = tokenEntries(themedCss, /^:root\s*\{/m)
     const dark = tokenEntries(css, /^:root\[data-theme='dark'\]\s*\{/m)
     const themeTokens = light.filter(isThemeToken).map(([name]) => name).sort()
     expect(themeTokens.length).toBeGreaterThan(20)
     // 深色必须逐个覆盖浅色的颜色/阴影令牌，不许多也不许漏
-    expect(tokenNames(css, /^:root\[data-theme='dark'\]\s*\{/m)).toEqual(themeTokens)
+    expect(tokenNames(themedCss, /^:root\[data-theme='dark'\]\s*\{/m)).toEqual(themeTokens)
     // 也不许冒出浅色表里没有的名字（拼错就红）
     const lightNames = new Set(light.map(([name]) => name))
     for (const [name] of dark) expect(lightNames.has(name)).toBe(true)
   })
 
   it('语义四组颜色都定义了（空闲 / 收藏 / 占用 / 告警）', () => {
-    const light = tokenNames(css, /^:root\s*\{/m)
+    const light = tokenNames(themedCss, /^:root\s*\{/m)
     for (const name of ['--state-free', '--state-hold', '--state-busy', '--state-alert']) {
       expect(light).toContain(name)
     }
   })
 
   it('令牌块之外没有裸色值', () => {
-    const body = stripTokenBlocks(css)
+    const body = stripTokenBlocks(themedCss)
     expect(body).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
   })
 

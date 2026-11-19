@@ -1,31 +1,16 @@
+@import './theme/tokens.css';
+
 /* CampusNav 3D — 地图页
    依据 docs/design-overview-v2.md §6：数据密度优先、状态色克制、
    地图永久占据主视区、面板浮在图上、零装饰动效。
    颜色一律走令牌，深浅两套同表；正文 14 / 次要 12 / 标题 16·20。 */
 
 :root {
-  color-scheme: light;
-
-  --bg: #f7f9fa;
+  /* 通用色板（bg / surface* / ink* / outline* / primary* / 圆角 / 阴影）
+     与 landing 共用 src/theme/tokens.css，这里只声明地图页自己的令牌。 */
   --map-bg: #eef3f6;
-  --surface: #ffffff;
-  --surface-1: #f1f5f6;
-  --surface-2: #e8eef0;
-  --surface-3: #dee7ea;
   --panel-bg: rgba(255, 255, 255, 0.94);
   --bar-bg: rgba(247, 249, 250, 0.9);
-
-  --ink: #102026;
-  --ink-2: #476873;
-  --ink-3: #6b8a94;
-
-  --outline: #d3e0e3;
-  --outline-strong: #a8bcc2;
-
-  --primary: #14666c;
-  --on-primary: #ffffff;
-  --primary-soft: #d2eff0;
-  --on-primary-soft: #00393c;
 
   /* 语义四色：空闲 / 收藏提醒 / 占用 / 告警 */
   --state-free: #0f766e;
@@ -46,14 +31,6 @@
   --swatch-academic: #93c5fd;
   --swatch-dorm: #c4b5fd;
 
-  --r-xs: 4px;
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
-
-  --shadow-1: 0 1px 2px rgba(16, 32, 38, 0.06), 0 1px 3px rgba(16, 32, 38, 0.08);
-  --shadow-2: 0 12px 32px -16px rgba(16, 32, 38, 0.35);
-
   --appbar-h: 48px;
   --gap: 10px;
   --sidebar-w: 320px;
@@ -64,28 +41,9 @@
 }
 
 :root[data-theme='dark'] {
-  color-scheme: dark;
-
-  --bg: #0d1417;
   --map-bg: #0f1a1e;
-  --surface: #141e21;
-  --surface-1: #192428;
-  --surface-2: #1f2c30;
-  --surface-3: #26353a;
   --panel-bg: rgba(20, 30, 33, 0.94);
   --bar-bg: rgba(13, 20, 23, 0.9);
-
-  --ink: #e2ecee;
-  --ink-2: #a6bcc2;
-  --ink-3: #7f979e;
-
-  --outline: #293a3f;
-  --outline-strong: #3e5359;
-
-  --primary: #79d3d8;
-  --on-primary: #00363a;
-  --primary-soft: #00474b;
-  --on-primary-soft: #a8eef1;
 
   --state-free: #4bbfa6;
   --state-free-soft: #10322c;
@@ -103,9 +61,6 @@
   --swatch-sports: #16a34a;
   --swatch-academic: #60a5fa;
   --swatch-dorm: #a78bfa;
-
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 16px 40px -20px rgba(0, 0, 0, 0.8);
 }
 
 /* ---------- 基础 ---------- */
@@ -701,6 +656,36 @@ h3 {
   border-radius: 0 0 2px 2px;
 }
 
+/* 回到项目首页：浮在图上，颜色跟主题走（原来是 demo.html 里的内联样式，深色下会刺眼） */
+.back-home {
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--outline);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  backdrop-filter: blur(8px);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  box-shadow: var(--shadow-1);
+}
+
+.back-home:hover {
+  background: var(--surface-2);
+}
+
+/* 壳内只承载地图，不给回站点的出口 */
+html[data-shell='1'] .back-home {
+  display: none;
+}
+
 /* ---------- 窄屏：地图全屏 + 底部抽屉 ---------- */
 
 @media (max-width: 959px) {
@@ -791,6 +776,10 @@ h3 {
 
   .entity-list {
     max-height: 32vh;
+  }
+
+  .back-home {
+    bottom: calc(var(--drawer-h) + var(--gap) + env(safe-area-inset-bottom, 0px));
   }
 
   .map-tools {
