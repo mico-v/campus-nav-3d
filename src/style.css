@@ -38,6 +38,18 @@
 
   /* 由 main.ts 在窄屏下按抽屉档位改写，桌面保持 0：浮层据此避开底部抽屉 */
   --drawer-h: 0px;
+
+  /* 布局令牌（docs/ui-redesign-v3.md §1 room-tba）：chrome 的尺寸只在这里定，
+     规则里不再写死 top/bottom 像素。相机也读 --map-inset-* 做非对称留白，
+     所以「顶栏多高、底部让多少」改一处就能同时改到样式和取景。 */
+  --map-ui-padding: 12px;
+  --search-block-height: var(--appbar-h);
+  /* 底部统一状态条（s3 收口）：现在先给浮着的比例尺 / 工具栏占位 */
+  --status-bar-block-height: 44px;
+  --drawer-peek-height: calc(var(--tap) + 6px);
+  --map-inset-top: calc(var(--search-block-height) + var(--map-ui-padding));
+  --map-inset-bottom: calc(var(--drawer-h) + var(--status-bar-block-height) + var(--map-ui-padding));
+  --map-inset-x: var(--map-ui-padding);
 }
 
 :root[data-theme='dark'] {
@@ -902,7 +914,8 @@ html[data-shell='1'] .wf-link {
 @media (max-width: 959px) {
   :root {
     --tap: 44px;
-    --drawer-h: 30vh;
+    /* 默认 peek：只露手柄，地图是主视区。想展开就拖 / 轻点手柄。 */
+    --drawer-h: var(--drawer-peek-height);
   }
 
   .campus-name {
@@ -945,8 +958,8 @@ html[data-shell='1'] .wf-link {
     box-shadow: 0 -12px 32px -20px rgba(16, 32, 38, 0.5);
   }
 
-  .sidebar[data-drawer='closed'] {
-    height: calc(var(--tap) + 6px);
+  .sidebar[data-drawer='peek'] {
+    height: var(--drawer-peek-height);
     overflow: hidden;
   }
 

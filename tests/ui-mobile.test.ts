@@ -49,18 +49,19 @@ describe('断点只写一处', () => {
 })
 
 describe('抽屉三档：CSS 与脚本同一套数', () => {
-  it('closed / half / full 的高度对得上', () => {
+  it('peek / half / full 的高度对得上', () => {
     const pairs: Array<[string, string, number]> = [
-      ['closed', 'closed', 0],
+      ['peek', 'peek', 0],
       ['half', 'half', 30],
       ['full', 'full', 86],
     ]
     for (const [state, tsKey, vh] of pairs) {
       const rule = narrowRule(`.sidebar[data-drawer='${state}']`)
-      if (state === 'closed') {
-        // 收起时只留手柄高度，别留一条空白缝
-        expect(rule).toContain('calc(var(--tap) + 6px)')
-        expect(mainTs).toContain("closed: 'calc(var(--tap) + 6px)'")
+      if (state === 'peek') {
+        // peek 只留手柄高度，别留一条空白缝；高度由令牌给，脚本不再抄一份数字
+        expect(rule).toContain('height: var(--drawer-peek-height)')
+        expect(mainTs).toContain("peek: 'var(--drawer-peek-height)'")
+        expect(css).toMatch(/--drawer-peek-height:\s*calc\(var\(--tap\) \+ 6px\)/)
         continue
       }
       expect(rule).toContain(`${vh}vh`)
@@ -74,7 +75,14 @@ describe('抽屉三档：CSS 与脚本同一套数', () => {
   it('半屏档不超过三分之一屏——地图默认还是主视区', () => {
     const half = /height:\s*([\d.]+)vh/.exec(narrowRule(".sidebar[data-drawer='half']"))?.[1]
     expect(Number(half)).toBeLessThanOrEqual(34)
-    expect(narrowCss).toMatch(/--drawer-h:\s*30vh/)
+  })
+
+  it('默认是 peek 档：首屏不展开面板，地图是主视区', () => {
+    // 面板初始档位写在 HTML 里，脚本的兜底值也得跟它一致，否则 syncDrawerOffset 会按 half 算
+    expect(mainTs).toContain('data-drawer="peek"')
+    expect(narrowCss).toMatch(/--drawer-h:\s*var\(--drawer-peek-height\)/)
+    expect(mainTs).toContain("?? 'peek'")
+    expect(mainTs).not.toContain("?? 'half'")
   })
 })
 

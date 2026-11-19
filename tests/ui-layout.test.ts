@@ -89,10 +89,10 @@ describe('地图占主视区，面板浮在图上', () => {
 
   it('窄屏切底部抽屉，三档高度都写了', () => {
     expect(css).toMatch(/@media \(max-width: 959px\)/)
-    expect(css).toMatch(/\.sidebar\[data-drawer='closed'\]/)
+    expect(css).toMatch(/\.sidebar\[data-drawer='peek'\]/)
     expect(css).toMatch(/\.sidebar\[data-drawer='half'\]/)
     expect(css).toMatch(/\.sidebar\[data-drawer='full'\]/)
-    expect(mainTs).toContain("['closed', 'half', 'full']")
+    expect(mainTs).toContain("['peek', 'half', 'full']")
     expect(mainTs).toContain('id="drawer-handle"')
   })
 })
