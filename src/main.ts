@@ -115,7 +115,7 @@ campus.setDataAndSelection(data, 0)
 campus.resize()
 campus.setOverviewCamera()
 
-/* ---------- 主题：与 landing 共用 localStorage 键，深浅两套令牌在 style.css 里同表 ---------- */
+/* ---------- 主题：与 landing 共用令牌表（src/theme/tokens.css）与 localStorage 键 ---------- */
 
 type Theme = 'light' | 'dark'
 const THEME_KEY = 'campusnav-theme'
@@ -127,30 +127,49 @@ function readStoredTheme(): string | null {
 function systemPrefersDark(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
-if (!root.dataset.theme) {
+function resolveTheme(): Theme {
   const stored = readStoredTheme()
-  root.dataset.theme = stored === 'dark' || (!stored && systemPrefersDark()) ? 'dark' : 'light'
+  if (stored === 'dark' || stored === 'light') return stored
+  return systemPrefersDark() ? 'dark' : 'light'
+}
+/** theme-color 跟着 --bg 走：地址栏 / 壳内状态栏与页面底色同色，颜色只在 CSS 令牌里定义 */
+function syncThemeColor(): void {
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+  if (!meta) return
+  const bg = getComputedStyle(root).getPropertyValue('--bg').trim()
+  if (bg) meta.setAttribute('content', bg)
 }
 function applyTheme(theme: Theme): void {
   root.dataset.theme = theme
   try { localStorage.setItem(THEME_KEY, theme) } catch { /* 隐私模式写不进就算了 */ }
   themeButton.textContent = theme === 'dark' ? '☀' : '◐'
+  themeButton.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false')
+  syncThemeColor()
   requestRender()
 }
+// 首屏内联脚本已回放过主题；这里只兜底（脚本被拦下时）
+if (root.dataset.theme !== 'dark' && root.dataset.theme !== 'light') root.dataset.theme = resolveTheme()
 applyTheme(root.dataset.theme === 'dark' ? 'dark' : 'light')
 themeButton.addEventListener('click', () => applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'))
+// 用户没手动选过就跟着系统走，别把系统切深色的人锁在浅色里
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (!readStoredTheme()) applyTheme(systemPrefersDark() ? 'dark' : 'light')
+})
 
-/* ---------- 窄屏抽屉：closed → half → full 循环 ---------- */
+/* ---------- 窄屏抽屉：拖动吸附 + 轻点循环 closed → half → full ---------- */
 
 const drawerOrder = ['closed', 'half', 'full'] as const
 type DrawerState = (typeof drawerOrder)[number]
 const narrowViewport = (): boolean => window.matchMedia('(max-width: 959px)').matches
-/** 三档抽屉高度，与 style.css 里 .sidebar 的取值保持一致 */
-const DRAWER_HEIGHT: Record<DrawerState, string> = { closed: 'calc(var(--tap) + 6px)', half: '44vh', full: '86vh' }
+/** 三档抽屉高度，与 style.css 里 .sidebar 的取值保持一致；half 收到 32vh，地图默认多留一截 */
+const DRAWER_HEIGHT: Record<DrawerState, string> = { closed: 'calc(var(--tap) + 6px)', half: '32vh', full: '86vh' }
+/** 吸附阈值用的同一套数字（height 百分比），拖动时按落点选最近一档 */
+const DRAWER_VH: Record<Exclude<DrawerState, 'closed'>, number> = { half: 0.32, full: 0.86 }
 /** 地图左下浮层按抽屉高度避让，否则窄屏下比例尺会被抽屉盖住 */
-function syncDrawerOffset(): void {
+function syncDrawerOffset(height?: string): void {
   const state = (sidebar.dataset.drawer as DrawerState | undefined) ?? 'half'
-  document.documentElement.style.setProperty('--drawer-h', narrowViewport() ? DRAWER_HEIGHT[state] ?? DRAWER_HEIGHT.half : '0px')
+  const value = height ?? (narrowViewport() ? DRAWER_HEIGHT[state] ?? DRAWER_HEIGHT.half : '0px')
+  document.documentElement.style.setProperty('--drawer-h', value)
 }
 function setDrawer(state: DrawerState): void {
   sidebar.dataset.drawer = state
@@ -158,7 +177,59 @@ function setDrawer(state: DrawerState): void {
   requestRender()
 }
 syncDrawerOffset()
-$<HTMLButtonElement>('#drawer-handle').addEventListener('click', () => {
+
+// 手柄：按下后上下拖动 = 按落点吸附；没拖动就是轻点，三档循环。
+const drawerHandle = $<HTMLButtonElement>('#drawer-handle')
+const drawerSnapPx = (state: DrawerState): number => {
+  const h = window.innerHeight
+  return state === 'closed' ? 0 : h * DRAWER_VH[state]
+}
+const drawerNearest = (height: number): DrawerState => drawerOrder
+  .map((state) => [state, Math.abs(drawerSnapPx(state) - height)] as const)
+  .reduce((best, item) => (item[1] < best[1] ? item : best))[0]
+
+let drawerDrag: { pointerId: number; startY: number; startHeight: number; moved: boolean } | null = null
+/** 拖动期间 click 会跟在 pointerup 后面，用它判断这次点击要不要当成「轻点循环」 */
+let drawerDragged = false
+
+drawerHandle.addEventListener('pointerdown', (event) => {
+  if (!narrowViewport() || event.button !== 0) return
+  drawerDrag = { pointerId: event.pointerId, startY: event.clientY, startHeight: sidebar.getBoundingClientRect().height, moved: false }
+  drawerDragged = false
+  drawerHandle.setPointerCapture(event.pointerId)
+})
+
+drawerHandle.addEventListener('pointermove', (event) => {
+  if (!drawerDrag || event.pointerId !== drawerDrag.pointerId) return
+  const delta = drawerDrag.startY - event.clientY
+  if (!drawerDrag.moved) {
+    if (Math.abs(delta) <= 6) return
+    drawerDrag.moved = true
+    sidebar.classList.add('dragging')
+  }
+  const height = Math.min(window.innerHeight * DRAWER_VH.full, Math.max(0, drawerDrag.startHeight + delta))
+  sidebar.style.height = `${height}px`
+  syncDrawerOffset(`${height}px`)
+  event.preventDefault()
+})
+
+function endDrawerDrag(event: PointerEvent): void {
+  if (!drawerDrag || event.pointerId !== drawerDrag.pointerId) return
+  const dragged = drawerDrag.moved
+  const height = sidebar.getBoundingClientRect().height
+  drawerDrag = null
+  if (drawerHandle.hasPointerCapture(event.pointerId)) drawerHandle.releasePointerCapture(event.pointerId)
+  if (!dragged) return
+  drawerDragged = true
+  sidebar.classList.remove('dragging')
+  sidebar.style.height = ''
+  setDrawer(drawerNearest(height))
+}
+drawerHandle.addEventListener('pointerup', endDrawerDrag)
+drawerHandle.addEventListener('pointercancel', endDrawerDrag)
+
+drawerHandle.addEventListener('click', () => {
+  if (drawerDragged) { drawerDragged = false; return }
   const current = (sidebar.dataset.drawer as DrawerState | undefined) ?? 'half'
   const index = drawerOrder.indexOf(current)
   setDrawer(drawerOrder[(index + 1) % drawerOrder.length])
