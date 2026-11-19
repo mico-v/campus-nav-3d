@@ -17,6 +17,7 @@ const read = (rel: string): string => readFileSync(join(repoRoot, rel), 'utf8')
 
 const tokensCss = read('src/theme/tokens.css')
 const styleCss = read('src/style.css')
+const navCss = read('src/ui/site-nav.css')
 const landingCss = read('src/landing/landing.css')
 const demoHtml = read('demo.html')
 const mainTs = read('src/main.ts')
@@ -83,7 +84,8 @@ describe('首屏零闪白', () => {
   it('壳内（?shell=1）标记仍在首屏脚本里设置', () => {
     expect(demoHtml).toContain("new URLSearchParams(location.search).get('shell')")
     expect(demoHtml).toContain("document.documentElement.dataset.shell = '1'")
-    expect(styleCss).toMatch(/html\[data-shell='1'\]\s*\.back-home\s*\{\s*display:\s*none/)
+    // 壳里不给站内入口：站点导航整套隐藏（原来是 .back-home，那个孤立出口已摘掉）
+    expect(navCss).toMatch(/html\[data-shell='1'\]\s*\.site-nav\s*\{\s*display:\s*none/)
   })
 })
 
@@ -108,14 +110,13 @@ describe('主题切换按钮', () => {
 })
 
 describe('浮层也跟着主题走', () => {
-  it('回到项目首页的按钮不再写内联颜色，改用令牌', () => {
-    expect(demoHtml).not.toMatch(/<style[\s\S]*?back-home[\s\S]*?<\/style>/)
-    expect(styleCss).toMatch(/\.back-home\s*\{[^}]*var\(--panel-bg\)/)
-    expect(styleCss).toMatch(/\.back-home\s*\{[^}]*color:\s*var\(--ink\)/)
+  it('地图浮层不写内联颜色，改用令牌', () => {
+    expect(demoHtml).not.toMatch(/<style[\s\S]*?<\/style>/)
+    expect(styleCss).toMatch(/\.map-overlay\s*\{[^}]*var\(--panel-bg\)/)
   })
 
-  it('窄屏下按钮抬到抽屉之上，避免被盖住', () => {
-    const narrow = styleCss.slice(styleCss.indexOf('@media (max-width: 959px)'))
-    expect(narrow).toMatch(/\.back-home\s*\{[^}]*var\(--drawer-h\)/)
+  it('站点导航两套主题共用令牌，不在页面里写死色值', () => {
+    expect(navCss).toMatch(/\.site-nav a\s*\{[^}]*var\(--ink-2/)
+    expect(navCss).toMatch(/\[aria-current='page'\]\s*\{[^}]*var\(--surface-2/)
   })
 })

@@ -93,9 +93,10 @@ describe('计划报告', () => {
 })
 
 describe('原型入口', () => {
-  it('保留 3D 地图入口并加回首页的出口', () => {
+  it('保留 3D 地图入口，回站点的出口改由站点导航统一提供', () => {
     expect(demo).toContain('/src/main.ts')
-    expect(demo).toContain('href="./index.html"')
+    // 地图页不再挂「← 项目首页」孤立出口；三入口并列在站点导航里（见 tests/ui-nav.test.ts）
+    expect(demo).not.toContain('back-home')
   })
 
   it('每个 HTML 入口都存在', () => {

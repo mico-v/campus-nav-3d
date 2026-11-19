@@ -1,4 +1,5 @@
 import './style.css'
+import './ui/site-nav.css'
 import { createDefaultCampusData } from './data/campusData'
 import { CampusScene } from './scene/CampusScene'
 import { ViewState, type LayerKey } from './core/view/state'
@@ -6,6 +7,7 @@ import { pickEntity, type PickedEntity } from './interaction'
 import { renderEntityList, renderDetails, searchEntities, updateSelectionToast, escapeHtml } from './ui/panel'
 import { chooseScaleBar, metersPerPixel } from './ui/scale'
 import { mountWebglFallback, probeWebgl } from './ui/webgl-fallback'
+import { siteNavHtml } from './ui/site-nav'
 
 const appRoot = document.querySelector<HTMLDivElement>('#app')
 if (!appRoot) throw new Error('App root not found')
@@ -27,7 +29,8 @@ app.innerHTML = `
     <div id="label-layer"></div>
   </div>
   <header class="appbar">
-    <a class="brand" href="./index.html" aria-label="返回项目首页"><span class="brand-mark" aria-hidden="true"></span><span>CampusNav<span class="brand-dim"> 3D</span></span></a>
+    <a class="brand" href="./index.html" aria-label="返回项目首页"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">CampusNav<span class="brand-dim"> 3D</span></span></a>
+    ${siteNavHtml('demo')}
     <span class="campus-name" id="hero-title"></span>
     <div class="searchbox" role="search">
       <label class="visually-hidden" for="entity-search">搜索建筑或地点</label>

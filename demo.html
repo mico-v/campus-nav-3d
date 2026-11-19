@@ -8,7 +8,7 @@
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <title>3D 校园导航原型 · CampusNav 3D</title>
     <script>
-      // 首屏前跑：① 原生壳（?shell=1）里只承载地图，隐藏回站点首页的出口；
+      // 首屏前跑：① 原生壳（?shell=1）里只承载地图，隐藏站点导航；
       // ② 回放深浅主题，避免样式表加载后才切主题造成的闪白（docs/design-overview-v2.md §6.4）。
       ;(function () {
         try {
@@ -26,7 +26,6 @@
   </head>
   <body>
     <div id="app"></div>
-    <a class="back-home" href="./index.html">← 项目首页</a>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

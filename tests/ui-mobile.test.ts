@@ -18,6 +18,10 @@ const mainTs = read('src/main.ts')
 const demoHtml = read('demo.html')
 
 /** 窄屏那一段样式：媒体查询里的规则带缩进，逐条取规则得在这一段里做。 */
+/** 断点阶梯：手机档 + 抽屉档，见下方「断点只写一处」 */
+const PHONE_BREAKPOINT = '560'
+const DRAWER_BREAKPOINT = '959'
+
 const narrowCss = css.slice(css.indexOf('@media (max-width: 959px)'))
 const narrowRule = (selector: string): string => {
   const match = new RegExp(`(^|\\n)\\s*${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{[^}]*\\}`).exec(narrowCss)
@@ -29,9 +33,12 @@ describe('断点只写一处', () => {
   it('CSS 与脚本都用 959px', () => {
     expect(css).toMatch(/@media \(max-width: 959px\)/)
     expect(mainTs).toContain("window.matchMedia('(max-width: 959px)')")
-    // 别冒出第二套断点，两套数会让「哪一档生效」看天（只数 @media，别的 max-width 不算）
-    const breakpoints = new Set([...css.matchAll(/@media \(max-width:\s*(\d+)px\)/g)].map((m) => m[1]))
-    expect([...breakpoints]).toEqual(['959'])
+    // 断点阶梯只允许两级，想加第三档得先在这里显式登记（只数 @media，别的 max-width 不算）：
+    //   PHONE 手机档：品牌收成图标、站点导航压窄、点击区吃满 44px
+    //   DRAWER 抽屉档：地图全屏 + 底部抽屉，脚本里的 narrowViewport() 也用这个数
+    const allCss = [css, read('src/ui/site-nav.css')].join('\n')
+    const breakpoints = new Set([...allCss.matchAll(/@media \(max-width:\s*(\d+)px\)/g)].map((m) => m[1]))
+    expect([...breakpoints].sort((a, b) => Number(a) - Number(b))).toEqual([PHONE_BREAKPOINT, DRAWER_BREAKPOINT])
   })
 
   it('窄屏才算窄屏：抽屉的拖动/吸附都过 narrowViewport()', () => {
@@ -72,7 +79,7 @@ describe('抽屉三档：CSS 与脚本同一套数', () => {
 })
 
 describe('贴底浮层同时避开抽屉与刘海', () => {
-  const bottomAnchored = ['.map-overlay', '.map-tools', '.back-home', '.detail-card']
+  const bottomAnchored = ['.map-overlay', '.map-tools', '.detail-card']
 
   /** 基础规则 + 窄屏覆盖一起看：窄屏没重写 bottom 就沿用基础规则里的避让。 */
   const combinedRule = (selector: string): string => {
