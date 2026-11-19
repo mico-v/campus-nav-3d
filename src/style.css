@@ -328,7 +328,6 @@ h3 {
 .icon-button,
 .appbar button,
 .map-tools button,
-.drawer-handle,
 .entity-item,
 .sidebar button {
   touch-action: manipulation;
@@ -691,7 +690,7 @@ html[data-shell='1'] .back-home {
 @media (max-width: 959px) {
   :root {
     --tap: 44px;
-    --drawer-h: 44vh;
+    --drawer-h: 30vh;
   }
 
   .campus-name {
@@ -738,7 +737,7 @@ html[data-shell='1'] .back-home {
   }
 
   .sidebar[data-drawer='half'] {
-    height: 44vh;
+    height: 30vh;
   }
 
   .sidebar[data-drawer='full'] {
@@ -762,9 +761,18 @@ html[data-shell='1'] .back-home {
     justify-content: center;
     width: 100%;
     min-height: var(--tap);
+    /* 拖动必须由脚本接管：不交给浏览器的纵向滚动，否则 pointermove 会被 pointercancel 掐掉 */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
     padding: 0;
     border: 0;
     background: transparent;
+  }
+
+  /* 拖动跟手：这根过渡只在松手吸附时用得到 */
+  .sidebar.dragging {
+    transition: none;
   }
 
   .drawer-handle span {

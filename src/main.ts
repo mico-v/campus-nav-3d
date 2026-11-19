@@ -161,10 +161,10 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 const drawerOrder = ['closed', 'half', 'full'] as const
 type DrawerState = (typeof drawerOrder)[number]
 const narrowViewport = (): boolean => window.matchMedia('(max-width: 959px)').matches
-/** 三档抽屉高度，与 style.css 里 .sidebar 的取值保持一致；half 收到 32vh，地图默认多留一截 */
-const DRAWER_HEIGHT: Record<DrawerState, string> = { closed: 'calc(var(--tap) + 6px)', half: '32vh', full: '86vh' }
+/** 三档抽屉高度，与 style.css 里 .sidebar 的取值保持一致；half 收到 30vh，地图默认多留一截 */
+const DRAWER_HEIGHT: Record<DrawerState, string> = { closed: 'calc(var(--tap) + 6px)', half: '30vh', full: '86vh' }
 /** 吸附阈值用的同一套数字（height 百分比），拖动时按落点选最近一档 */
-const DRAWER_VH: Record<Exclude<DrawerState, 'closed'>, number> = { half: 0.32, full: 0.86 }
+const DRAWER_VH: Record<Exclude<DrawerState, 'closed'>, number> = { half: 0.3, full: 0.86 }
 /** 地图左下浮层按抽屉高度避让，否则窄屏下比例尺会被抽屉盖住 */
 function syncDrawerOffset(height?: string): void {
   const state = (sidebar.dataset.drawer as DrawerState | undefined) ?? 'half'
