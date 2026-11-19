@@ -38,6 +38,7 @@ fun ShellWebView(
     val context = LocalContext.current
     var webView by remember { mutableStateOf<WebView?>(null) }
     var handledToken by remember { mutableIntStateOf(reloadToken) }
+    var handledUrl by remember { mutableStateOf(url) }
     var appliedTheme by remember { mutableStateOf<ThemeTokens?>(null) }
     var titleHandler by remember { mutableStateOf(onTitleChanged) }
     var backHandler by remember { mutableStateOf(onBackStateChanged) }
@@ -109,11 +110,12 @@ fun ShellWebView(
         },
     )
 
-    LaunchedEffect(reloadToken) {
-        if (reloadToken != handledToken) {
-            handledToken = reloadToken
-            webView?.reload()
-        }
+    // 搜索是换 URL（?q=），必须 loadUrl 新地址；同一地址重复搜索才重新加载。
+    LaunchedEffect(url, reloadToken) {
+        if (url == handledUrl && reloadToken == handledToken) return@LaunchedEffect
+        handledToken = reloadToken
+        handledUrl = url
+        webView?.loadUrl(url)
     }
 
     LaunchedEffect(themeTokens) {

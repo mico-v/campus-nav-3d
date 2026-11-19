@@ -3,6 +3,7 @@ import { createDefaultCampusData } from './data/campusData'
 import { CampusScene, type SceneDisplayOptions } from './scene/CampusScene'
 import { pickEntity, type PickedEntity } from './interaction'
 import { renderEntityList, renderDetails, searchEntities, updateSelectionToast, escapeHtml } from './ui/panel'
+import { readSearchQuery } from './ui/searchQuery'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 if (!app) throw new Error('App root not found')
@@ -91,7 +92,15 @@ function select(entity: PickedEntity, focus = true): void {
 syncUi()
 
 entityList.addEventListener('click', (event) => { const item = (event.target as HTMLElement).closest<HTMLElement>('[data-kind]'); if (!item) return; select(item.dataset.kind === 'building' ? { kind: 'building', index: Number(item.dataset.index) } : { kind: 'poi', id: item.dataset.id ?? '' }) })
-search.addEventListener('input', () => { const results = searchEntities(data, search.value); searchResults.innerHTML = results.slice(0, 8).map((item) => `<button type="button" class="search-result" data-kind="${item.kind}" ${item.kind === 'building' ? `data-index="${item.index}"` : `data-id="${escapeHtml(item.id)}"`}><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.subtitle)}</small></button>`).join(''); renderEntityList(data, selected, entityList, search.value) })
+function applySearch(query: string): void {
+  const results = searchEntities(data, query)
+  searchResults.innerHTML = results.slice(0, 8).map((item) => `<button type="button" class="search-result" data-kind="${item.kind}" ${item.kind === 'building' ? `data-index="${item.index}"` : `data-id="${escapeHtml(item.id)}"`}><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.subtitle)}</small></button>`).join('')
+  renderEntityList(data, selected, entityList, query)
+}
+search.addEventListener('input', () => applySearch(search.value))
+// 壳内搜索会带 ?q= 进来，首屏直接预填并出结果，不等用户再敲一次。
+const initialQuery = readSearchQuery(window.location.search)
+if (initialQuery) { search.value = initialQuery; applySearch(initialQuery) }
 searchResults.addEventListener('click', (event) => { const item = (event.target as HTMLElement).closest<HTMLElement>('[data-kind]'); if (!item) return; select(item.dataset.kind === 'building' ? { kind: 'building', index: Number(item.dataset.index) } : { kind: 'poi', id: item.dataset.id ?? '' }); searchResults.innerHTML = '' })
 layerControls.addEventListener('change', (event) => { const input = (event.target as HTMLInputElement).closest<HTMLInputElement>('[data-layer]'); if (!input) return; const key = input.dataset.layer as keyof typeof display; display[key] = input.checked; campus.setDisplayOptions(display); requestRender(); syncUi() })
 $<HTMLButtonElement>('#reset-camera').addEventListener('click', () => { campus.setOverviewCamera(); requestRender() })
