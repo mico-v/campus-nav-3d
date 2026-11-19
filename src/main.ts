@@ -71,7 +71,7 @@ const scaleBarEl = document.querySelector<HTMLElement>('#map-scale-bar')
 const scaleLabelEl = document.querySelector<HTMLElement>('#map-scale-label')
 
 const $ = <T extends HTMLElement>(sel: string): T => { const el = document.querySelector<T>(sel); if (!el) throw new Error(`UI element missing: ${sel}`); return el }
-const sceneHost = $<HTMLDivElement>('#scene'), labelLayer = $<HTMLDivElement>('#label-layer'), heroTitle = $<HTMLElement>('#hero-title'), entityList = $<HTMLDivElement>('#entity-list'), details = $<HTMLDivElement>('#details'), toast = $<HTMLDivElement>('#selection-toast'), search = $<HTMLInputElement>('#entity-search'), searchResults = $<HTMLDivElement>('#search-results'), layerControls = $<HTMLDivElement>('#layer-controls'), layerSummary = $<HTMLSpanElement>('#layer-summary'), sidebar = $<HTMLElement>('#sidebar'), detailCard = $<HTMLElement>('#detail-card'), detailTitle = $<HTMLElement>('#detail-title'), detailSubtitle = $<HTMLElement>('#detail-subtitle'), detailClose = $<HTMLButtonElement>('#detail-close')
+const sceneHost = $<HTMLDivElement>('#scene'), labelLayer = $<HTMLDivElement>('#label-layer'), heroTitle = $<HTMLElement>('#hero-title'), entityList = $<HTMLDivElement>('#entity-list'), details = $<HTMLDivElement>('#details'), toast = $<HTMLDivElement>('#selection-toast'), search = $<HTMLInputElement>('#entity-search'), searchResults = $<HTMLDivElement>('#search-results'), layerControls = $<HTMLDivElement>('#layer-controls'), layerSummary = $<HTMLSpanElement>('#layer-summary'), sidebar = $<HTMLElement>('#sidebar'), detailCard = $<HTMLElement>('#detail-card'), detailClose = $<HTMLButtonElement>('#detail-close')
 const data = createDefaultCampusData()
 const initialSelection: PickedEntity | null = data.buildings.length ? { kind: 'building', index: 0 } : null
 const view = new ViewState<PickedEntity>(initialSelection)
@@ -276,11 +276,9 @@ function syncUi(): void {
   heroTitle.textContent = data.name
   renderEntityList(data, view.selected, entityList, search.value)
   // 详情卡是浮在图上的一块独立卡片（§6.3）：选中才出，关掉后重新选中还会再弹。
-  const summary = renderDetails(data, view.selected, details)
-  detailTitle.textContent = summary?.name ?? ''
-  detailSubtitle.textContent = summary?.subtitle ?? ''
+  renderDetails(data, view.selected, details)
   // 手动关掉的卡片不许被下一次 syncUi（切图层、拉抽屉）又弹回来。
-  detailCard.hidden = !summary || selectionKey(view.selected) === dismissedDetail
+  detailCard.hidden = !view.selected || selectionKey(view.selected) === dismissedDetail
   updateSelectionToast(data, view.selected, toast)
   const active = layerDefs.filter(([key]) => view.layers[key]).length; layerSummary.textContent = `${active}/${layerDefs.length} 开启`
 }

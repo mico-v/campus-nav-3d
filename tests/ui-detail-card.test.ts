@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createDefaultCampusData } from '../src/data/campusData'
-import { DETAIL_BLOCKS, renderDetails } from '../src/ui/panel'
+import { renderDetails } from '../src/ui/panel'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const read = (rel: string): string => readFileSync(join(repoRoot, rel), 'utf8')
@@ -26,39 +26,30 @@ const ruleFor = (selector: string): string => {
 }
 
 describe('详情卡四区块', () => {
-  it('区块固定四块，顺序是概览 / 活动 / 提示 / 路线', () => {
-    expect([...DETAIL_BLOCKS]).toEqual(['overview', 'activity', 'notice', 'route'])
-  })
-
-  it('选中建筑：出四块，概览默认展开，标题回给卡片头', () => {
+  it('选中建筑：名字 / 分类 / 版式都落到卡片上', () => {
     const data = createDefaultCampusData()
     const container = fakeContainer()
-    const summary = renderDetails(data, { kind: 'building', index: 0 }, container)
-    expect(summary?.name).toBe(data.buildings[0].name)
-    expect(summary?.subtitle).toContain('建筑')
-    const blocks = [...container.innerHTML.matchAll(/data-block="([a-z]+)"/g)].map((m) => m[1])
-    expect(blocks).toEqual(['overview', 'activity', 'notice', 'route'])
-    expect(container.innerHTML).toMatch(/data-block="overview" open/)
-    // 占位块不许编数据：活动与路线明确写「暂无 / 待接入」
-    expect(container.innerHTML).toContain('暂无活动')
-    expect(container.innerHTML).toContain('路线规划待接入')
+    renderDetails(data, { kind: 'building', index: 0 }, container)
+    expect(container.innerHTML).toContain(data.buildings[0].name)
+    expect(container.innerHTML).toContain('建筑')
+    expect(container.innerHTML).toContain('detail-meta')
   })
 
-  it('选中地标也走同一套四区块', () => {
+  it('选中地标走 POI 版式', () => {
     const data = createDefaultCampusData()
     const poi = data.pois[0]
     const container = fakeContainer()
-    const summary = renderDetails(data, { kind: 'poi', id: poi.id }, container)
-    expect(summary?.name).toBe(poi.name)
-    expect(summary?.subtitle).toContain('地标')
-    expect(container.innerHTML.match(/data-block=/g)).toHaveLength(4)
+    renderDetails(data, { kind: 'poi', id: poi.id }, container)
+    expect(container.innerHTML).toContain(poi.name)
+    expect(container.innerHTML).toContain('POI')
+    expect(container.innerHTML).toContain('detail-meta')
   })
 
-  it('没选中返回 null，主程序据此收起卡片', () => {
+  it('没选中出空态，主程序据此收起卡片', () => {
     const container = fakeContainer()
-    expect(renderDetails(createDefaultCampusData(), null, container)).toBeNull()
+    expect(renderDetails(createDefaultCampusData(), null, container)).toBeUndefined()
     expect(container.innerHTML).toContain('empty-state')
-    expect(mainTs).toContain('detailCard.hidden = !summary ||')
+    expect(mainTs).toContain('detailCard.hidden = !view.selected ||')
   })
 
   it('名称里的尖括号会被转义，不会被当标签注进卡片', () => {

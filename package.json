@@ -10,12 +10,14 @@
     "preview": "vite preview",
     "test": "vitest run",
     "status": "node tools/project-status.mjs",
-    "validate:pack": "node --experimental-strip-types packages/campus-cli/src/main.ts validate packs/usts-tianping"
+    "validate:pack": "node --experimental-strip-types packages/campus-cli/src/main.ts validate packs/usts-tianping",
+    "verify:ui": "node scripts/verify-ui.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/three": "^0.183.1",
     "happy-dom": "^20.10.2",
+    "playwright": "^1.63.0",
     "typescript": "~6.0.2",
     "vite": "^8.0.4",
     "vitest": "^4.1.8"
