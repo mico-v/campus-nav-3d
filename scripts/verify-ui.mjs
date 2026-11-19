@@ -89,6 +89,7 @@ const rows = []
 let failed = false
 
 const near = (value, target) => Math.abs(value - target) <= tolerance
+const ANCHOR_TOLERANCE_PX = 2
 
 async function snapshot(page) {
   return page.evaluate(() => {
@@ -102,6 +103,7 @@ async function snapshot(page) {
       state: sheet.dataset.sheet,
       height: rect.height,
       top: rect.top,
+      bottomGap: window.innerHeight - rect.bottom,
       viewportHeight: window.innerHeight,
       innerWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
@@ -146,9 +148,12 @@ try {
       }
       checks.push(['initial half', baseline.state === 'half'])
 
+      // 量卡片自身高度（rect.height），不用露出高度（视口底 - rect.top）：后者会被定位偏移污染。
+      // 先核对卡片确实贴底，避免拿一个位置漂移的卡片把高度断言蒙过去。
       for (const [state, value] of states) {
         const ratio = value.height / value.viewportHeight
         checks.push([`${state} ${(ratio * 100).toFixed(1)}%`, value.state === state && near(ratio, expectedRatios[state])])
+        checks.push([`${state} anchored bottom`, Math.abs(value.bottomGap) <= ANCHOR_TOLERANCE_PX])
       }
 
       const peek = states.find(([state]) => state === 'peek')[1]

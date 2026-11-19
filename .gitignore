@@ -23,3 +23,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 真浏览器验收截图产物（scripts/verify-ui.mjs 输出）
+artifacts/
