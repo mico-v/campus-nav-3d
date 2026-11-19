@@ -44,6 +44,10 @@ function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function isPointPair(value: unknown): value is [number, number] {
+  return Array.isArray(value) && value.length === 2 && value.every((item) => typeof item === 'number')
+}
+
 function parseJsonFile(path: string): Promise<unknown> {
   return readFile(path, 'utf8').then((text) => JSON.parse(text) as unknown)
 }
@@ -66,6 +70,54 @@ function boundsToSize(bounds: unknown): { width: number; depth: number } {
     throw new Error('pack.json bounds 无法得到有效 width/depth')
   }
   return { width, depth }
+}
+
+/**
+ * The pack stores trees as `CampusTree` objects (`{ id, at: [x, z] }`), while the
+ * editor works with bare points. Accept both so fixtures and hand-written packs load.
+ */
+function packTreesToPoints(trees: unknown): [number, number][] {
+  if (!Array.isArray(trees)) throw new Error('campus.json trees 必须是数组')
+  return trees.map((tree, index) => {
+    if (isPointPair(tree)) return [tree[0], tree[1]]
+    if (isRecord(tree) && isPointPair(tree.at)) return [tree.at[0], tree.at[1]]
+    throw new Error(`campus.json trees[${index}] 缺少可用坐标`)
+  })
+}
+
+/**
+ * Map editor points back to `CampusTree` objects.
+ * When the coordinate sequence is untouched the original objects are returned as-is,
+ * so pack-only fields (id / radius / color) survive a save that only edited geometry.
+ */
+function pointsToPackTrees(points: unknown, previous: unknown): unknown[] {
+  const previousTrees = Array.isArray(previous) ? previous : []
+  const next = packTreesToPoints(points)
+  const unchanged = previousTrees.length === next.length && previousTrees.every((tree, index) => {
+    const at = isRecord(tree) ? tree.at : tree
+    return isPointPair(at) && at[0] === next[index][0] && at[1] === next[index][1]
+  })
+  if (unchanged) return previousTrees
+
+  const spare = new Map<string, UnknownRecord[]>()
+  let maxIndex = 0
+  for (const tree of previousTrees) {
+    if (!isRecord(tree)) continue
+    const match = /^tree-(\d+)$/.exec(String(tree.id ?? ''))
+    if (match) maxIndex = Math.max(maxIndex, Number(match[1]))
+    if (!isPointPair(tree.at)) continue
+    const key = `${tree.at[0]},${tree.at[1]}`
+    const bucket = spare.get(key) ?? []
+    bucket.push(tree)
+    spare.set(key, bucket)
+  }
+
+  return next.map(([x, z]) => {
+    const kept = spare.get(`${x},${z}`)?.shift()
+    if (kept) return kept
+    maxIndex += 1
+    return { id: `tree-${maxIndex}`, at: [x, z] }
+  })
 }
 
 /** Throws an actionable error when `value` is not a valid static map dataset. */
@@ -99,6 +151,7 @@ export async function loadPackCampusData(packPath: string, campusPath: string): 
 
   const merged: UnknownRecord = {
     ...pickKeys(rawGeometry, GEOMETRY_KEYS),
+    trees: packTreesToPoints(rawGeometry.trees),
     name: rawMeta.name,
     bounds: boundsToSize(rawMeta.bounds),
   }
@@ -113,6 +166,10 @@ async function fileExists(path: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+async function parseOptionalJsonFile(path: string): Promise<unknown> {
+  return (await fileExists(path)) ? parseJsonFile(path) : undefined
 }
 
 async function backupFile(path: string, backupDir: string, now: string, prefix: string): Promise<string | null> {
@@ -163,6 +220,7 @@ export async function savePackCampusData(
   const normalized = normalizeCampusData(data)
   const currentMeta = await parseJsonFile(packPath)
   if (!isRecord(currentMeta)) throw new Error('pack.json 必须是 JSON 对象')
+  const currentGeometry = await parseOptionalJsonFile(campusPath)
 
   const nextMeta = pickKeys(currentMeta, META_KEYS)
   nextMeta.name = normalized.name
@@ -174,6 +232,10 @@ export async function savePackCampusData(
   }
 
   const nextGeometry = pickKeys(normalized as UnknownRecord, GEOMETRY_KEYS)
+  nextGeometry.trees = pointsToPackTrees(
+    normalized.trees,
+    isRecord(currentGeometry) ? currentGeometry.trees : undefined,
+  )
 
   const campusBackupPath = await backupFile(campusPath, backupDir, now, 'campus')
   const packBackupPath = await backupFile(packPath, backupDir, now, 'pack')

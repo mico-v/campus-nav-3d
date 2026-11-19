@@ -97,3 +97,94 @@ describe('pack 读写：GET 合并 / PUT 拆分', () => {
     expect(originalPack.length).toBeGreaterThan(0)
   })
 })
+
+/**
+ * Pack 里的树木是 `CampusTree` 对象（`{ id, at }`，可带 radius/color），
+ * 编辑器与 `CampusData.trees` 用的是裸坐标 `[x, z]`。
+ * 这两层必须双向转换，否则编辑器一存就把树写成坐标数组，主应用按 `.at` 读会全变 undefined。
+ */
+describe('pack 树木：CampusTree 对象 <-> 编辑器坐标', () => {
+  let dir: string
+  let packPath: string
+  let campusPath: string
+  let backupDir: string
+
+  const packTrees = [
+    { id: 'tree-1', at: [12.5, -8], radius: 3, color: '#2f7d32' },
+    { id: 'tree-7', at: [-40, 22.5] },
+  ]
+
+  async function seed(trees: unknown[]): Promise<void> {
+    await writeFile(packPath, await readFile(realPackPath, 'utf8'), 'utf8')
+    const geometry = JSON.parse(await readFile(realCampusPath, 'utf8'))
+    await writeFile(campusPath, JSON.stringify({ ...geometry, trees }, null, 2) + '\n', 'utf8')
+  }
+
+  async function readCampusTrees(): Promise<unknown[]> {
+    return JSON.parse(await readFile(campusPath, 'utf8')).trees as unknown[]
+  }
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'campus-pack-trees-'))
+    packPath = join(dir, 'pack.json')
+    campusPath = join(dir, 'campus.json')
+    backupDir = join(dir, '.editor-backups')
+  })
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('GET 把 CampusTree 对象摊平成编辑器坐标，且通过 CampusData 校验', async () => {
+    await seed(packTrees)
+    const data = await loadPackCampusData(packPath, campusPath)
+    expect(data.trees).toEqual([[12.5, -8], [-40, 22.5]])
+  })
+
+  it('GET 兼容已经是坐标数组的 campus（历史 fixture / 手写 pack）', async () => {
+    await seed([[1, 2], [3, 4]])
+    const data = await loadPackCampusData(packPath, campusPath)
+    expect(data.trees).toEqual([[1, 2], [3, 4]])
+  })
+
+  it('GET 遇到坏树直接报错，并指出下标', async () => {
+    await seed([{ id: 'tree-1', at: [1, 2] }, { id: 'broken' }])
+    await expect(loadPackCampusData(packPath, campusPath)).rejects.toThrow(/trees\[1\]/)
+  })
+
+  it('PUT 未改坐标时原样回写 CampusTree（id/radius/color 全部保留）', async () => {
+    await seed(packTrees)
+    const data = await loadPackCampusData(packPath, campusPath)
+    await savePackCampusData(packPath, campusPath, backupDir, data, '2026-11-19T00:00:00.000Z')
+    expect(await readCampusTrees()).toEqual(packTrees)
+  })
+
+  it('PUT 移动一棵树时保留未动的对象，新位置按 tree-N 递增补 id', async () => {
+    await seed(packTrees)
+    const data = await loadPackCampusData(packPath, campusPath)
+    data.trees = [[12.5, -8], [300, 300]]
+
+    await savePackCampusData(packPath, campusPath, backupDir, data, '2026-11-19T00:00:00.000Z')
+    const trees = await readCampusTrees()
+
+    // 没动的那棵原封不动
+    expect(trees[0]).toEqual(packTrees[0])
+    // 挪走的那棵按已有最大 id（tree-7）继续编号
+    expect(trees[1]).toEqual({ id: 'tree-8', at: [300, 300] })
+  })
+
+  it('PUT -> GET 往返后编辑器拿到的坐标与提交一致', async () => {
+    await seed(packTrees)
+    const data = await loadPackCampusData(packPath, campusPath)
+    data.trees = [[0, 0], [-40, 22.5], [5, 5]]
+    await savePackCampusData(packPath, campusPath, backupDir, data, '2026-11-19T00:00:00.000Z')
+
+    const reloaded = await loadPackCampusData(packPath, campusPath)
+    expect(reloaded.trees).toEqual(data.trees)
+    // 写回 pack 的仍是对象形态，主应用（按 .at 读）不会拿到 undefined
+    for (const tree of await readCampusTrees() as Array<Record<string, unknown>>) {
+      expect(typeof tree.id).toBe('string')
+      expect(Array.isArray(tree.at)).toBe(true)
+    }
+  })
+})
