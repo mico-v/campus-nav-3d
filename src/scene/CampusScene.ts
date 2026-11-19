@@ -572,6 +572,25 @@ export class CampusScene {
     }
   }
 
+  /**
+   * 取景留白（px）：顶栏 / 底部状态条（含抽屉） / 左右 padding。
+   * 真值在 src/style.css 的 --map-inset-*，这里读不到（没有 DOM 的测试环境）就退回保守值。
+   */
+  private readSafeInsets(): { top: number; bottom: number; x: number } {
+    const fallback = { top: 60, bottom: 56, x: 12 }
+    const style = typeof getComputedStyle === 'function' ? getComputedStyle(this.host) : null
+    if (!style) return fallback
+    const read = (name: string, fb: number): number => {
+      const value = Number.parseFloat(style.getPropertyValue(name))
+      return Number.isFinite(value) && value >= 0 ? value : fb
+    }
+    return {
+      top: read('--map-inset-top', fallback.top),
+      bottom: read('--map-inset-bottom', fallback.bottom),
+      x: read('--map-inset-x', fallback.x),
+    }
+  }
+
   setOverviewCamera(): void {
     if (!this.data) return
     const rawBounds = deriveCampusBounds(this.data, this.roadDisplayOptions)
@@ -597,11 +616,17 @@ export class CampusScene {
 
     // Choose the closest camera distance whose full campus projection still
     // clears the toolbar and the mobile selection toast.
-    // 窄屏下画面不必居中在整块视口里：底部 30vh 被抽屉盖住，所以下沿只准占到 -0.34，
-    // 上部留一点给 48px 顶栏。上下不对称，换成同样高度的对称留白，地图会白白小一圈。
-    const maxNdcX = portrait ? 0.94 : 0.9
-    const minNdcY = portrait ? -0.34 : -0.86
-    const maxNdcY = portrait ? 0.88 : 0.86
+    // 留白不写死：顶栏在上、状态条 / 抽屉在下、左右各一条 padding，全部由 CSS 令牌
+    // （--map-inset-*）给出，再由视口尺寸换算成 NDC。上下本来就不对称，
+    // 换成对称留白等于白白浪费一截视口——默认 peek 抽屉时下沿能多让出一大块。
+    const safe = this.readSafeInsets()
+    const viewportW = Math.max(1, this.host.clientWidth)
+    const viewportH = Math.max(1, this.host.clientHeight)
+    const ndcOf = (px: number, total: number): number => (2 * Math.min(px, total * 0.45)) / total
+    const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
+    const maxNdcX = clamp(1 - ndcOf(safe.x, viewportW), 0.62, 0.96)
+    const maxNdcY = clamp(1 - ndcOf(safe.top, viewportH), 0.55, 0.96)
+    const minNdcY = -clamp(1 - ndcOf(safe.bottom, viewportH), 0.55, 0.96)
     const fits = (distance: number): boolean => {
       this.camera.near = 5
       this.camera.far = Math.max(5000, distance * 4)

@@ -22,7 +22,7 @@ if (!webgl.ok) {
 }
 
 // 布局按 docs/design-overview-v2.md §6：地图永久占满视区，顶栏 48px，面板浮在图上，
-// 窄屏把面板收成底部抽屉（closed / half / full 三档）。
+// 窄屏把面板收成底部抽屉（peek / half / full 三档，默认 peek）。
 app.innerHTML = `
   <div class="map-pane">
     <div id="scene"></div>
@@ -39,7 +39,7 @@ app.innerHTML = `
     </div>
     <button type="button" class="icon-button" id="theme-toggle" aria-label="切换深浅主题" title="切换深浅主题">◐</button>
   </header>
-  <aside class="sidebar" id="sidebar" data-drawer="half" aria-label="地图面板">
+  <aside class="sidebar" id="sidebar" data-drawer="peek" aria-label="地图面板">
     <button type="button" class="drawer-handle" id="drawer-handle" aria-label="收起或展开面板"><span></span></button>
     <section class="card">
       <div class="section-head"><h2>图层</h2><span class="muted" id="layer-summary"></span></div>
@@ -185,19 +185,24 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
   if (!readStoredTheme()) applyTheme(systemPrefersDark() ? 'dark' : 'light')
 })
 
-/* ---------- 窄屏抽屉：拖动吸附 + 轻点循环 closed → half → full ---------- */
+/* ---------- 窄屏抽屉：拖动吸附 + 轻点循环 peek → half → full ---------- */
 
-const drawerOrder = ['closed', 'half', 'full'] as const
+const drawerOrder = ['peek', 'half', 'full'] as const
 type DrawerState = (typeof drawerOrder)[number]
 const narrowViewport = (): boolean => window.matchMedia('(max-width: 959px)').matches
-/** 三档抽屉高度，与 style.css 里 .sidebar 的取值保持一致；half 收到 30vh，地图默认多留一截 */
-const DRAWER_HEIGHT: Record<DrawerState, string> = { closed: 'calc(var(--tap) + 6px)', half: '30vh', full: '86vh' }
-/** 吸附阈值用的同一套数字（height 百分比），拖动时按落点选最近一档 */
-const DRAWER_VH: Record<Exclude<DrawerState, 'closed'>, number> = { half: 0.3, full: 0.86 }
+/** 三档抽屉高度，与 style.css 里 .sidebar 的取值保持一致；peek 高度走令牌，地图默认是主视区 */
+const DRAWER_HEIGHT: Record<DrawerState, string> = { peek: 'var(--drawer-peek-height)', half: '30vh', full: '86vh' }
+/** 吸附阈值用的同一套数字（height 百分比），拖动时按落点选最近一档；peek 是固定像素，单独取 */
+const DRAWER_VH: Record<Exclude<DrawerState, 'peek'>, number> = { half: 0.3, full: 0.86 }
+/** 读 CSS 令牌的像素值（peek 高度只有令牌这一处真值，脚本不许再抄一份数字） */
+function cssPx(name: string, fallback: number): number {
+  const raw = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name))
+  return Number.isFinite(raw) ? raw : fallback
+}
 /** 地图左下浮层按抽屉高度避让，否则窄屏下比例尺会被抽屉盖住 */
 function syncDrawerOffset(height?: string): void {
-  const state = (sidebar.dataset.drawer as DrawerState | undefined) ?? 'half'
-  const value = height ?? (narrowViewport() ? DRAWER_HEIGHT[state] ?? DRAWER_HEIGHT.half : '0px')
+  const state = (sidebar.dataset.drawer as DrawerState | undefined) ?? 'peek'
+  const value = height ?? (narrowViewport() ? DRAWER_HEIGHT[state] ?? DRAWER_HEIGHT.peek : '0px')
   document.documentElement.style.setProperty('--drawer-h', value)
 }
 function setDrawer(state: DrawerState): void {
@@ -209,10 +214,8 @@ syncDrawerOffset()
 
 // 手柄：按下后上下拖动 = 按落点吸附；没拖动就是轻点，三档循环。
 const drawerHandle = $<HTMLButtonElement>('#drawer-handle')
-const drawerSnapPx = (state: DrawerState): number => {
-  const h = window.innerHeight
-  return state === 'closed' ? 0 : h * DRAWER_VH[state]
-}
+const drawerSnapPx = (state: DrawerState): number =>
+  state === 'peek' ? cssPx('--drawer-peek-height', 50) : window.innerHeight * DRAWER_VH[state]
 const drawerNearest = (height: number): DrawerState => drawerOrder
   .map((state) => [state, Math.abs(drawerSnapPx(state) - height)] as const)
   .reduce((best, item) => (item[1] < best[1] ? item : best))[0]
@@ -259,7 +262,7 @@ drawerHandle.addEventListener('pointercancel', endDrawerDrag)
 
 drawerHandle.addEventListener('click', () => {
   if (drawerDragged) { drawerDragged = false; return }
-  const current = (sidebar.dataset.drawer as DrawerState | undefined) ?? 'half'
+  const current = (sidebar.dataset.drawer as DrawerState | undefined) ?? 'peek'
   const index = drawerOrder.indexOf(current)
   setDrawer(drawerOrder[(index + 1) % drawerOrder.length])
 })
@@ -293,8 +296,8 @@ function select(entity: PickedEntity, focus = true): void {
   dismissedDetail = null
   campus.setEditorSelection(entity.kind === 'building' ? entity : { kind: 'poi', index: poiIndex })
   if (focus) entity.kind === 'building' ? campus.focusBuilding(entity.index) : campus.focusPoi(entity.id)
-  // 窄屏抽屉收起时选中对象，自动拉到半屏，否则详情根本看不见。
-  if (narrowViewport() && (sidebar.dataset.drawer ?? 'half') === 'closed') setDrawer('half')
+  // 窄屏默认 peek：选中对象才把抽屉拉到半屏，否则详情根本看不见。
+  if (narrowViewport() && (sidebar.dataset.drawer ?? 'peek') === 'peek') setDrawer('half')
   requestRender()
   syncUi()
 }

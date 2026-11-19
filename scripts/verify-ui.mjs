@@ -5,7 +5,9 @@
  * 做四件事：
  * 1. 起一个只读静态服务指向 `dist/`（不依赖 `vite preview`，避开本机 networkInterfaces 报错）；
  * 2. 用 Playwright 在 320 / 768 / 1280 三档视口打开 `demo.html`，各截一张图到 `artifacts/ui-v3/`；
- * 3. 断言：无横向溢出、地图画布可见高度 ≥ 视口 70%、`plan.html` 链接 0 条、
+ * 3. 断言：无横向溢出、地图画布高度 ≥ 视口 70%、浮层盖住后露出的地图面积 ≥ 70%、
+ *    窄屏抽屉默认 peek 且高度 ≤ 视口 14%、
+ *    `plan.html` 链接 0 条、
  *    站点导航恰好三入口且只有一条 aria-current、没有 WebGL 兜底页顶上来；
  *    编辑器页另跑一遍三入口与 plan 链接口径（切片 s1 要求三页都有同一份导航）；
  * 4. 打印一段能直接粘进 issue 的摘要。
@@ -121,11 +123,15 @@ for (const viewport of VIEWPORTS) {
     const canvas = document.querySelector('.map-pane canvas')
     const nav = document.querySelector('.site-nav')
     const fallback = document.querySelector('.webgl-fallback')
+    const sidebar = document.querySelector('.sidebar')
     return {
       scrollWidth: document.documentElement.scrollWidth,
       innerWidth: window.innerWidth,
       innerHeight: window.innerHeight,
       mapHeight: canvas?.getBoundingClientRect().height ?? 0,
+      drawerState: sidebar?.dataset.drawer ?? null,
+      drawerHeight: sidebar?.getBoundingClientRect().height ?? 0,
+      drawerWidth: sidebar?.getBoundingClientRect().width ?? 0,
       navLinks: document.querySelectorAll('.site-nav a').length,
       navCurrent: document.querySelectorAll('.site-nav a[aria-current="page"]').length,
       planLinks: document.querySelectorAll('a[href$="plan.html"]').length,
@@ -135,11 +141,20 @@ for (const viewport of VIEWPORTS) {
   })
 
   const mapRatio = metrics.innerHeight > 0 ? metrics.mapHeight / metrics.innerHeight : 0
+  // 画布本来就是满屏，真正决定「地图看着有多大」的是没被浮层盖住的那一块。
+  // 窄屏是满宽的底部抽屉，按高度算就够；桌面是浮在左侧的一列，只看高度会把 732px
+  // 的侧栏误判成「地图被盖住 91%」，所以统一按面积算。
+  const narrow = metrics.innerWidth <= 959
+  const viewArea = metrics.innerWidth * metrics.innerHeight
+  const coveredArea = metrics.drawerHeight * metrics.drawerWidth
+  const unobstructedRatio = viewArea > 0 ? Math.max(0, 1 - coveredArea / viewArea) : 0
   const label = `${viewport.name}px`
   const row = {
     viewport: label,
     mapHeight: Math.round(metrics.mapHeight),
     mapRatio: `${(mapRatio * 100).toFixed(1)}%`,
+    drawer: `${narrow ? 'drawer' : 'pane'} ${Math.round(metrics.drawerWidth)}x${Math.round(metrics.drawerHeight)}`,
+    openRatio: `${(unobstructedRatio * 100).toFixed(1)}%`,
     overflow: metrics.scrollWidth - metrics.innerWidth,
     navLinks: metrics.navLinks,
     planLinks: metrics.planLinks,
@@ -148,7 +163,11 @@ for (const viewport of VIEWPORTS) {
 
   if (metrics.scrollWidth > metrics.innerWidth) problems.push(`${label}: 横向溢出 ${row.overflow}px`)
   if (metrics.fallbackReason !== null) problems.push(`${label}: 出现 WebGL 兜底页 —— ${metrics.fallbackReason}`)
-  if (mapRatio < 0.7) problems.push(`${label}: 地图可见高度 ${row.mapRatio} < 70%`)
+  if (mapRatio < 0.7) problems.push(`${label}: 地图画布高度 ${row.mapRatio} < 70%`)
+  // 「抽屉默认 peek」是窄屏口径；桌面是浮在图上的一列，不参与抽屉三档
+  if (narrow && metrics.drawerState !== 'peek') problems.push(`${label}: 抽屉默认档是 ${metrics.drawerState}（应为 peek）`)
+  if (unobstructedRatio < 0.7) problems.push(`${label}: 浮层盖掉 ${((1 - unobstructedRatio) * 100).toFixed(1)}%，露出地图 < 70%`)
+  if (narrow && metrics.drawerHeight > metrics.innerHeight * 0.14) problems.push(`${label}: 默认抽屉高 ${Math.round(metrics.drawerHeight)}px，超过视口 14%`)
   if (metrics.navLinks !== 3) problems.push(`${label}: 站点导航入口 ${metrics.navLinks} 个（应为 3）`)
   if (metrics.navCurrent !== 1) problems.push(`${label}: aria-current 标记 ${metrics.navCurrent} 个（应为 1）`)
   if (metrics.planLinks !== 0) problems.push(`${label}: 地图页仍有 ${metrics.planLinks} 条 plan.html 链接`)
@@ -158,7 +177,7 @@ for (const viewport of VIEWPORTS) {
   if (problems.some((item) => item.startsWith(`${label}:`))) row.result = 'fail'
   rows.push(row)
 
-  const shot = join(artifactsDir, `s1-${viewport.name}.png`)
+  const shot = join(artifactsDir, `ui-v3-${viewport.name}.png`)
   await page.screenshot({ path: shot, fullPage: false })
   await context.close()
 }
@@ -179,6 +198,8 @@ for (const viewport of VIEWPORTS) {
     viewport: 'editor',
     mapHeight: '-',
     mapRatio: '-',
+    drawer: '-',
+    openRatio: '-',
     overflow: '-',
     navLinks: editor.navLinks,
     planLinks: editor.planLinks,
@@ -189,21 +210,21 @@ for (const viewport of VIEWPORTS) {
   if (editor.currentHref !== './editor.html') problems.push(`editor: aria-current 指向 ${editor.currentHref}（应为 ./editor.html）`)
   if (editor.planLinks !== 0) problems.push(`editor: 仍有 ${editor.planLinks} 条 plan.html 链接`)
   if (problems.some((item) => item.startsWith('editor:'))) rows.at(-1).result = 'fail'
-  await page.screenshot({ path: join(artifactsDir, 's1-editor.png'), fullPage: false })
+  await page.screenshot({ path: join(artifactsDir, 'ui-v3-editor.png'), fullPage: false })
   await context.close()
 }
 
 await browser.close()
 server.close()
 
-console.log('\n=== UI v3 · s1 真浏览器验收 ===')
-console.log('视口    | 地图高度 | 地图占比 | 溢出 | 导航入口 | plan 链接 | 结果')
+console.log('\n=== UI v3 真浏览器验收 ===')
+console.log('视口    | 地图高度 | 地图占比 | 浮层         | 露出地图 | 溢出 | 导航 | plan | 结果')
 for (const row of rows) {
   console.log(
-    `${row.viewport.padEnd(7)} | ${String(row.mapHeight).padStart(8)} | ${row.mapRatio.padStart(8)} | ${String(row.overflow).padStart(4)} | ${String(row.navLinks).padStart(8)} | ${String(row.planLinks).padStart(9)} | ${row.result}`,
+    `${row.viewport.padEnd(7)} | ${String(row.mapHeight).padStart(8)} | ${row.mapRatio.padStart(8)} | ${row.drawer.padEnd(11)} | ${row.openRatio.padStart(8)} | ${String(row.overflow).padStart(4)} | ${String(row.navLinks).padStart(4)} | ${String(row.planLinks).padStart(4)} | ${row.result}`,
   )
 }
-console.log(`截图：${artifactsDir}/s1-{320,768,1280,editor}.png`)
+console.log(`截图：${artifactsDir}/ui-v3-{320,768,1280,editor}.png`)
 
 if (problems.length > 0) {
   console.error(`\n✗ ${problems.length} 项不通过：`)
@@ -211,4 +232,4 @@ if (problems.length > 0) {
   process.exit(1)
 }
 
-console.log('\n✓ 三档全部通过：无溢出、地图 ≥ 70% 视口、三入口并列、应用内 0 条 plan.html')
+console.log('\n✓ 三档全部通过：无溢出、地图 ≥ 70% 视口、露出的地图 ≥ 70%、窄屏抽屉默认 peek、三入口并列、应用内 0 条 plan.html')
