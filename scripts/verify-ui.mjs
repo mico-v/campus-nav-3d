@@ -1,217 +1,235 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process'
-import { accessSync, constants, mkdirSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+/**
+ * 真浏览器布局验收（docs/ui-redesign-v3.md §4 第 2 条 / 切片 s1）。
+ *
+ * 做四件事：
+ * 1. 起一个只读静态服务指向 `dist/`（不依赖 `vite preview`，避开本机 networkInterfaces 报错）；
+ * 2. 用 Playwright 在 320 / 768 / 1280 三档视口打开 `demo.html`，各截一张图到 `artifacts/ui-v3/`；
+ * 3. 断言：无横向溢出、地图画布高度 ≥ 视口 70%、浮层盖住后露出的地图面积 ≥ 70%、
+ *    窄屏抽屉默认 peek 且高度 ≤ 视口 14%、
+ *    `plan.html` 链接 0 条、
+ *    站点导航恰好三入口且只有一条 aria-current、没有 WebGL 兜底页顶上来；
+ *    编辑器页另跑一遍三入口与 plan 链接口径（切片 s1 要求三页都有同一份导航）；
+ * 4. 打印一段能直接粘进 issue 的摘要。
+ *
+ * 装不上 Chromium / 起不来浏览器时**不伪造通过**：打 `skipped: <原因>` 并退出码 2。
+ * 用法：先 `npm run build`，再 `npm run verify:ui`（或 `node scripts/verify-ui.mjs --dir dist`）。
+ */
+import { createServer } from 'node:http'
+import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs'
+import { extname, join, resolve } from 'node:path'
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const artifacts = join(root, 'artifacts', 'ui-v3')
-const viewports = [
-  { width: 320, height: 720 },
-  { width: 768, height: 1024 },
-  { width: 1280, height: 800 },
+const argv = process.argv.slice(2)
+const dirArg = argv.indexOf('--dir')
+const distDir = resolve(process.cwd(), dirArg >= 0 ? argv[dirArg + 1] : 'dist')
+const artifactsDir = resolve(process.cwd(), 'artifacts/ui-v3')
+const VIEWPORTS = [
+  { name: '320', width: 320, height: 720 },
+  { name: '768', width: 768, height: 1024 },
+  { name: '1280', width: 1280, height: 800 },
 ]
-const host = '127.0.0.1'
-const port = 4317
-const base = `http://${host}:${port}`
-const expectedRatios = { peek: 0.16, half: 0.52, full: 0.86 }
-const tolerance = 0.02
 
-const fail = (reason) => {
-  console.log(`skipped: ${reason}`)
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+}
+
+function fail(message) {
+  console.error(`\n✗ ${message}`)
+  process.exit(1)
+}
+
+function skip(reason) {
+  console.error(`skipped: ${reason}`)
+  // 退出码 2 表示「没验成」——CI 里这是失败，别当绿灯
   process.exit(2)
 }
 
-async function waitForServer(timeoutMs = 20000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(base + '/demo.html')
-      if (response.ok) return
-    } catch {
-      // retry
+if (!existsSync(join(distDir, 'demo.html'))) {
+  fail(`找不到 ${join(distDir, 'demo.html')}，先跑 npm run build`)
+}
+
+/** 极简静态服务：只读 dist/，够 Playwright 拉 module / css / 资源。 */
+function serve(dir) {
+  const server = createServer((req, res) => {
+    const urlPath = decodeURIComponent((req.url ?? '/').split('?')[0])
+    let filePath = join(dir, urlPath)
+    if (urlPath.endsWith('/')) filePath = join(filePath, 'index.html')
+    if (!existsSync(filePath) || statSync(filePath).isDirectory()) {
+      filePath = join(dir, 'index.html')
+      if (!existsSync(filePath)) {
+        res.writeHead(404).end('not found')
+        return
+      }
     }
-    await new Promise((done) => setTimeout(done, 250))
-  }
-  throw new Error(`preview server did not become ready at ${base}`)
-}
-
-async function startPreview() {
-  const viteBin = join(root, 'node_modules', 'vite', 'bin', 'vite.js')
-  const proc = spawn(process.execPath, [viteBin, 'preview', '--host', host, '--port', String(port), '--strictPort'], {
-    cwd: root,
-    stdio: 'ignore',
+    res.writeHead(200, { 'content-type': MIME[extname(filePath)] ?? 'application/octet-stream' })
+    createReadStream(filePath).pipe(res)
   })
-  try {
-    await waitForServer()
-    return { proc, mode: 'vite preview' }
-  } catch (error) {
-    proc.kill('SIGTERM')
-    throw error
-  }
+  return new Promise((ok) => server.listen(0, '127.0.0.1', () => ok(server)))
 }
 
-async function launchChromium() {
-  try {
-    return await import('playwright')
-  } catch (error) {
-    fail(`playwright not installed: ${error instanceof Error ? error.message : String(error)}`)
-  }
-}
-
-const { chromium } = await launchChromium()
-const executablePath = process.env.CHROMIUM_PATH ?? (exists('/usr/local/bin/chromium') ? '/usr/local/bin/chromium' : undefined)
-
-function exists(path) {
-  try {
-    accessSync(path, constants.X_OK)
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function openBrowser() {
-  try {
-    return await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) })
-  } catch (error) {
-    const cache = join(homedir(), '.cache', 'ms-playwright')
-    fail(`Chromium unavailable; cache=${cache}; ${error instanceof Error ? error.message : String(error)}`)
-  }
-}
-
-const browser = await openBrowser()
-mkdirSync(artifacts, { recursive: true })
-
-let preview
-const rows = []
-let failed = false
-
-const near = (value, target) => Math.abs(value - target) <= tolerance
-const ANCHOR_TOLERANCE_PX = 2
-
-async function snapshot(page) {
-  return page.evaluate(() => {
-    const sheet = document.querySelector('#detail-sheet')
-    if (!sheet) return null
-    const rect = sheet.getBoundingClientRect()
-    const fact = sheet.querySelector('.detail-fact')
-    const factRect = fact?.getBoundingClientRect()
-    const sheetRectTop = rect.top
-    return {
-      state: sheet.dataset.sheet,
-      height: rect.height,
-      top: rect.top,
-      bottomGap: window.innerHeight - rect.bottom,
-      viewportHeight: window.innerHeight,
-      innerWidth: window.innerWidth,
-      scrollWidth: document.documentElement.scrollWidth,
-      factText: fact?.textContent?.trim() ?? '',
-      factVisible: Boolean(factRect && factRect.top >= sheetRectTop && factRect.bottom <= window.innerHeight + 1),
-      itemCount: sheet.querySelectorAll('#entity-list .entity-item').length,
-      selectedCount: sheet.querySelectorAll('#entity-list .entity-item.selected').length,
-    }
-  })
-}
-
+let chromium
 try {
-  preview = await startPreview()
+  ;({ chromium } = await import('playwright'))
 } catch (error) {
-  await browser.close()
-  fail(`static preview failed: ${error instanceof Error ? error.message : String(error)}`)
+  skip(`playwright 没装上（${error instanceof Error ? error.message.split('\n')[0] : String(error)}）`)
 }
 
+mkdirSync(artifactsDir, { recursive: true })
+
+const server = await serve(distDir)
+const { port } = server.address()
+const base = `http://127.0.0.1:${port}`
+
+let browser
 try {
-  for (const viewport of viewports) {
-    const page = await browser.newPage({ viewport })
-    const consoleErrors = []
-    page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()) })
-    page.on('pageerror', (error) => consoleErrors.push(error.message))
+  browser = await chromium.launch({
+    args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader'],
+  })
+} catch (error) {
+  server.close()
+  skip(`Chromium 起不来（${error instanceof Error ? error.message.split('\n')[0] : String(error)}）`)
+}
 
-    await page.goto(base + '/demo.html', { waitUntil: 'networkidle' })
-    await page.waitForSelector('#scene canvas', { timeout: 15000 })
-    await page.waitForSelector('#detail-sheet', { timeout: 5000 })
+const rows = []
+const problems = []
 
-    const narrow = viewport.width <= 720
-    const checks = []
-    let metrics
-    if (narrow) {
-      const handle = page.locator('.sheet-handle')
-      const states = []
-      const baseline = await snapshot(page)
-      states.push(['half', baseline])
-      for (const state of ['full', 'peek', 'half']) {
-        await handle.click()
-        await page.waitForTimeout(280)
-        states.push([state, await snapshot(page)])
-      }
-      checks.push(['initial half', baseline.state === 'half'])
+for (const viewport of VIEWPORTS) {
+  const context = await browser.newContext({
+    viewport: { width: viewport.width, height: viewport.height },
+    deviceScaleFactor: 1,
+  })
+  const page = await context.newPage()
+  const consoleErrors = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+  page.on('pageerror', (error) => consoleErrors.push(`pageerror: ${error.message}`))
 
-      // 量卡片自身高度（rect.height），不用露出高度（视口底 - rect.top）：后者会被定位偏移污染。
-      // 先核对卡片确实贴底，避免拿一个位置漂移的卡片把高度断言蒙过去。
-      for (const [state, value] of states) {
-        const ratio = value.height / value.viewportHeight
-        checks.push([`${state} ${(ratio * 100).toFixed(1)}%`, value.state === state && near(ratio, expectedRatios[state])])
-        checks.push([`${state} anchored bottom`, Math.abs(value.bottomGap) <= ANCHOR_TOLERANCE_PX])
-      }
+  await page.goto(`${base}/demo.html`, { waitUntil: 'load' })
+  // 地图与抽屉都是 rAF 驱动的，等一帧再量尺寸
+  await page.waitForTimeout(1200)
 
-      const peek = states.find(([state]) => state === 'peek')[1]
-      checks.push([`peek <=30vh (${(peek.height / peek.viewportHeight * 100).toFixed(1)}%)`, peek.height / peek.viewportHeight <= 0.3])
-      checks.push(['peek first fact visible', peek.factVisible && peek.factText.length > 0])
-
-      await handle.click()
-      await handle.click()
-      await page.waitForTimeout(280)
-      const beforeDrag = await snapshot(page)
-      checks.push([`drag start ${beforeDrag.state}`, beforeDrag.state === 'peek'])
-      const box = await handle.boundingBox()
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-      await page.mouse.down()
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - 240, { steps: 8 })
-      await page.mouse.up()
-      await page.waitForTimeout(280)
-      const dragged = await snapshot(page)
-      checks.push([`drag 240px -> ${dragged.state}`, dragged.state !== 'peek'])
-
-      const chips = page.locator('[data-filter]')
-      const allCount = await page.locator('#entity-list .entity-item').count()
-      await chips.filter({ hasText: '教学' }).click()
-      const academicCount = await page.locator('#entity-list .entity-item').count()
-      checks.push([`filter ${allCount}->${academicCount}`, academicCount > 0 && academicCount !== allCount])
-      await chips.filter({ hasText: '全部' }).click()
-      const selectedCount = await page.locator('#entity-list .entity-item.selected').count()
-      checks.push(['selected state readable', selectedCount === 1])
-
-      metrics = await snapshot(page)
-    } else {
-      metrics = await snapshot(page)
-      checks.push(['desktop panel in document flow', metrics.top >= 0])
-      checks.push(['desktop no horizontal overflow', metrics.scrollWidth <= metrics.innerWidth])
+  const metrics = await page.evaluate(() => {
+    const canvas = document.querySelector('.map-pane canvas')
+    const nav = document.querySelector('.site-nav')
+    const fallback = document.querySelector('.webgl-fallback')
+    const sidebar = document.querySelector('.sidebar')
+    return {
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      mapHeight: canvas?.getBoundingClientRect().height ?? 0,
+      drawerState: sidebar?.dataset.drawer ?? null,
+      drawerHeight: sidebar?.getBoundingClientRect().height ?? 0,
+      drawerWidth: sidebar?.getBoundingClientRect().width ?? 0,
+      navLinks: document.querySelectorAll('.site-nav a').length,
+      navCurrent: document.querySelectorAll('.site-nav a[aria-current="page"]').length,
+      planLinks: document.querySelectorAll('a[href$="plan.html"]').length,
+      backHome: document.querySelectorAll('.back-home').length,
+      fallbackReason: fallback ? (fallback.textContent ?? '').trim().slice(0, 200) : null,
     }
-    checks.push(['no console errors', consoleErrors.length === 0])
+  })
 
-    const file = join(artifacts, `s4-${viewport.width}.png`)
-    await page.screenshot({ path: file, fullPage: false })
-    rows.push({ viewport: `${viewport.width}x${viewport.height}`, checks, consoleErrors, file })
-    if (checks.some(([, ok]) => !ok)) failed = true
-    await page.close()
+  const mapRatio = metrics.innerHeight > 0 ? metrics.mapHeight / metrics.innerHeight : 0
+  // 画布本来就是满屏，真正决定「地图看着有多大」的是没被浮层盖住的那一块。
+  // 窄屏是满宽的底部抽屉，按高度算就够；桌面是浮在左侧的一列，只看高度会把 732px
+  // 的侧栏误判成「地图被盖住 91%」，所以统一按面积算。
+  const narrow = metrics.innerWidth <= 959
+  const viewArea = metrics.innerWidth * metrics.innerHeight
+  const coveredArea = metrics.drawerHeight * metrics.drawerWidth
+  const unobstructedRatio = viewArea > 0 ? Math.max(0, 1 - coveredArea / viewArea) : 0
+  const label = `${viewport.name}px`
+  const row = {
+    viewport: label,
+    mapHeight: Math.round(metrics.mapHeight),
+    mapRatio: `${(mapRatio * 100).toFixed(1)}%`,
+    drawer: `${narrow ? 'drawer' : 'pane'} ${Math.round(metrics.drawerWidth)}x${Math.round(metrics.drawerHeight)}`,
+    openRatio: `${(unobstructedRatio * 100).toFixed(1)}%`,
+    overflow: metrics.scrollWidth - metrics.innerWidth,
+    navLinks: metrics.navLinks,
+    planLinks: metrics.planLinks,
+    result: 'pass',
   }
-} finally {
-  await browser.close()
-  preview?.proc.kill('SIGTERM')
+
+  if (metrics.scrollWidth > metrics.innerWidth) problems.push(`${label}: 横向溢出 ${row.overflow}px`)
+  if (metrics.fallbackReason !== null) problems.push(`${label}: 出现 WebGL 兜底页 —— ${metrics.fallbackReason}`)
+  if (mapRatio < 0.7) problems.push(`${label}: 地图画布高度 ${row.mapRatio} < 70%`)
+  // 「抽屉默认 peek」是窄屏口径；桌面是浮在图上的一列，不参与抽屉三档
+  if (narrow && metrics.drawerState !== 'peek') problems.push(`${label}: 抽屉默认档是 ${metrics.drawerState}（应为 peek）`)
+  if (unobstructedRatio < 0.7) problems.push(`${label}: 浮层盖掉 ${((1 - unobstructedRatio) * 100).toFixed(1)}%，露出地图 < 70%`)
+  if (narrow && metrics.drawerHeight > metrics.innerHeight * 0.14) problems.push(`${label}: 默认抽屉高 ${Math.round(metrics.drawerHeight)}px，超过视口 14%`)
+  if (metrics.navLinks !== 3) problems.push(`${label}: 站点导航入口 ${metrics.navLinks} 个（应为 3）`)
+  if (metrics.navCurrent !== 1) problems.push(`${label}: aria-current 标记 ${metrics.navCurrent} 个（应为 1）`)
+  if (metrics.planLinks !== 0) problems.push(`${label}: 地图页仍有 ${metrics.planLinks} 条 plan.html 链接`)
+  if (metrics.backHome !== 0) problems.push(`${label}: 仍有 .back-home 孤立出口`)
+  for (const error of consoleErrors) problems.push(`${label}: 控制台 error —— ${error}`)
+
+  if (problems.some((item) => item.startsWith(`${label}:`))) row.result = 'fail'
+  rows.push(row)
+
+  const shot = join(artifactsDir, `ui-v3-${viewport.name}.png`)
+  await page.screenshot({ path: shot, fullPage: false })
+  await context.close()
 }
 
-console.log('\nUI-v3 S4 browser verification summary')
+// 编辑器页也要挂同一份三入口导航，且应用内不许出现 plan.html（docs/ui-redesign-v3.md §2）
+{
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 })
+  const page = await context.newPage()
+  await page.goto(`${base}/editor.html`, { waitUntil: 'load' })
+  await page.waitForTimeout(1200)
+  const editor = await page.evaluate(() => ({
+    navLinks: document.querySelectorAll('.site-nav a').length,
+    navCurrent: document.querySelectorAll('.site-nav a[aria-current="page"]').length,
+    currentHref: document.querySelector('.site-nav a[aria-current="page"]')?.getAttribute('href') ?? null,
+    planLinks: document.querySelectorAll('a[href$="plan.html"]').length,
+  }))
+  rows.push({
+    viewport: 'editor',
+    mapHeight: '-',
+    mapRatio: '-',
+    drawer: '-',
+    openRatio: '-',
+    overflow: '-',
+    navLinks: editor.navLinks,
+    planLinks: editor.planLinks,
+    result: 'pass',
+  })
+  if (editor.navLinks !== 3) problems.push(`editor: 站点导航入口 ${editor.navLinks} 个（应为 3）`)
+  if (editor.navCurrent !== 1) problems.push(`editor: aria-current 标记 ${editor.navCurrent} 个（应为 1）`)
+  if (editor.currentHref !== './editor.html') problems.push(`editor: aria-current 指向 ${editor.currentHref}（应为 ./editor.html）`)
+  if (editor.planLinks !== 0) problems.push(`editor: 仍有 ${editor.planLinks} 条 plan.html 链接`)
+  if (problems.some((item) => item.startsWith('editor:'))) rows.at(-1).result = 'fail'
+  await page.screenshot({ path: join(artifactsDir, 'ui-v3-editor.png'), fullPage: false })
+  await context.close()
+}
+
+await browser.close()
+server.close()
+
+console.log('\n=== UI v3 真浏览器验收 ===')
+console.log('视口    | 地图高度 | 地图占比 | 浮层         | 露出地图 | 溢出 | 导航 | plan | 结果')
 for (const row of rows) {
-  console.log(row.viewport)
-  for (const [label, ok] of row.checks) console.log(`  ${ok ? 'PASS' : 'FAIL'} ${label}`)
-  console.log(`  screenshot ${row.file}`)
+  console.log(
+    `${row.viewport.padEnd(7)} | ${String(row.mapHeight).padStart(8)} | ${row.mapRatio.padStart(8)} | ${row.drawer.padEnd(11)} | ${row.openRatio.padStart(8)} | ${String(row.overflow).padStart(4)} | ${String(row.navLinks).padStart(4)} | ${String(row.planLinks).padStart(4)} | ${row.result}`,
+  )
 }
+console.log(`截图：${artifactsDir}/ui-v3-{320,768,1280,editor}.png`)
 
-if (failed) {
-  console.error('browser assertions failed')
+if (problems.length > 0) {
+  console.error(`\n✗ ${problems.length} 项不通过：`)
+  for (const problem of problems) console.error(`  - ${problem}`)
   process.exit(1)
 }
-console.log('all browser assertions passed')
-process.exit(0)
+
+console.log('\n✓ 三档全部通过：无溢出、地图 ≥ 70% 视口、露出的地图 ≥ 70%、窄屏抽屉默认 peek、三入口并列、应用内 0 条 plan.html')

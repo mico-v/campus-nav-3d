@@ -1,0 +1,61 @@
+/* CampusNav 3D — 共享主题令牌（landing / 地图页同一张表）
+   依据 docs/design-overview-v2.md §6.2：沿用 landing 的主题令牌，不新起一套设计系统；
+   §6.4：深浅两套令牌同表，`prefers-color-scheme` + 本地覆盖。
+   这里是这些令牌的唯一声明处 —— 页面 CSS 只追加自己需要的那几组，
+   谁想改基础色，改这一处两边一起变。 */
+
+:root {
+  color-scheme: light;
+
+  --bg: #f7f9fa;
+  --surface: #ffffff;
+  --surface-1: #f1f5f6;
+  --surface-2: #e8eef0;
+  --surface-3: #dee7ea;
+
+  --ink: #102026;
+  --ink-2: #476873;
+  --ink-3: #6b8a94;
+
+  --outline: #d3e0e3;
+  --outline-strong: #a8bcc2;
+
+  --primary: #14666c;
+  --on-primary: #ffffff;
+  --primary-soft: #d2eff0;
+  --on-primary-soft: #00393c;
+
+  /* 几何令牌只声明一次，深色不重复 */
+  --r-xs: 4px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+
+  --shadow-1: 0 1px 2px rgba(16, 32, 38, 0.06), 0 1px 3px rgba(16, 32, 38, 0.08);
+  --shadow-2: 0 12px 32px -16px rgba(16, 32, 38, 0.35);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0d1417;
+  --surface: #141e21;
+  --surface-1: #192428;
+  --surface-2: #1f2c30;
+  --surface-3: #26353a;
+
+  --ink: #e2ecee;
+  --ink-2: #a6bcc2;
+  --ink-3: #7f979e;
+
+  --outline: #293a3f;
+  --outline-strong: #3e5359;
+
+  --primary: #79d3d8;
+  --on-primary: #00363a;
+  --primary-soft: #00474b;
+  --on-primary-soft: #a8eef1;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 16px 40px -20px rgba(0, 0, 0, 0.8);
+}

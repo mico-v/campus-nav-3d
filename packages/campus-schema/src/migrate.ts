@@ -1,5 +1,5 @@
 /**
- * 旧 `src/data/campus.json` → `campus-pack/2` 静态数据映射。
+ * 旧单文件 `campus.json`（现为 `tests/fixtures/legacy-campus.json`）→ `campus-pack/2` 静态数据映射。
  *
  * 这里只做结构转换，不做几何补全或精度修正；`campus-pack/2` 的校验放在
  * `validateCampusPack({ ...meta, ...data })`。
@@ -52,6 +52,11 @@ function pointList(value: unknown, label: string, minLength = 2): Point[] {
 }
 
 function withPolygon<T extends UnknownRecord>(raw: T, centerKey: 'center' | 'position', label: string): T & { polygon: Point[] } {
+  // pack 里的 `polygon` 是权威几何；已有的多边形不能被 center/size 重算的矩形盖掉，
+  // 否则主应用与编辑器读到的同一份 pack 会得到两个形状（连带的树木生成也会分叉）。
+  if (raw.polygon !== undefined) {
+    return { ...raw, polygon: pointList(raw.polygon, `${label}.polygon`, 3) }
+  }
   if (raw.footprint !== undefined) {
     return { ...raw, polygon: pointList(raw.footprint, `${label}.footprint`, 3) }
   }

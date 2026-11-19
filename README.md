@@ -23,7 +23,7 @@
 - 数据驱动的建筑、区域、道路网络、水体、操场和 POI
 - 道路由中心线迁移为带节点、道路段和交叉口的可寻路拓扑
 - 主页面左侧展示图层、建筑和地图要素信息；导航路线由运行时算法生成
-- 地图几何数据集中在 `src/data/campus.json`
+- 地图几何数据集中在 `packs/usts-tianping/`（`campus.json` 存几何、`pack.json` 存元信息，合并后才是完整数据）
 - 使用相对 `base`，可直接部署到 GitHub Pages 项目页
 
 ## 代码结构
@@ -44,7 +44,7 @@
 - `src/scene/theme.ts` — 配色与 Y 层级常量
 - `src/ui/panel.ts` — 侧栏图层、建筑列表和选中提示的 DOM 渲染
 - `src/interaction.ts` — 点击拾取建筑
-- `src/data/campusData.ts` — 类型定义 + 从 `campus.json` 加载
+- `src/data/campusData.ts` — 类型定义 + 从 `packs/usts-tianping/` 加载合并
 - `src/navigation/pathfinding.ts` — 运行时 A*；支持节点请求和任意地图坐标接入道路
 - `src/performance/metrics.ts` — 3D/2D 渲染指标与预算判断
 
@@ -68,7 +68,7 @@ npm run preview
 
 ## 交互式编辑器（中文使用说明）
 
-启动开发服务后打开 `http://localhost:5173/editor.html`（静态部署也可直接打开构建产物中的 `editor.html`）。编辑器默认读取 `src/data/campus.json`；保存需要 Vite 开发后端，若后端不可用会进入只读预览，改动不能写回。
+启动开发服务后打开 `http://localhost:5173/editor.html`（静态部署也可直接打开构建产物中的 `editor.html`）。编辑器与主应用读写同一份 `packs/usts-tianping/`（读取时 `campus.json` + `pack.json` 合并，保存时按文件拆分写回）；保存需要 Vite 开发后端，若后端不可用会进入只读预览，改动不能写回。
 
 - **模式**：`选择` 用于点选和拖动对象，`平移` 只移动画布，`加道路/节点` 逐点绘制道路（双击结束，Esc 取消），`重塑` 仅允许拖顶点，`拆分/合并` 配合工具栏按钮处理道路，`区域/建筑` 用于检查区域与建筑。
 - **2D / 3D**：2D 是精确编辑视图，可显示网格、底图、路网节点和图层；`3D 检查` 用于观察高度、遮挡和道路结构。可用 `顶视图`、`聚焦选中`；勾选 `3D 地面编辑` 后，只有命中当前对象时才可拖动建筑、道路或未锚定 POI。
@@ -85,7 +85,7 @@ npm run preview
 
 - 节点导航：传入 `originNodeId / destinationNodeId`，适合已知路网节点的内部调用。
 - 点位导航：传入 `origin.position / destination.position`，算法会把点投影到最近的可通行道路段，并在运行时建立虚拟接入节点。
-- 点位请求可分别设置 `maxSnapDistance`；超过距离返回 `null`，不会把临时节点写回 `campus.json`。
+- 点位请求可分别设置 `maxSnapDistance`；超过距离返回 `null`，不会把临时节点写回 `packs/usts-tianping/campus.json`。
 - 返回几何从用户实际起点开始、到实际终点结束，同时保留中心线吸附点、吸附距离、道路段路径、单向和交通方式约束。
 
 ## 性能验收
@@ -118,7 +118,7 @@ npm run preview
 
 ## 手工编辑地图数据
 
-几何数据在 `src/data/campus.json`，可直接修改；交互式编辑器的保存流程和字段说明见上方“交互式编辑器”。
+几何数据在 `packs/usts-tianping/campus.json`（元信息在 `pack.json`），可直接修改；交互式编辑器的保存流程和字段说明见上方“交互式编辑器”。
 
 - 建筑 `height / position / size / name / category / footprint`
 - 分区颜色和范围

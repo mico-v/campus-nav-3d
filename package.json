@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "verify:ui": "node scripts/verify-ui.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "status": "node tools/project-status.mjs",

@@ -1,26 +1,11 @@
+@import '../theme/tokens.css';
+
 /* CampusNav 3D — landing + project plan
    Material 3 tokens, tonal layering, thin outlines, tight type. */
 
 :root {
-  color-scheme: light;
-
-  --bg: #f7f9fa;
-  --surface: #ffffff;
-  --surface-1: #f1f5f6;
-  --surface-2: #e8eef0;
-  --surface-3: #dee7ea;
-
-  --ink: #102026;
-  --ink-2: #476873;
-  --ink-3: #6b8a94;
-
-  --outline: #d3e0e3;
-  --outline-strong: #a8bcc2;
-
-  --primary: #14666c;
-  --on-primary: #ffffff;
-  --primary-soft: #d2eff0;
-  --on-primary-soft: #00393c;
+  /* 通用色板与圆角 / 阴影来自 src/theme/tokens.css（与地图页同一张表）。
+     这里只留 landing 与计划书页面自己的令牌。 */
 
   --accent: #8a5b00;
   --on-accent: #ffffff;
@@ -45,15 +30,8 @@
   --iso-green-light: #74b096;
   --iso-route: #b8791a;
 
-  --r-xs: 4px;
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
   --r-xl: 24px;
   --r-2xl: 32px;
-
-  --shadow-1: 0 1px 2px rgba(16, 32, 38, 0.06), 0 1px 3px rgba(16, 32, 38, 0.08);
-  --shadow-2: 0 12px 32px -16px rgba(16, 32, 38, 0.35);
 
   --maxw: 1120px;
   --pad: clamp(20px, 5vw, 40px);
@@ -63,26 +41,6 @@
 }
 
 :root[data-theme='dark'] {
-  color-scheme: dark;
-
-  --bg: #0d1417;
-  --surface: #141e21;
-  --surface-1: #192428;
-  --surface-2: #1f2c30;
-  --surface-3: #26353a;
-
-  --ink: #e2ecee;
-  --ink-2: #a6bcc2;
-  --ink-3: #7f979e;
-
-  --outline: #293a3f;
-  --outline-strong: #3e5359;
-
-  --primary: #79d3d8;
-  --on-primary: #00363a;
-  --primary-soft: #00474b;
-  --on-primary-soft: #a8eef1;
-
   --accent: #edc26c;
   --on-accent: #2b1a00;
   --accent-soft: #4a3300;
@@ -105,9 +63,6 @@
   --iso-green: #3a6a57;
   --iso-green-light: #4b7f68;
   --iso-route: #d3a04a;
-
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 16px 40px -20px rgba(0, 0, 0, 0.8);
 }
 
 * { box-sizing: border-box; }
@@ -1076,6 +1031,8 @@ h3 { font-size: 1.12rem; letter-spacing: -0.01em; }
 /* ---------- responsive ---------- */
 
 @media (max-width: 980px) {
+  /* 页内锚点导航在窄屏让位给站点导航（项目首页 / 3D 地图 / 地图编辑器） */
+  .nav { display: none; }
   .hero-grid { grid-template-columns: minmax(0, 1fr); }
   .hero-visual { order: 2; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1122,6 +1079,13 @@ h3 { font-size: 1.12rem; letter-spacing: -0.01em; }
     backdrop-filter: none;
   }
   .hero-facts { gap: 8px 16px; }
+}
+
+@media (max-width: 560px) {
+  /* 手机上顶栏只留品牌标 + 站点导航 + 主题按钮，别挤出横向滚动条 */
+  .topbar-inner { gap: 8px; }
+  .brand-text i { display: none; }
+  .topbar-actions .btn { display: none; }
 }
 
 @media (max-width: 420px) {

@@ -67,6 +67,8 @@ fun ShellWebView(
                         request: WebResourceRequest,
                     ): Boolean {
                         val target = request.url.toString()
+                        // 介绍页 / 计划书 / 编辑器只留在浏览器，壳内不跳过去
+                        if (UrlPolicy.isNonAppPage(target)) return true
                         if (UrlPolicy.isInternal(target)) return false
                         return try {
                             view.context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
