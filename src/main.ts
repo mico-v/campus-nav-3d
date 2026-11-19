@@ -1,6 +1,7 @@
 import './style.css'
 import { createDefaultCampusData } from './data/campusData'
-import { CampusScene, type SceneDisplayOptions } from './scene/CampusScene'
+import { CampusScene } from './scene/CampusScene'
+import { ViewState, type LayerKey } from './core/view/state'
 import { pickEntity, type PickedEntity } from './interaction'
 import { renderEntityList, renderDetails, searchEntities, updateSelectionToast, escapeHtml } from './ui/panel'
 
@@ -26,8 +27,8 @@ app.innerHTML = `
 const $ = <T extends HTMLElement>(sel: string): T => { const el = document.querySelector<T>(sel); if (!el) throw new Error(`UI element missing: ${sel}`); return el }
 const sceneHost = $<HTMLDivElement>('#scene'), labelLayer = $<HTMLDivElement>('#label-layer'), heroTitle = $<HTMLElement>('#hero-title'), entityList = $<HTMLDivElement>('#entity-list'), details = $<HTMLDivElement>('#details'), toast = $<HTMLDivElement>('#selection-toast'), search = $<HTMLInputElement>('#entity-search'), searchResults = $<HTMLDivElement>('#search-results'), layerControls = $<HTMLDivElement>('#layer-controls'), layerSummary = $<HTMLSpanElement>('#layer-summary')
 const data = createDefaultCampusData()
-let selected: PickedEntity | null = data.buildings.length ? { kind: 'building', index: 0 } : null
-const display: Required<Pick<SceneDisplayOptions, 'showBuildings' | 'showPaths' | 'showWater' | 'showFields' | 'showTrees' | 'showZones' | 'showPois' | 'showLabels'>> = { showBuildings: true, showPaths: true, showWater: true, showFields: true, showTrees: true, showZones: true, showPois: true, showLabels: true }
+const initialSelection: PickedEntity | null = data.buildings.length ? { kind: 'building', index: 0 } : null
+const view = new ViewState<PickedEntity>(initialSelection)
 const campus = new CampusScene(sceneHost, labelLayer)
 if (import.meta.env.DEV) {
   const debugWindow = window as Window & {
@@ -63,7 +64,7 @@ const requestRender = (): void => {
   })
 }
 campus.controls.addEventListener('change', requestRender)
-campus.setDisplayOptions({ ...display, showEditorAids: false })
+campus.setDisplayOptions({ ...view.layers, showEditorAids: false })
 campus.setDataAndSelection(data, 0)
 campus.resize()
 campus.setOverviewCamera()
@@ -71,18 +72,18 @@ campus.setOverviewCamera()
 const layerDefs = [
   ['showBuildings', '建筑'], ['showPaths', '道路'], ['showWater', '水域'], ['showFields', '场地'], ['showTrees', '树木'], ['showZones', '分区'], ['showPois', 'POI'], ['showLabels', '标签'],
 ] as const
-layerControls.innerHTML = layerDefs.map(([key, label]) => `<label class="toggle"><input type="checkbox" data-layer="${key}" ${display[key] ? 'checked' : ''}><span>${label}</span></label>`).join('')
+layerControls.innerHTML = layerDefs.map(([key, label]) => `<label class="toggle"><input type="checkbox" data-layer="${key}" ${view.layers[key] ? 'checked' : ''}><span>${label}</span></label>`).join('')
 
 function syncUi(): void {
   heroTitle.textContent = data.name
-  renderEntityList(data, selected, entityList, search.value); renderDetails(data, selected, details); updateSelectionToast(data, selected, toast)
-  const active = layerDefs.filter(([key]) => display[key]).length; layerSummary.textContent = `${active}/${layerDefs.length} 开启`
+  renderEntityList(data, view.selected, entityList, search.value); renderDetails(data, view.selected, details); updateSelectionToast(data, view.selected, toast)
+  const active = layerDefs.filter(([key]) => view.layers[key]).length; layerSummary.textContent = `${active}/${layerDefs.length} 开启`
 }
 function select(entity: PickedEntity, focus = true): void {
   if (entity.kind === 'building' && !data.buildings[entity.index]) return
   const poiIndex = entity.kind === 'poi' ? data.pois.findIndex((poi) => poi.id === entity.id) : -1
   if (entity.kind === 'poi' && poiIndex < 0) return
-  selected = entity
+  view.setSelected(entity)
   campus.setEditorSelection(entity.kind === 'building' ? entity : { kind: 'poi', index: poiIndex })
   if (focus) entity.kind === 'building' ? campus.focusBuilding(entity.index) : campus.focusPoi(entity.id)
   requestRender()
@@ -91,9 +92,9 @@ function select(entity: PickedEntity, focus = true): void {
 syncUi()
 
 entityList.addEventListener('click', (event) => { const item = (event.target as HTMLElement).closest<HTMLElement>('[data-kind]'); if (!item) return; select(item.dataset.kind === 'building' ? { kind: 'building', index: Number(item.dataset.index) } : { kind: 'poi', id: item.dataset.id ?? '' }) })
-search.addEventListener('input', () => { const results = searchEntities(data, search.value); searchResults.innerHTML = results.slice(0, 8).map((item) => `<button type="button" class="search-result" data-kind="${item.kind}" ${item.kind === 'building' ? `data-index="${item.index}"` : `data-id="${escapeHtml(item.id)}"`}><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.subtitle)}</small></button>`).join(''); renderEntityList(data, selected, entityList, search.value) })
+search.addEventListener('input', () => { const results = searchEntities(data, search.value); searchResults.innerHTML = results.slice(0, 8).map((item) => `<button type="button" class="search-result" data-kind="${item.kind}" ${item.kind === 'building' ? `data-index="${item.index}"` : `data-id="${escapeHtml(item.id)}"`}><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.subtitle)}</small></button>`).join(''); renderEntityList(data, view.selected, entityList, search.value) })
 searchResults.addEventListener('click', (event) => { const item = (event.target as HTMLElement).closest<HTMLElement>('[data-kind]'); if (!item) return; select(item.dataset.kind === 'building' ? { kind: 'building', index: Number(item.dataset.index) } : { kind: 'poi', id: item.dataset.id ?? '' }); searchResults.innerHTML = '' })
-layerControls.addEventListener('change', (event) => { const input = (event.target as HTMLInputElement).closest<HTMLInputElement>('[data-layer]'); if (!input) return; const key = input.dataset.layer as keyof typeof display; display[key] = input.checked; campus.setDisplayOptions(display); requestRender(); syncUi() })
+layerControls.addEventListener('change', (event) => { const input = (event.target as HTMLInputElement).closest<HTMLInputElement>('[data-layer]'); if (!input) return; const key = input.dataset.layer as LayerKey; view.setLayer(key, input.checked); campus.setDisplayOptions(view.layers); requestRender(); syncUi() })
 $<HTMLButtonElement>('#reset-camera').addEventListener('click', () => { campus.setOverviewCamera(); requestRender() })
 $<HTMLButtonElement>('#fit-camera').addEventListener('click', () => { campus.setOverviewCamera(); requestRender() })
 campus.renderer.domElement.addEventListener('click', (event) => { const entity = pickEntity(event, campus.renderer.domElement, campus.camera, campus.clickableObjects); if (entity) select(entity) })
