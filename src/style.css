@@ -280,18 +280,26 @@ h3 {
   display: grid;
   gap: 1px;
   width: 100%;
+  min-height: var(--tap);
   padding: 6px 8px;
   text-align: left;
   border: 0;
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--ink);
+  touch-action: manipulation;
 }
 
 .search-result:hover,
-.search-result:focus-visible {
+.search-result:focus-visible,
+.search-result.active {
   background: var(--primary-soft);
   color: var(--on-primary-soft);
+}
+
+.search-result.active {
+  outline: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  outline-offset: -2px;
 }
 
 .search-result strong {
@@ -483,47 +491,174 @@ h3 {
   font-size: 12px;
 }
 
-/* ---------- 详情 ---------- */
+/* ---------- 详情卡（浮在图上，宽 320px，最多 4 区块） ---------- */
 
-.details h3 {
-  margin-bottom: 2px;
+.detail-card {
+  position: absolute;
+  z-index: 18;
+  top: calc(var(--appbar-h) + var(--gap));
+  right: var(--gap);
+  width: 320px;
+  max-height: calc(100% - var(--appbar-h) - var(--gap) * 3);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-md);
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+}
+
+.detail-card[hidden] {
+  display: none;
+}
+
+.dc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--outline);
+}
+
+.dc-title {
+  min-width: 0;
+}
+
+.dc-head h3 {
+  margin: 0;
   font-size: 16px;
   font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
-.detail-meta {
-  margin: 0 0 6px;
+.dc-sub {
+  margin: 2px 0 0;
   color: var(--ink-3);
   font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
-.details p {
-  margin: 6px 0;
+.dc-close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1;
+  touch-action: manipulation;
+}
+
+.dc-close:hover,
+.dc-close:focus-visible {
+  border-color: var(--outline);
+  color: var(--ink);
+}
+
+.dc-body {
+  display: grid;
+  gap: 6px;
+  padding: 6px 10px 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.dc-block {
+  border-top: 1px solid var(--outline);
+}
+
+.dc-block:first-child {
+  border-top: 0;
+}
+
+.dc-block > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  list-style: none;
+  touch-action: manipulation;
+}
+
+.dc-block > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dc-block > summary::before {
+  content: '▸';
+  flex: none;
+  color: var(--ink-3);
+  font-size: 10px;
+  transition: transform 120ms ease;
+}
+
+.dc-block[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.dc-block > summary > span:first-child {
+  flex: 1;
+}
+
+.dc-summary {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.dc-content {
+  padding-bottom: 6px;
+}
+
+.dc-content p {
+  margin: 0 0 4px;
   color: var(--ink-2);
   font-size: 13px;
+  line-height: 1.5;
 }
 
-.details dl {
+.dc-facts {
   display: grid;
-  gap: 4px;
-  margin: 8px 0 0;
+  gap: 3px;
+  margin: 0;
 }
 
-.details dl div {
+.dc-facts div {
   display: flex;
   justify-content: space-between;
   gap: 10px;
   font-size: 12px;
 }
 
-.details dt {
+.dc-facts dt {
   color: var(--ink-3);
 }
 
-.details dd {
+.dc-facts dd {
   margin: 0;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.empty-state {
+  margin: 0;
+  padding: 4px 0;
+  color: var(--ink-3);
+  font-size: 12px;
 }
 
 /* ---------- 图例 ---------- */
@@ -785,6 +920,21 @@ html[data-shell='1'] .back-home {
   .entity-list {
     max-height: 32vh;
   }
+  /* 详情卡在窄屏铺满宽度，夹在顶栏与抽屉之间——既不让卡片压住地图，也不压住抽屉手柄。
+     抽屉拉到满屏时没地方放，先收起；拖回半屏卡片自己回来。 */
+  .detail-card {
+    top: calc(var(--appbar-h) + 8px + var(--gap));
+    left: 8px;
+    right: 8px;
+    bottom: calc(var(--drawer-h) + var(--gap) + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    max-height: none;
+  }
+
+  .sidebar[data-drawer='full'] ~ .detail-card {
+    display: none;
+  }
+
 
   .back-home {
     bottom: calc(var(--drawer-h) + var(--gap) + env(safe-area-inset-bottom, 0px));

@@ -36,10 +36,13 @@ app.innerHTML = `
       <div class="section-head"><h2>对象列表</h2><span class="muted">建筑 / 地标</span></div>
       <div id="entity-list" class="entity-list"></div>
     </section>
-    <section class="card">
-      <div class="section-head"><h2>选中对象</h2></div>
-      <div id="details" class="details"></div>
-    </section>
+  </aside>
+  <aside class="detail-card" id="detail-card" aria-label="地点详情" hidden>
+    <div class="dc-head">
+      <div class="dc-title"><h3 id="detail-title"></h3><p class="dc-sub" id="detail-subtitle"></p></div>
+      <button type="button" class="dc-close" id="detail-close" aria-label="关闭详情" title="关闭详情">✕</button>
+    </div>
+    <div class="dc-body" id="details"></div>
   </aside>
   <div class="map-status" id="selection-toast">未选择对象</div>
   <div class="map-tools" aria-label="地图操作">
@@ -55,7 +58,7 @@ const scaleBarEl = document.querySelector<HTMLElement>('#map-scale-bar')
 const scaleLabelEl = document.querySelector<HTMLElement>('#map-scale-label')
 
 const $ = <T extends HTMLElement>(sel: string): T => { const el = document.querySelector<T>(sel); if (!el) throw new Error(`UI element missing: ${sel}`); return el }
-const sceneHost = $<HTMLDivElement>('#scene'), labelLayer = $<HTMLDivElement>('#label-layer'), heroTitle = $<HTMLElement>('#hero-title'), entityList = $<HTMLDivElement>('#entity-list'), details = $<HTMLDivElement>('#details'), toast = $<HTMLDivElement>('#selection-toast'), search = $<HTMLInputElement>('#entity-search'), searchResults = $<HTMLDivElement>('#search-results'), layerControls = $<HTMLDivElement>('#layer-controls'), layerSummary = $<HTMLSpanElement>('#layer-summary'), sidebar = $<HTMLElement>('#sidebar')
+const sceneHost = $<HTMLDivElement>('#scene'), labelLayer = $<HTMLDivElement>('#label-layer'), heroTitle = $<HTMLElement>('#hero-title'), entityList = $<HTMLDivElement>('#entity-list'), details = $<HTMLDivElement>('#details'), toast = $<HTMLDivElement>('#selection-toast'), search = $<HTMLInputElement>('#entity-search'), searchResults = $<HTMLDivElement>('#search-results'), layerControls = $<HTMLDivElement>('#layer-controls'), layerSummary = $<HTMLSpanElement>('#layer-summary'), sidebar = $<HTMLElement>('#sidebar'), detailCard = $<HTMLElement>('#detail-card'), detailTitle = $<HTMLElement>('#detail-title'), detailSubtitle = $<HTMLElement>('#detail-subtitle'), detailClose = $<HTMLButtonElement>('#detail-close')
 const data = createDefaultCampusData()
 const initialSelection: PickedEntity | null = data.buildings.length ? { kind: 'building', index: 0 } : null
 const view = new ViewState<PickedEntity>(initialSelection)
@@ -242,14 +245,26 @@ layerControls.innerHTML = layerDefs.map(([key, label]) => `<label class="toggle"
 
 function syncUi(): void {
   heroTitle.textContent = data.name
-  renderEntityList(data, view.selected, entityList, search.value); renderDetails(data, view.selected, details); updateSelectionToast(data, view.selected, toast)
+  renderEntityList(data, view.selected, entityList, search.value)
+  // 详情卡是浮在图上的一块独立卡片（§6.3）：选中才出，关掉后重新选中还会再弹。
+  const summary = renderDetails(data, view.selected, details)
+  detailTitle.textContent = summary?.name ?? ''
+  detailSubtitle.textContent = summary?.subtitle ?? ''
+  // 手动关掉的卡片不许被下一次 syncUi（切图层、拉抽屉）又弹回来。
+  detailCard.hidden = !summary || selectionKey(view.selected) === dismissedDetail
+  updateSelectionToast(data, view.selected, toast)
   const active = layerDefs.filter(([key]) => view.layers[key]).length; layerSummary.textContent = `${active}/${layerDefs.length} 开启`
 }
+/** 选中对象的稳定标识，用来记住「这张卡是用户自己关掉的」。 */
+const selectionKey = (selected: PickedEntity | null): string => !selected ? '' : selected.kind === 'building' ? `building:${selected.index}` : `poi:${selected.id}`
+let dismissedDetail: string | null = null
+
 function select(entity: PickedEntity, focus = true): void {
   if (entity.kind === 'building' && !data.buildings[entity.index]) return
   const poiIndex = entity.kind === 'poi' ? data.pois.findIndex((poi) => poi.id === entity.id) : -1
   if (entity.kind === 'poi' && poiIndex < 0) return
   view.setSelected(entity)
+  dismissedDetail = null
   campus.setEditorSelection(entity.kind === 'building' ? entity : { kind: 'poi', index: poiIndex })
   if (focus) entity.kind === 'building' ? campus.focusBuilding(entity.index) : campus.focusPoi(entity.id)
   // 窄屏抽屉收起时选中对象，自动拉到半屏，否则详情根本看不见。
@@ -260,8 +275,46 @@ function select(entity: PickedEntity, focus = true): void {
 syncUi()
 
 entityList.addEventListener('click', (event) => { const item = (event.target as HTMLElement).closest<HTMLElement>('[data-kind]'); if (!item) return; select(item.dataset.kind === 'building' ? { kind: 'building', index: Number(item.dataset.index) } : { kind: 'poi', id: item.dataset.id ?? '' }) })
-search.addEventListener('input', () => { const results = searchEntities(data, search.value); searchResults.innerHTML = results.slice(0, 8).map((item) => `<button type="button" class="search-result" data-kind="${item.kind}" ${item.kind === 'building' ? `data-index="${item.index}"` : `data-id="${escapeHtml(item.id)}"`}><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.subtitle)}</small></button>`).join(''); renderEntityList(data, view.selected, entityList, search.value) })
-searchResults.addEventListener('click', (event) => { const item = (event.target as HTMLElement).closest<HTMLElement>('[data-kind]'); if (!item) return; select(item.dataset.kind === 'building' ? { kind: 'building', index: Number(item.dataset.index) } : { kind: 'poi', id: item.dataset.id ?? '' }); searchResults.innerHTML = '' })
+// 搜索联想浮层（§6.3）：输入即出，↑↓ 选项、Enter 选中、Esc 收起。
+let searchIndex = -1
+const searchItems = (): HTMLButtonElement[] => Array.from(searchResults.querySelectorAll<HTMLButtonElement>('.search-result'))
+function closeSearchResults(): void {
+  searchIndex = -1
+  searchResults.innerHTML = ''
+  searchResults.setAttribute('aria-expanded', 'false')
+  search.removeAttribute('aria-activedescendant')
+}
+function renderSearchResults(): void {
+  const results = searchEntities(data, search.value).slice(0, 8)
+  searchIndex = -1
+  searchResults.innerHTML = results.map((item, index) => `<button type="button" role="option" aria-selected="false" id="search-option-${index}" class="search-result" data-kind="${item.kind}" ${item.kind === 'building' ? `data-index="${item.index}"` : `data-id="${escapeHtml(item.id)}"`}><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.subtitle)}</small></button>`).join('')
+  searchResults.setAttribute('aria-expanded', String(results.length > 0))
+  search.setAttribute('aria-controls', 'search-results')
+  search.removeAttribute('aria-activedescendant')
+}
+function highlightSearchResult(step: number): void {
+  const items = searchItems()
+  if (!items.length) return
+  searchIndex = (searchIndex + step + items.length * 2) % items.length
+  items.forEach((el, index) => { const active = index === searchIndex; el.classList.toggle('active', active); el.setAttribute('aria-selected', String(active)) })
+  search.setAttribute('aria-activedescendant', items[searchIndex].id)
+  items[searchIndex].scrollIntoView({ block: 'nearest' })
+}
+search.addEventListener('input', () => { renderSearchResults(); renderEntityList(data, view.selected, entityList, search.value) })
+search.addEventListener('keydown', (event) => {
+  if (event.key === 'ArrowDown') { event.preventDefault(); highlightSearchResult(1) }
+  else if (event.key === 'ArrowUp') { event.preventDefault(); highlightSearchResult(-1) }
+  else if (event.key === 'Enter' && searchIndex >= 0) { event.preventDefault(); searchItems()[searchIndex]?.click() }
+})
+search.addEventListener('blur', () => { window.setTimeout(closeSearchResults, 120) })
+searchResults.addEventListener('click', (event) => {
+  const item = (event.target as HTMLElement).closest<HTMLElement>('[data-kind]')
+  if (!item) return
+  select(item.dataset.kind === 'building' ? { kind: 'building', index: Number(item.dataset.index) } : { kind: 'poi', id: item.dataset.id ?? '' })
+  closeSearchResults()
+  search.blur()
+})
+detailClose.addEventListener('click', () => { dismissedDetail = selectionKey(view.selected); detailCard.hidden = true })
 layerControls.addEventListener('change', (event) => { const input = (event.target as HTMLInputElement).closest<HTMLInputElement>('[data-layer]'); if (!input) return; const key = input.dataset.layer as LayerKey; view.setLayer(key, input.checked); campus.setDisplayOptions(view.layers); requestRender(); syncUi() })
 $<HTMLButtonElement>('#reset-camera').addEventListener('click', () => { campus.setOverviewCamera(); requestRender() })
 $<HTMLButtonElement>('#fit-camera').addEventListener('click', () => { campus.setOverviewCamera(); requestRender() })
@@ -269,10 +322,12 @@ campus.renderer.domElement.addEventListener('click', (event) => { const entity =
 const onResize = () => { campus.resize(); syncDrawerOffset(); requestRender() }; onResize(); window.addEventListener('resize', onResize)
 requestRender()
 
-// 键盘：`/` 聚焦搜索、Esc 收起联想（§6.4）。
+// 键盘：`/` 聚焦搜索、Esc 收起联想或详情卡（§6.4）。
 window.addEventListener('keydown', (event) => {
   if (event.key === '/' && document.activeElement !== search) { event.preventDefault(); search.focus() }
-  if (event.key === 'Escape' && document.activeElement === search) { search.blur(); searchResults.innerHTML = '' }
+  if (event.key !== 'Escape') return
+  if (document.activeElement === search) { search.blur(); closeSearchResults() }
+  else if (!detailCard.hidden) { dismissedDetail = selectionKey(view.selected); detailCard.hidden = true }
 })
 
 // 壳内搜索深链：?q=图书馆 预先填入并跑一次搜索，否则原生壳搜索框只改 URL、页面没反应。
