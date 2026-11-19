@@ -87,7 +87,7 @@ describe('抽屉三档：CSS 与脚本同一套数', () => {
 })
 
 describe('贴底浮层同时避开抽屉与刘海', () => {
-  const bottomAnchored = ['.map-overlay', '.map-tools', '.detail-card']
+  const bottomAnchored = ['.detail-card']
 
   /** 基础规则 + 窄屏覆盖一起看：窄屏没重写 bottom 就沿用基础规则里的避让。 */
   const combinedRule = (selector: string): string => {
@@ -107,12 +107,23 @@ describe('贴底浮层同时避开抽屉与刘海', () => {
   it('页面声明了 viewport-fit=cover，env() 才有值', () => {
     expect(demoHtml).toMatch(/name="viewport"[^>]*viewport-fit=cover/)
   })
+
+  it('窄屏抽屉坐在状态条上沿，两者不重叠', () => {
+    expect(narrowRule('.sidebar')).toContain('bottom: var(--status-bar-block-height)')
+    expect(ruleForStatusBar()).toContain('bottom: 0')
+  })
 })
+
+function ruleForStatusBar(): string {
+  const match = /(^|\n)\.status-bar\s*\{[^}]*\}/.exec(css)
+  if (!match) throw new Error('样式里没有 .status-bar 规则')
+  return match[0]
+}
 
 describe('窄屏顶栏与搜索不挤爆', () => {
   it('顶栏按 44px 搜索框长高，品牌名让位给搜索', () => {
     expect(narrowRule('.appbar')).toContain('calc(var(--appbar-h) + 8px)')
-    expect(narrowRule('.campus-name')).toContain('display: none')
+    expect(narrowRule('.sb-credit-dim')).toContain('display: none')
     expect(narrowRule('.searchbox')).toContain('flex: 1 1 auto')
     expect(narrowRule('#entity-search')).toContain('height: var(--tap)')
   })
@@ -124,9 +135,10 @@ describe('窄屏顶栏与搜索不挤爆', () => {
     expect(css).toContain('touch-action: manipulation')
   })
 
-  it('窄屏收起图例只留比例尺，别把地图糊满', () => {
-    expect(narrowRule('.map-overlay .legend')).toContain('display: none')
+  it('窄屏状态条收起图例，只留署名 / 状态 / 比例尺 / 工具', () => {
+    expect(narrowRule('.sb-legend')).toContain('display: none')
     expect(css).toMatch(/\.map-scale\s*\{/)
+    expect(narrowRule('.status-bar')).toContain('padding')
   })
 })
 

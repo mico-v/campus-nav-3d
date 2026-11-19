@@ -112,7 +112,7 @@ describe('主题切换按钮', () => {
 describe('浮层也跟着主题走', () => {
   it('地图浮层不写内联颜色，改用令牌', () => {
     expect(demoHtml).not.toMatch(/<style[\s\S]*?<\/style>/)
-    expect(styleCss).toMatch(/\.map-overlay\s*\{[^}]*var\(--panel-bg\)/)
+    expect(styleCss).toMatch(/\.status-bar\s*\{[^}]*var\(--bar-bg\)/)
   })
 
   it('站点导航两套主题共用令牌，不在页面里写死色值', () => {
