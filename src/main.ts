@@ -2,7 +2,8 @@ import './style.css'
 import { createDefaultCampusData } from './data/campusData'
 import { CampusScene, type SceneDisplayOptions } from './scene/CampusScene'
 import { pickEntity, type PickedEntity } from './interaction'
-import { renderEntityList, renderDetails, searchEntities, updateSelectionToast, escapeHtml } from './ui/panel'
+import { renderEntityList, renderDetails, renderFilterChips, searchEntities, updateSelectionToast, escapeHtml, type EntityFilter } from './ui/panel'
+import { createSheet } from './ui/sheet'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 if (!app) throw new Error('App root not found')
@@ -14,20 +15,27 @@ app.innerHTML = `
       <div class="map-toolbar" aria-label="地图操作"><button type="button" id="reset-camera">重置视角</button><button type="button" id="fit-camera">适应全图</button></div>
       <div id="scene"></div><div id="label-layer"></div><div class="selection-toast" id="selection-toast">未选择对象</div>
     </div>
-    <aside class="panel" aria-label="地图控制面板">
-      <section><div class="section-heading"><div><p class="eyebrow">MAP CONTROL</p><h1>校园地图</h1></div><span class="status-dot">可交互</span></div><label class="search-label" for="entity-search">搜索建筑或 POI</label><input id="entity-search" type="search" placeholder="例如：图书馆、东门" autocomplete="off"><div id="search-results" class="search-results" role="status" aria-live="polite"></div></section>
-      <section><div class="section-heading"><h2>图层</h2><span class="muted" id="layer-summary"></span></div><div class="layer-grid" id="layer-controls"></div></section>
-      <section><h2>对象列表</h2><div id="entity-list" class="entity-list"></div></section>
-      <section><h2>选中对象</h2><div id="details" class="details"></div></section>
-      <section><h2>图例</h2><div class="legend"><div><span class="swatch lake"></span>水域</div><div><span class="swatch sports"></span>场地</div><div><span class="swatch academic"></span>教学建筑</div><div><span class="swatch dorm"></span>生活建筑</div><div><span class="swatch selected"></span>当前选择</div></div></section>
+    <aside class="panel detail-sheet" id="detail-sheet" aria-label="地图控制面板" data-sheet="half">
+      <button type="button" class="sheet-handle" aria-label="切换详情卡片档位" aria-expanded="true"></button>
+      <div class="sheet-body">
+        <section><div class="section-heading"><div><p class="eyebrow">MAP CONTROL</p><h1>校园地图</h1></div><span class="status-dot">可交互</span></div><label class="search-label" for="entity-search">搜索建筑或 POI</label><input id="entity-search" type="search" placeholder="例如：图书馆、东门" autocomplete="off"><div id="search-results" class="search-results" role="status" aria-live="polite"></div></section>
+        <section><div class="section-heading"><h2>图层</h2><span class="muted" id="layer-summary"></span></div><div class="layer-grid" id="layer-controls"></div></section>
+        <section class="sheet-list"><h2>对象列表</h2><div id="filter-chips" class="filter-chips" aria-label="对象分类"></div><div id="entity-list" class="entity-list"></div></section>
+        <section class="sheet-detail"><h2>选中对象</h2><div id="details" class="details"></div></section>
+        <section><h2>图例</h2><div class="legend"><div><span class="swatch lake"></span>水域</div><div><span class="swatch sports"></span>场地</div><div><span class="swatch academic"></span>教学建筑</div><div><span class="swatch dorm"></span>生活建筑</div><div><span class="swatch selected"></span>当前选择</div></div></section>
+      </div>
     </aside>
   </div>`
 
 const $ = <T extends HTMLElement>(sel: string): T => { const el = document.querySelector<T>(sel); if (!el) throw new Error(`UI element missing: ${sel}`); return el }
-const sceneHost = $<HTMLDivElement>('#scene'), labelLayer = $<HTMLDivElement>('#label-layer'), heroTitle = $<HTMLElement>('#hero-title'), entityList = $<HTMLDivElement>('#entity-list'), details = $<HTMLDivElement>('#details'), toast = $<HTMLDivElement>('#selection-toast'), search = $<HTMLInputElement>('#entity-search'), searchResults = $<HTMLDivElement>('#search-results'), layerControls = $<HTMLDivElement>('#layer-controls'), layerSummary = $<HTMLSpanElement>('#layer-summary')
+const sceneHost = $<HTMLDivElement>('#scene'), labelLayer = $<HTMLDivElement>('#label-layer'), heroTitle = $<HTMLElement>('#hero-title'), detailSheet = $<HTMLElement>('#detail-sheet'), filterChips = $<HTMLDivElement>('#filter-chips'), entityList = $<HTMLDivElement>('#entity-list'), details = $<HTMLDivElement>('#details'), toast = $<HTMLDivElement>('#selection-toast'), search = $<HTMLInputElement>('#entity-search'), searchResults = $<HTMLDivElement>('#search-results'), layerControls = $<HTMLDivElement>('#layer-controls'), layerSummary = $<HTMLSpanElement>('#layer-summary')
 const data = createDefaultCampusData()
+let entityFilter: EntityFilter = 'all'
 let selected: PickedEntity | null = data.buildings.length ? { kind: 'building', index: 0 } : null
 const display: Required<Pick<SceneDisplayOptions, 'showBuildings' | 'showPaths' | 'showWater' | 'showFields' | 'showTrees' | 'showZones' | 'showPois' | 'showLabels'>> = { showBuildings: true, showPaths: true, showWater: true, showFields: true, showTrees: true, showZones: true, showPois: true, showLabels: true }
+createSheet(detailSheet, {
+  onStateChange: (state) => { $<HTMLElement>('.sheet-handle').setAttribute('aria-expanded', String(state !== 'peek')) },
+})
 const campus = new CampusScene(sceneHost, labelLayer)
 if (import.meta.env.DEV) {
   const debugWindow = window as Window & {
@@ -75,7 +83,8 @@ layerControls.innerHTML = layerDefs.map(([key, label]) => `<label class="toggle"
 
 function syncUi(): void {
   heroTitle.textContent = data.name
-  renderEntityList(data, selected, entityList, search.value); renderDetails(data, selected, details); updateSelectionToast(data, selected, toast)
+  renderFilterChips(filterChips, entityFilter)
+  renderEntityList(data, selected, entityList, search.value, entityFilter); renderDetails(data, selected, details); updateSelectionToast(data, selected, toast)
   const active = layerDefs.filter(([key]) => display[key]).length; layerSummary.textContent = `${active}/${layerDefs.length} 开启`
 }
 function select(entity: PickedEntity, focus = true): void {
@@ -90,8 +99,9 @@ function select(entity: PickedEntity, focus = true): void {
 }
 syncUi()
 
+filterChips.addEventListener('click', (event) => { const chip = (event.target as HTMLElement).closest<HTMLElement>('[data-filter]'); if (!chip) return; entityFilter = chip.dataset.filter as EntityFilter; renderFilterChips(filterChips, entityFilter); renderEntityList(data, selected, entityList, search.value, entityFilter) })
 entityList.addEventListener('click', (event) => { const item = (event.target as HTMLElement).closest<HTMLElement>('[data-kind]'); if (!item) return; select(item.dataset.kind === 'building' ? { kind: 'building', index: Number(item.dataset.index) } : { kind: 'poi', id: item.dataset.id ?? '' }) })
-search.addEventListener('input', () => { const results = searchEntities(data, search.value); searchResults.innerHTML = results.slice(0, 8).map((item) => `<button type="button" class="search-result" data-kind="${item.kind}" ${item.kind === 'building' ? `data-index="${item.index}"` : `data-id="${escapeHtml(item.id)}"`}><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.subtitle)}</small></button>`).join(''); renderEntityList(data, selected, entityList, search.value) })
+search.addEventListener('input', () => { const results = searchEntities(data, search.value); searchResults.innerHTML = results.slice(0, 8).map((item) => `<button type="button" class="search-result" data-kind="${item.kind}" ${item.kind === 'building' ? `data-index="${item.index}"` : `data-id="${escapeHtml(item.id)}"`}><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.subtitle)}</small></button>`).join(''); renderEntityList(data, selected, entityList, search.value, entityFilter) })
 searchResults.addEventListener('click', (event) => { const item = (event.target as HTMLElement).closest<HTMLElement>('[data-kind]'); if (!item) return; select(item.dataset.kind === 'building' ? { kind: 'building', index: Number(item.dataset.index) } : { kind: 'poi', id: item.dataset.id ?? '' }); searchResults.innerHTML = '' })
 layerControls.addEventListener('change', (event) => { const input = (event.target as HTMLInputElement).closest<HTMLInputElement>('[data-layer]'); if (!input) return; const key = input.dataset.layer as keyof typeof display; display[key] = input.checked; campus.setDisplayOptions(display); requestRender(); syncUi() })
 $<HTMLButtonElement>('#reset-camera').addEventListener('click', () => { campus.setOverviewCamera(); requestRender() })
