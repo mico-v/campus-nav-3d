@@ -19,6 +19,24 @@ class UrlPolicyTest {
     }
 
     @Test
+    fun `壳入口直接落在地图页并带 shell 标记`() {
+        assertEquals("https://map.mioc.cc/demo.html?shell=1", UrlPolicy.ENTRY_URL)
+        assertTrue(UrlPolicy.isInternal(UrlPolicy.ENTRY_URL))
+        assertFalse(UrlPolicy.isNonAppPage(UrlPolicy.ENTRY_URL))
+    }
+
+    @Test
+    fun `介绍页计划书与编辑器不算应用内页面`() {
+        assertTrue(UrlPolicy.isNonAppPage("https://map.mioc.cc/"))
+        assertTrue(UrlPolicy.isNonAppPage("https://map.mioc.cc/index.html"))
+        assertTrue(UrlPolicy.isNonAppPage("https://map.mioc.cc/plan.html"))
+        assertTrue(UrlPolicy.isNonAppPage("https://map.mioc.cc/editor.html"))
+        assertFalse(UrlPolicy.isNonAppPage("https://map.mioc.cc/demo.html?shell=1"))
+        assertFalse(UrlPolicy.isNonAppPage("https://map.mioc.cc/go?from=n1&to=n2"))
+        assertFalse(UrlPolicy.isNonAppPage("https://example.com/plan.html"))
+    }
+
+    @Test
     fun `缺失 scheme 或非 http 协议不算站内`() {
         assertFalse(UrlPolicy.isInternal("map.mioc.cc/demo.html"))
         assertFalse(UrlPolicy.isInternal("intent://scan/#Intent;scheme=zxing;end"))
