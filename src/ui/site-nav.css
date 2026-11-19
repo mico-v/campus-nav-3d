@@ -1,0 +1,54 @@
+/* 站点导航（index / demo / editor 三入口并列）
+   三个页面共用：地图页（style.css）、编辑器（editor.css）、落地页（landing.css）。
+   颜色一律走令牌，兜底用 currentColor，避免编辑器那套暗色令牌里没有 --ink-2 时掉成看不清的浅灰。 */
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: var(--ink-2, currentColor);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+
+.site-nav a:hover {
+  background: var(--surface-2, rgba(127, 137, 145, 0.18));
+  color: var(--ink, currentColor);
+}
+
+.site-nav a[aria-current='page'] {
+  background: var(--surface-2, rgba(127, 137, 145, 0.18));
+  color: var(--ink, currentColor);
+  font-weight: 600;
+}
+
+.site-nav a:focus-visible {
+  outline: 2px solid var(--primary, currentColor);
+  outline-offset: 2px;
+}
+
+/* 壳内只承载地图，不给站内入口 */
+html[data-shell='1'] .site-nav {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .site-nav a {
+    height: 36px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+}

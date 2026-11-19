@@ -1,4 +1,5 @@
 import './editor.css'
+import '../ui/site-nav.css'
 import { createDefaultCampusData, validateCampusData } from '../data/campusData.ts'
 import { EditorStore } from './store.ts'
 import { Canvas2D, type MapBackdropConfig, type BackdropAlign } from './canvas2d.ts'
@@ -9,6 +10,7 @@ import { CampusScene } from '../scene/CampusScene.ts'
 import { translatePoints } from './geometry.ts'
 import { moveRoadNode } from '../data/roadNetwork.ts'
 import { editorSearchResults, selectionForValidationError } from './search.ts'
+import { siteNavHtml } from '../ui/site-nav.ts'
 
 const ALIGN_KEY = 'campus-editor:backdrop-align'
 
@@ -88,6 +90,7 @@ async function boot(): Promise<void> {
       ${readOnly ? '<div class="banner">只读模式：编辑后端不可用（请用 <code>npm run dev</code> 启动）。改动无法保存。</div>' : ''}
       <div class="toolbar">
         <h1>校园地图编辑器</h1>
+        <div class="group site-nav-group">${siteNavHtml('editor')}</div>
         <div class="group">
           <button class="tool" id="btn-validate" title="检查全部数据；错误会显示在右下角并可点击定位">校验</button>
           <button class="tool primary" id="btn-save"${readOnly ? ' disabled' : ''}>保存</button>

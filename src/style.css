@@ -790,36 +790,6 @@ h3 {
   border-radius: 0 0 2px 2px;
 }
 
-/* 回到项目首页：浮在图上，颜色跟主题走（原来是 demo.html 里的内联样式，深色下会刺眼） */
-.back-home {
-  position: fixed;
-  right: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  z-index: 20;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 14px;
-  border: 1px solid var(--outline);
-  border-radius: 999px;
-  background: var(--panel-bg);
-  backdrop-filter: blur(8px);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 500;
-  text-decoration: none;
-  box-shadow: var(--shadow-1);
-}
-
-.back-home:hover {
-  background: var(--surface-2);
-}
-
-/* 壳内只承载地图，不给回站点的出口 */
-html[data-shell='1'] .back-home {
-  display: none;
-}
-
 /* ---------- WebGL 兜底（§6.5） ----------
    壳里拿不到 WebGL 时不留在白屏：把原因 / 地址 / UA 摆在页面上，能截图就能定位。 */
 
@@ -916,6 +886,18 @@ html[data-shell='1'] .wf-link {
 }
 
 /* ---------- 窄屏：地图全屏 + 底部抽屉 ---------- */
+
+/* 更窄的屏幕：品牌收成图标，把宽度让给站点导航 + 搜索框 */
+@media (max-width: 560px) {
+  .appbar {
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  .brand-name {
+    display: none;
+  }
+}
 
 @media (max-width: 959px) {
   :root {
@@ -1032,10 +1014,6 @@ html[data-shell='1'] .wf-link {
     display: none;
   }
 
-
-  .back-home {
-    bottom: calc(var(--drawer-h) + var(--gap) + env(safe-area-inset-bottom, 0px));
-  }
 
   /* 工具栏同样得让开抽屉：原来只让开 68px，半屏抽屉一拉就把它吃掉 */
   .map-tools {

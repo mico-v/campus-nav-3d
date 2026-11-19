@@ -1031,6 +1031,8 @@ h3 { font-size: 1.12rem; letter-spacing: -0.01em; }
 /* ---------- responsive ---------- */
 
 @media (max-width: 980px) {
+  /* 页内锚点导航在窄屏让位给站点导航（项目首页 / 3D 地图 / 地图编辑器） */
+  .nav { display: none; }
   .hero-grid { grid-template-columns: minmax(0, 1fr); }
   .hero-visual { order: 2; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1077,6 +1079,13 @@ h3 { font-size: 1.12rem; letter-spacing: -0.01em; }
     backdrop-filter: none;
   }
   .hero-facts { gap: 8px 16px; }
+}
+
+@media (max-width: 560px) {
+  /* 手机上顶栏只留品牌标 + 站点导航 + 主题按钮，别挤出横向滚动条 */
+  .topbar-inner { gap: 8px; }
+  .brand-text i { display: none; }
+  .topbar-actions .btn { display: none; }
 }
 
 @media (max-width: 420px) {
