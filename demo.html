@@ -2,10 +2,20 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="CampusNav 3D 的 3D 校园导航原型：室外三维校园、可寻路路网与建筑信息浏览。" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <title>3D 校园导航原型 · CampusNav 3D</title>
+    <script>
+      // 原生壳（?shell=1）里只承载地图：隐藏回站点首页的出口，避免壳内跳回介绍页。
+      ;(function () {
+        try {
+          if (new URLSearchParams(location.search).get('shell') === '1') {
+            document.documentElement.dataset.shell = '1'
+          }
+        } catch (e) {}
+      })()
+    </script>
     <style>
       .back-home {
         position: fixed;
@@ -26,6 +36,7 @@
         box-shadow: 0 8px 24px -16px rgba(6, 32, 36, 0.5);
       }
       .back-home:hover { background: #d2eff0; }
+      html[data-shell='1'] .back-home { display: none; }
     </style>
   </head>
   <body>

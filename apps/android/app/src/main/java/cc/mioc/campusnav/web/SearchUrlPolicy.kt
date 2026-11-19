@@ -3,15 +3,19 @@ package cc.mioc.campusnav.web
 import java.net.URI
 import java.net.URLEncoder
 
-/** 壳内搜索：把关键字编码进站点深链，纯 JVM 逻辑便于单测。 */
+/** 壳内搜索：把关键字编码进地图页深链，纯 JVM 逻辑便于单测。 */
 object SearchUrlPolicy {
     const val SEARCH_PARAM = "q"
+
+    /** 搜索落在地图页（demo.html），和壳入口同一个页面，避免跳回介绍页。 */
+    private const val MAP_URL = "https://map.mioc.cc/demo.html"
+    private const val SHELL_FLAG = "shell=1"
 
     fun buildSearchUrl(keyword: String): String? {
         val trimmed = keyword.trim()
         if (trimmed.isEmpty()) return null
         val encoded = URLEncoder.encode(trimmed, Charsets.UTF_8.name())
-        return "${UrlPolicy.ENTRY_URL}?$SEARCH_PARAM=$encoded"
+        return "$MAP_URL?$SHELL_FLAG&$SEARCH_PARAM=$encoded"
     }
 
     fun isSearchUrl(url: String): Boolean {

@@ -1,8 +1,9 @@
 # apps/android — 原生壳
 
 Android 原生壳：Kotlin + Jetpack Compose + Material 3，单 Activity 内用 WebView 承载
-`https://map.mioc.cc/` 的站点。地图渲染仍由 web 侧负责，壳只补系统集成（状态栏、
-返回键、外链、离线兜底）。
+`https://map.mioc.cc/demo.html?shell=1` 地图页。站点首页、计划报告（`plan.html`）与
+编辑器只部署在 GitHub Pages，不进壳 —— 壳内点到的站内介绍页会被 `UrlPolicy.isNonAppPage`
+拦下。地图渲染仍由 web 侧负责，壳只补系统集成（状态栏、返回键、外链、离线兜底）。
 
 ## 为什么不是 Capacitor
 

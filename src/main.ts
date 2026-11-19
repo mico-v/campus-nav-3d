@@ -100,3 +100,10 @@ $<HTMLButtonElement>('#fit-camera').addEventListener('click', () => { campus.set
 campus.renderer.domElement.addEventListener('click', (event) => { const entity = pickEntity(event, campus.renderer.domElement, campus.camera, campus.clickableObjects); if (entity) select(entity) })
 const onResize = () => { campus.resize(); requestRender() }; onResize(); window.addEventListener('resize', onResize)
 requestRender()
+
+// 壳内搜索深链：?q=图书馆 预先填入并跑一次搜索，否则原生壳搜索框只改 URL、页面没反应。
+const initialQuery = new URLSearchParams(window.location.search).get('q')?.trim()
+if (initialQuery) {
+  search.value = initialQuery
+  search.dispatchEvent(new Event('input'))
+}
