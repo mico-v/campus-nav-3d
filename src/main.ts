@@ -30,13 +30,12 @@ app.innerHTML = `
   </div>
   <header class="appbar">
     <a class="brand" href="./index.html" aria-label="返回项目首页"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">CampusNav<span class="brand-dim"> 3D</span></span></a>
-    ${siteNavHtml('demo')}
-    <span class="campus-name" id="hero-title"></span>
     <div class="searchbox" role="search">
       <label class="visually-hidden" for="entity-search">搜索建筑或地点</label>
       <input id="entity-search" type="search" placeholder="搜索建筑 / 地点" autocomplete="off" enterkeyhint="search" />
       <div id="search-results" class="search-results" role="listbox" aria-live="polite"></div>
     </div>
+    ${siteNavHtml('demo')}
     <button type="button" class="icon-button" id="theme-toggle" aria-label="切换深浅主题" title="切换深浅主题">◐</button>
   </header>
   <aside class="sidebar" id="sidebar" data-drawer="peek" aria-label="地图面板">
@@ -57,15 +56,16 @@ app.innerHTML = `
     </div>
     <div class="dc-body" id="details"></div>
   </aside>
-  <div class="map-status" id="selection-toast">未选择对象</div>
-  <div class="map-tools" aria-label="地图操作">
-    <button type="button" id="reset-camera" title="重置视角">重置</button>
-    <button type="button" id="fit-camera" title="适应全图">全图</button>
-  </div>
-  <div class="map-overlay" id="map-overlay">
-    <div class="legend" aria-label="图例"><div><span class="swatch lake"></span>水域</div><div><span class="swatch sports"></span>场地</div><div><span class="swatch academic"></span>教学建筑</div><div><span class="swatch dorm"></span>生活建筑</div><div><span class="swatch selected"></span>当前选择</div></div>
+  <footer class="status-bar" id="status-bar" role="contentinfo" aria-label="地图状态">
+    <p class="sb-credit"><strong>CampusNav 3D</strong><span class="sb-credit-dim" id="hero-title"></span></p>
+    <p class="sb-status" id="selection-toast" aria-live="polite">未选择对象</p>
+    <div class="sb-legend" aria-label="图例"><div><span class="swatch lake"></span>水域</div><div><span class="swatch sports"></span>场地</div><div><span class="swatch academic"></span>教学建筑</div><div><span class="swatch dorm"></span>生活建筑</div><div><span class="swatch selected"></span>当前选择</div></div>
     <div class="map-scale" role="img" aria-label="地图比例尺"><span class="map-scale-bar" id="map-scale-bar"></span><span class="map-scale-label" id="map-scale-label">—</span></div>
-  </div>`
+    <div class="sb-tools" aria-label="地图操作">
+      <button type="button" id="reset-camera" title="重置视角">重置</button>
+      <button type="button" id="fit-camera" title="适应全图">全图</button>
+    </div>
+  </footer>`
 
 const scaleBarEl = document.querySelector<HTMLElement>('#map-scale-bar')
 const scaleLabelEl = document.querySelector<HTMLElement>('#map-scale-label')

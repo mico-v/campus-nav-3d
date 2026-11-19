@@ -44,12 +44,30 @@
      所以「顶栏多高、底部让多少」改一处就能同时改到样式和取景。 */
   --map-ui-padding: 12px;
   --search-block-height: var(--appbar-h);
-  /* 底部统一状态条（s3 收口）：现在先给浮着的比例尺 / 工具栏占位 */
+  /* 底部统一状态条（s3）：署名 / 定位 / 工具 / 图例 / 比例尺都在这一条里，
+     高度只由这个令牌定，相机 --map-inset-bottom 直接读它。 */
   --status-bar-block-height: 44px;
   --drawer-peek-height: calc(var(--tap) + 6px);
   --map-inset-top: calc(var(--search-block-height) + var(--map-ui-padding));
   --map-inset-bottom: calc(var(--drawer-h) + var(--status-bar-block-height) + var(--map-ui-padding));
   --map-inset-x: var(--map-ui-padding);
+
+  /* 层级表（s3 收口 / room-tba 的 --z-* 做法）：z-index 只在这里定，
+     规则里不许再写裸数字。顺序就是叠放顺序，改层级别改数值。 */
+  --z-map: 0;
+  --z-labels: 2;
+  --z-status-bar: 14;
+  --z-drawer: 15;
+  --z-detail: 18;
+  --z-appbar: 20;
+  --z-popover: 30;
+  --z-fallback: 40;
+
+  /* 动效表：只做功能性过渡（150 / 200 / 280ms），抽屉 / 卡片 / 标签共用一套 */
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-slow: 280ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
 }
 
 :root[data-theme='dark'] {
@@ -145,6 +163,7 @@ h3 {
 .map-pane {
   position: absolute;
   inset: 0;
+  z-index: var(--z-map);
   background: var(--map-bg);
 }
 
@@ -163,7 +182,7 @@ h3 {
 
 #label-layer {
   pointer-events: none;
-  z-index: 2;
+  z-index: var(--z-labels);
 }
 
 .map-label {
@@ -175,7 +194,7 @@ h3 {
   color: var(--on-primary);
   white-space: nowrap;
   box-shadow: var(--shadow-1);
-  transition: opacity 0.2s ease;
+  transition: opacity var(--motion-base) var(--ease-standard);
 }
 
 .map-label.landmark {
@@ -196,7 +215,7 @@ h3 {
   position: absolute;
   inset-inline: 0;
   top: 0;
-  z-index: 20;
+  z-index: var(--z-appbar);
   display: flex;
   align-items: center;
   gap: var(--gap);
@@ -214,7 +233,7 @@ h3 {
   flex: none;
   color: var(--ink);
   text-decoration: none;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
@@ -231,31 +250,25 @@ h3 {
   font-weight: 500;
 }
 
-.campus-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  color: var(--ink-2);
-}
-
+/* 顶栏的大搜索（room-tba：搜索是顶栏的主体，不是配件）：占满中间剩余宽度，
+   高度和字号都比其他按钮大一档，桌面 36px / 窄屏 44px。 */
 .searchbox {
   position: relative;
-  flex: 0 1 340px;
+  flex: 1 1 320px;
+  max-width: 560px;
   min-width: 0;
+  margin-inline: auto;
 }
 
 #entity-search {
   width: 100%;
-  height: 32px;
-  padding: 0 10px;
+  height: 36px;
+  padding: 0 12px;
   border: 1px solid var(--outline);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   background: var(--surface);
   color: var(--ink);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 #entity-search::placeholder {
@@ -272,7 +285,7 @@ h3 {
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  z-index: 30;
+  z-index: var(--z-popover);
   display: grid;
   gap: 2px;
   max-height: 320px;
@@ -347,7 +360,7 @@ h3 {
 /* 触屏：控件自己吃掉双击缩放，点一下不用等 300ms，也不会误缩放地图 */
 .icon-button,
 .appbar button,
-.map-tools button,
+.sb-tools button,
 .entity-item,
 .sidebar button {
   touch-action: manipulation;
@@ -357,9 +370,9 @@ h3 {
 
 .sidebar {
   position: absolute;
-  z-index: 15;
+  z-index: var(--z-drawer);
   top: calc(var(--appbar-h) + var(--gap));
-  bottom: var(--gap);
+  bottom: calc(var(--status-bar-block-height) + var(--gap));
   left: var(--gap);
   width: var(--sidebar-w);
   display: flex;
@@ -507,11 +520,11 @@ h3 {
 
 .detail-card {
   position: absolute;
-  z-index: 18;
+  z-index: var(--z-detail);
   top: calc(var(--appbar-h) + var(--gap));
   right: var(--gap);
   width: 320px;
-  max-height: calc(100% - var(--appbar-h) - var(--gap) * 3);
+  max-height: calc(100% - var(--appbar-h) - var(--status-bar-block-height) - var(--gap) * 3);
   display: flex;
   flex-direction: column;
   border: 1px solid var(--outline);
@@ -615,7 +628,7 @@ h3 {
   flex: none;
   color: var(--ink-3);
   font-size: 10px;
-  transition: transform 120ms ease;
+  transition: transform var(--motion-fast) var(--ease-standard);
 }
 
 .dc-block[open] > summary::before {
@@ -716,70 +729,97 @@ h3 {
   background: var(--select-ring);
 }
 
-/* ---------- 地图浮层 ---------- */
+/* ---------- 底部统一状态条（s3 / room-tba 的 .bottom-chrome） ----------
+   原来散在右上（选中状态）、右下（工具）、左下（图例 + 比例尺）的三块浮层，
+   收成一条通栏：左署名 · 定位状态 · 图例 · 比例尺 · 工具。
+   地图上不再有四处各占一角的浮块，窄屏抽屉就坐在它的上沿。 */
 
-.map-status {
+.status-bar {
   position: absolute;
-  z-index: 12;
-  top: calc(var(--appbar-h) + var(--gap));
-  right: var(--gap);
-  max-width: 60vw;
-  padding: 6px 10px;
-  border: 1px solid var(--outline);
-  border-radius: 999px;
-  background: var(--panel-bg);
-  backdrop-filter: blur(8px);
-  box-shadow: var(--shadow-1);
+  z-index: var(--z-status-bar);
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  height: calc(var(--status-bar-block-height) + env(safe-area-inset-bottom, 0px));
+  padding: 0 var(--map-ui-padding) env(safe-area-inset-bottom, 0px);
+  background: var(--bar-bg);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--outline);
   color: var(--ink-2);
   font-size: 12px;
+}
+
+.sb-credit,
+.sb-status {
+  margin: 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.map-tools {
-  position: absolute;
-  z-index: 12;
-  right: var(--gap);
-  bottom: calc(var(--gap) + env(safe-area-inset-bottom, 0px));
+/* 署名：固定在最左，宽度封顶，别把状态挤没 */
+.sb-credit {
+  flex: none;
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 24ch;
+}
+
+.sb-credit strong {
+  flex: none;
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.sb-credit-dim {
+  color: var(--ink-3);
+}
+
+/* 定位状态：状态条上唯一会变的一格，吃剩下的全部宽度 */
+.sb-status {
+  flex: 1 1 auto;
+}
+
+.sb-legend {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.sb-legend > div {
+  display: flex;
+  align-items: center;
   gap: 4px;
 }
 
-.map-tools button {
+.sb-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.sb-tools button {
   min-width: 44px;
   min-height: var(--tap);
   padding: 0 10px;
   border: 1px solid var(--outline);
   border-radius: var(--r-sm);
-  background: var(--panel-bg);
-  backdrop-filter: blur(8px);
-  box-shadow: var(--shadow-1);
+  background: var(--surface);
   color: var(--ink-2);
   font-size: 12px;
+  touch-action: manipulation;
 }
 
-.map-tools button:hover {
+.sb-tools button:hover {
   border-color: var(--outline-strong);
   color: var(--ink);
-}
-
-/* 左下角：图例 + 比例尺，浮在图上不挤地图 */
-.map-overlay {
-  position: absolute;
-  z-index: 12;
-  left: var(--gap);
-  bottom: calc(var(--drawer-h) + var(--gap) + env(safe-area-inset-bottom, 0px));
-  display: grid;
-  gap: 6px;
-  max-width: 220px;
-  padding: 8px 10px;
-  border: 1px solid var(--outline);
-  border-radius: var(--r-md);
-  background: var(--panel-bg);
-  backdrop-filter: blur(8px);
-  box-shadow: var(--shadow-1);
 }
 
 .map-scale {
@@ -808,7 +848,7 @@ h3 {
 .webgl-fallback {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: var(--z-fallback);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -918,12 +958,14 @@ html[data-shell='1'] .wf-link {
     --drawer-h: var(--drawer-peek-height);
   }
 
-  .campus-name {
+  /* 窄屏状态条只留署名主体：校园名在窄屏本来就没地方放 */
+  .sb-credit-dim {
     display: none;
   }
 
   .searchbox {
     flex: 1 1 auto;
+    max-width: none;
   }
 
   #entity-search {
@@ -937,23 +979,26 @@ html[data-shell='1'] .wf-link {
     height: calc(var(--appbar-h) + 8px);
   }
 
-  .map-status {
-    top: calc(var(--appbar-h) + 20px);
-    right: 10px;
-    left: 10px;
-    max-width: none;
+  /* 状态条通栏塞不下图例，窄屏整块收起，只留署名 / 状态 / 比例尺 / 工具 */
+  .sb-legend {
+    display: none;
+  }
+
+  .status-bar {
+    padding: 0 10px env(safe-area-inset-bottom, 0px);
   }
 
   .sidebar {
     top: auto;
     left: 0;
     right: 0;
-    bottom: 0;
+    /* 抽屉坐在状态条上沿，别把署名 / 状态盖住 */
+    bottom: var(--status-bar-block-height);
     width: auto;
     padding: 0 8px 8px;
     border-bottom: 0;
     border-radius: var(--r-lg) var(--r-lg) 0 0;
-    transition: height 0.18s ease;
+    transition: height var(--motion-slow) var(--ease-standard);
     height: var(--drawer-h);
     box-shadow: 0 -12px 32px -20px rgba(16, 32, 38, 0.5);
   }
@@ -969,17 +1014,6 @@ html[data-shell='1'] .wf-link {
 
   .sidebar[data-drawer='full'] {
     height: 86vh;
-  }
-
-  /* 窄屏地图就那么点大，图例收起来，只留比例尺 */
-  .map-overlay .legend {
-    display: none;
-  }
-
-  .map-overlay {
-    left: 10px;
-    padding: 4px 8px;
-    max-width: none;
   }
 
   .drawer-handle {
@@ -1018,7 +1052,7 @@ html[data-shell='1'] .wf-link {
     top: calc(var(--appbar-h) + 8px + var(--gap));
     left: 8px;
     right: 8px;
-    bottom: calc(var(--drawer-h) + var(--gap) + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--drawer-h) + var(--status-bar-block-height) + var(--gap) + env(safe-area-inset-bottom, 0px));
     width: auto;
     max-height: none;
   }
@@ -1027,15 +1061,16 @@ html[data-shell='1'] .wf-link {
     display: none;
   }
 
-
-  /* 工具栏同样得让开抽屉：原来只让开 68px，半屏抽屉一拉就把它吃掉 */
-  .map-tools {
-    right: 10px;
-    bottom: calc(var(--drawer-h) + var(--tap) + 16px + env(safe-area-inset-bottom, 0px));
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    /* 减动效只改令牌，不动规则：过渡时长全部归零 */
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+  }
+
   .sidebar,
   .map-label {
     transition: none;

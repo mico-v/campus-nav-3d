@@ -130,19 +130,39 @@ describe('窄屏抽屉能拖', () => {
   })
 })
 
-describe('地图浮层：工具栏 / 图例 / 比例尺', () => {
-  it('工具栏、图例与比例尺都浮在图上', () => {
-    expect(mainTs).toContain('class="map-tools"')
-    expect(mainTs).toContain('class="map-overlay"')
-    expect(mainTs).toContain('class="map-scale-bar"')
-    expect(ruleFor('.map-tools')).toContain('position: absolute')
-    expect(ruleFor('.map-overlay')).toContain('position: absolute')
+describe('底部统一状态条（s3 收口）', () => {
+  it('署名 / 定位 / 图例 / 比例尺 / 工具都在一条状态条里', () => {
+    const footer = mainTs.slice(mainTs.indexOf('<footer class="status-bar"'), mainTs.indexOf('</footer>'))
+    expect(footer).toContain('class="sb-credit"')
+    expect(footer).toContain('id="selection-toast"')
+    expect(footer).toContain('class="sb-legend"')
+    expect(footer).toContain('class="map-scale-bar"')
+    expect(footer).toContain('class="sb-tools"')
+    // 原来四处各占一角的浮层不许回来
+    expect(mainTs).not.toContain('class="map-overlay"')
+    expect(mainTs).not.toContain('class="map-tools"')
+    expect(mainTs).not.toContain('class="map-status"')
   })
 
-  it('浮层会避开底部抽屉，别被抽屉盖住', () => {
-    expect(css).toMatch(/--drawer-h/)
-    expect(ruleFor('.map-overlay')).toContain('var(--drawer-h)')
+  it('状态条贴底通栏，高度读令牌；抽屉坐在它上沿', () => {
+    const bar = ruleFor('.status-bar')
+    expect(bar).toContain('position: absolute')
+    expect(bar).toContain('bottom: 0')
+    expect(bar).toContain('var(--status-bar-block-height)')
+    expect(bar).toContain('env(safe-area-inset-bottom')
+    // 抽屉与详情卡都不能压在状态条上
+    expect(ruleFor('.sidebar')).toContain('var(--status-bar-block-height)')
+    expect(css).toMatch(/\.sidebar \{[^}]*bottom: calc\(var\(--status-bar-block-height\)/)
     expect(mainTs).toContain('syncDrawerOffset')
+  })
+
+  it('顶栏的主人是搜索框，不是品牌', () => {
+    const search = ruleFor('.searchbox')
+    expect(search).toMatch(/flex:\s*1 1/)
+    expect(Number(/height:\s*(\d+)px/.exec(ruleFor('#entity-search'))?.[1])).toBeGreaterThanOrEqual(36)
+    // 校园名从顶栏搬进状态条署名，窄屏才有地方给搜索
+    expect(mainTs).not.toContain('class="campus-name"')
+    expect(mainTs).toContain('id="hero-title"')
   })
 })
 
