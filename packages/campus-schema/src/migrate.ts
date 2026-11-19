@@ -1,5 +1,5 @@
 /**
- * 旧 `src/data/campus.json` → `campus-pack/2` 静态数据映射。
+ * 旧单文件 `campus.json`（现为 `tests/fixtures/legacy-campus.json`）→ `campus-pack/2` 静态数据映射。
  *
  * 这里只做结构转换，不做几何补全或精度修正；`campus-pack/2` 的校验放在
  * `validateCampusPack({ ...meta, ...data })`。

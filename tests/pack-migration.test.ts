@@ -12,7 +12,7 @@ function readJson(relativePath: string): unknown {
   return JSON.parse(readFileSync(join(repoRoot, relativePath), 'utf8')) as unknown
 }
 
-const legacy = readJson('src/data/campus.json') as Record<string, unknown[]>
+const legacy = readJson('tests/fixtures/legacy-campus.json') as Record<string, unknown[]>
 const meta = readJson('packs/usts-tianping/pack.json')
 const packData = readJson('packs/usts-tianping/campus.json') as {
   zones: Array<{ polygon: number[][]; category?: string; center?: number[]; size?: number[]; color?: string }>
