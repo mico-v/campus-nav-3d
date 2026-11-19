@@ -97,6 +97,39 @@ describe('地图占主视区，面板浮在图上', () => {
   })
 })
 
+describe('窄屏抽屉能拖', () => {
+  it('手柄自己吃手势，浏览器不许抢纵向拖动', () => {
+    // pointerdown + setPointerCapture 只有拿到 touch-action: none 才不会被浏览器的
+    // 纵向滚动抢走（抢走就是 pointercancel，表现成「点了没反应、拖不动」）
+    // 窄屏那份规则在媒体查询里带缩进，正则得允许行首空白
+    const handleRules = [...css.matchAll(/(^|\n)\s*\.drawer-handle\s*\{[^}]*\}/g)].map((m) => m[0])
+    expect(handleRules.length).toBeGreaterThan(0)
+    expect(handleRules.some((rule) => /touch-action:\s*none/.test(rule))).toBe(true)
+    // 分组的 manipulation 规则里不许再出现它，否则两处声明靠顺序决胜负，迟早翻车
+    const manipulationRule = /\.icon-button,[\s\S]*?touch-action:\s*manipulation;/.exec(css)?.[0] ?? ''
+    expect(manipulationRule).not.toContain('.drawer-handle')
+  })
+
+  it('拖动期间关掉过渡，松手才吸附', () => {
+    expect(css).toMatch(/\.sidebar\.dragging\s*\{[^}]*transition:\s*none/)
+    expect(mainTs).toContain("classList.add('dragging')")
+    expect(mainTs).toContain("classList.remove('dragging')")
+  })
+
+  it('CSS 三档高度与脚本里的吸附阈值是同一套数，别各写各的', () => {
+    const cssHalf = /\.sidebar\[data-drawer='half'\]\s*\{[^}]*height:\s*([\d.]+)vh/.exec(css)?.[1]
+    const tsHalf = /half:\s*'([\d.]+)vh'/.exec(mainTs)?.[1]
+    const tsSnap = /half:\s*([\d.]+),/.exec(mainTs)?.[1]
+    expect(cssHalf).toBeTruthy()
+    expect(tsHalf).toBeTruthy()
+    expect(tsSnap).toBeTruthy()
+    expect(Number(tsHalf)).toBe(Number(cssHalf))
+    expect(Number(tsSnap) * 100).toBeCloseTo(Number(cssHalf), 5)
+    // half 档压到 1/3 屏以下，地图默认还是主视区
+    expect(Number(cssHalf)).toBeLessThanOrEqual(34)
+  })
+})
+
 describe('地图浮层：工具栏 / 图例 / 比例尺', () => {
   it('工具栏、图例与比例尺都浮在图上', () => {
     expect(mainTs).toContain('class="map-tools"')

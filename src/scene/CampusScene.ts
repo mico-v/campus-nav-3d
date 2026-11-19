@@ -583,8 +583,8 @@ export class CampusScene {
       ? new THREE.Vector3(-0.98, 0.5, 0.06)
       : new THREE.Vector3(-0.62, 0.52, 0.62)
     viewDirection.normalize()
-    const halfWidth = rawBounds.width / 2 + 70
-    const halfDepth = rawBounds.depth / 2 + 70
+    const halfWidth = rawBounds.width / 2 + (portrait ? 40 : 70)
+    const halfDepth = rawBounds.depth / 2 + (portrait ? 40 : 70)
     const maxHeight = Math.max(12, ...this.data.buildings.map((building) => building.height)) + 8
     const framingPoints: THREE.Vector3[] = []
     for (const y of [0, maxHeight]) {
@@ -597,8 +597,11 @@ export class CampusScene {
 
     // Choose the closest camera distance whose full campus projection still
     // clears the toolbar and the mobile selection toast.
-    const maxNdcX = portrait ? 0.9 : 0.86
-    const maxNdcY = portrait ? 0.72 : 0.78
+    // 窄屏下画面不必居中在整块视口里：底部 30vh 被抽屉盖住，所以下沿只准占到 -0.34，
+    // 上部留一点给 48px 顶栏。上下不对称，换成同样高度的对称留白，地图会白白小一圈。
+    const maxNdcX = portrait ? 0.94 : 0.9
+    const minNdcY = portrait ? -0.34 : -0.86
+    const maxNdcY = portrait ? 0.88 : 0.86
     const fits = (distance: number): boolean => {
       this.camera.near = 5
       this.camera.far = Math.max(5000, distance * 4)
@@ -609,7 +612,7 @@ export class CampusScene {
       this.camera.updateMatrixWorld(true)
       return framingPoints.every((point) => {
         this.tempVector.copy(point).project(this.camera)
-        return Math.abs(this.tempVector.x) <= maxNdcX && Math.abs(this.tempVector.y) <= maxNdcY && this.tempVector.z < 1
+        return Math.abs(this.tempVector.x) <= maxNdcX && this.tempVector.y >= minNdcY && this.tempVector.y <= maxNdcY && this.tempVector.z < 1
       })
     }
     let nearDistance = Math.max(40, maxDim * 0.2)
