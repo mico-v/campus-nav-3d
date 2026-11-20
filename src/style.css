@@ -141,6 +141,12 @@ h3 {
   font-size: 12px;
 }
 
+.sub-head {
+  margin: var(--space-5, 24px) 0 var(--space-2, 8px);
+  font-size: 16px;
+  color: var(--ink-1);
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
