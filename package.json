@@ -8,11 +8,11 @@
     "build": "tsc && vite build",
     "verify:ui": "node scripts/verify-ui.mjs",
     "verify:sheet": "node scripts/verify-sheet.mjs",
+    "verify:nav": "node scripts/verify-nav.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "status": "node tools/project-status.mjs",
-    "validate:pack": "node --experimental-strip-types packages/campus-cli/src/main.ts validate packs/usts-tianping",
-    "verify:ui": "node scripts/verify-ui.mjs"
+    "validate:pack": "node --experimental-strip-types packages/campus-cli/src/main.ts validate packs/usts-tianping"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

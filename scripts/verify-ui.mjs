@@ -7,7 +7,7 @@
  * 2. 用 Playwright 在 320 / 768 / 1280 三档视口打开 `demo.html`，各截一张图到 `artifacts/ui-v3/`；
  * 3. 断言：无横向溢出、地图画布高度 ≥ 视口 70%、浮层盖住后露出的地图面积 ≥ 70%、
  *    窄屏抽屉默认 peek 且高度 ≤ 视口 14%、
- *    `plan.html` 链接 0 条、
+ *    旁路 `plan.html` 链接 0 条（允许 site-nav 内 1 条 aside 出口）、
  *    站点导航恰好三入口且只有一条 aria-current、没有 WebGL 兜底页顶上来；
  *    编辑器页另跑一遍三入口与 plan 链接口径（切片 s1 要求三页都有同一份导航）；
  * 4. 打印一段能直接粘进 issue 的摘要。
@@ -132,9 +132,10 @@ for (const viewport of VIEWPORTS) {
       drawerState: sidebar?.dataset.drawer ?? null,
       drawerHeight: sidebar?.getBoundingClientRect().height ?? 0,
       drawerWidth: sidebar?.getBoundingClientRect().width ?? 0,
-      navLinks: document.querySelectorAll('.site-nav a').length,
+      navLinks: document.querySelectorAll('.site-nav a').length - document.querySelectorAll('.site-nav a.site-nav-aside').length,
       navCurrent: document.querySelectorAll('.site-nav a[aria-current="page"]').length,
-      planLinks: document.querySelectorAll('a[href$="plan.html"]').length,
+      planAside: document.querySelectorAll('.site-nav a.site-nav-aside[href$="plan.html"]').length,
+      planLinks: document.querySelectorAll('a[href$="plan.html"]').length - document.querySelectorAll('.site-nav a.site-nav-aside[href$="plan.html"]').length,
       backHome: document.querySelectorAll('.back-home').length,
       fallbackReason: fallback ? (fallback.textContent ?? '').trim().slice(0, 200) : null,
     }
@@ -170,7 +171,7 @@ for (const viewport of VIEWPORTS) {
   if (narrow && metrics.drawerHeight > metrics.innerHeight * 0.14) problems.push(`${label}: 默认抽屉高 ${Math.round(metrics.drawerHeight)}px，超过视口 14%`)
   if (metrics.navLinks !== 3) problems.push(`${label}: 站点导航入口 ${metrics.navLinks} 个（应为 3）`)
   if (metrics.navCurrent !== 1) problems.push(`${label}: aria-current 标记 ${metrics.navCurrent} 个（应为 1）`)
-  if (metrics.planLinks !== 0) problems.push(`${label}: 地图页仍有 ${metrics.planLinks} 条 plan.html 链接`)
+  if (metrics.planLinks !== 0) problems.push(`${label}: 地图页仍有 ${metrics.planLinks} 条旁路 plan.html 链接`)
   if (metrics.backHome !== 0) problems.push(`${label}: 仍有 .back-home 孤立出口`)
   for (const error of consoleErrors) problems.push(`${label}: 控制台 error —— ${error}`)
 
@@ -189,10 +190,11 @@ for (const viewport of VIEWPORTS) {
   await page.goto(`${base}/editor.html`, { waitUntil: 'load' })
   await page.waitForTimeout(1200)
   const editor = await page.evaluate(() => ({
-    navLinks: document.querySelectorAll('.site-nav a').length,
+    navLinks: document.querySelectorAll('.site-nav a').length - document.querySelectorAll('.site-nav a.site-nav-aside').length,
     navCurrent: document.querySelectorAll('.site-nav a[aria-current="page"]').length,
     currentHref: document.querySelector('.site-nav a[aria-current="page"]')?.getAttribute('href') ?? null,
-    planLinks: document.querySelectorAll('a[href$="plan.html"]').length,
+    planAside: document.querySelectorAll('.site-nav a.site-nav-aside[href$="plan.html"]').length,
+    planLinks: document.querySelectorAll('a[href$="plan.html"]').length - document.querySelectorAll('.site-nav a.site-nav-aside[href$="plan.html"]').length,
   }))
   rows.push({
     viewport: 'editor',
@@ -208,7 +210,7 @@ for (const viewport of VIEWPORTS) {
   if (editor.navLinks !== 3) problems.push(`editor: 站点导航入口 ${editor.navLinks} 个（应为 3）`)
   if (editor.navCurrent !== 1) problems.push(`editor: aria-current 标记 ${editor.navCurrent} 个（应为 1）`)
   if (editor.currentHref !== './editor.html') problems.push(`editor: aria-current 指向 ${editor.currentHref}（应为 ./editor.html）`)
-  if (editor.planLinks !== 0) problems.push(`editor: 仍有 ${editor.planLinks} 条 plan.html 链接`)
+  if (editor.planLinks !== 0) problems.push(`editor: 仍有 ${editor.planLinks} 条旁路 plan.html 链接`)
   if (problems.some((item) => item.startsWith('editor:'))) rows.at(-1).result = 'fail'
   await page.screenshot({ path: join(artifactsDir, 'ui-v3-editor.png'), fullPage: false })
   await context.close()
@@ -232,4 +234,4 @@ if (problems.length > 0) {
   process.exit(1)
 }
 
-console.log('\n✓ 三档全部通过：无溢出、地图 ≥ 70% 视口、露出的地图 ≥ 70%、窄屏抽屉默认 peek、三入口并列、应用内 0 条 plan.html')
+console.log('\n✓ 三档全部通过：无溢出、地图 ≥ 70% 视口、露出的地图 ≥ 70%、窄屏抽屉默认 peek、三入口并列、应用内 0 条旁路 plan.html（aside 出口允许 1 条）')

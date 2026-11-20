@@ -71,6 +71,10 @@ jobs:
       - name: Sheet & filter (三档抽屉 + chip 筛选实测)
         run: npm run verify:sheet
 
+      # s5：站点导航口径（index/demo/editor 三入口并列、aria-current、应用内 0 条 plan.html）
+      - name: Site nav (三页导航口径核查)
+        run: node scripts/verify-nav.mjs
+
       - name: Upload UI screenshots
         if: always()
         uses: actions/upload-artifact@v4

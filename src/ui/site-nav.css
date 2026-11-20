@@ -40,6 +40,15 @@
   outline-offset: 2px;
 }
 
+/* plan.html 是 Pages 独立页，不做三入口并列，只在导航末尾单独一格 */
+.site-nav .site-nav-aside {
+  margin-left: 4px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line, rgba(0, 0, 0, 0.12));
+  font-weight: 500;
+  opacity: 0.88;
+}
+
 /* 壳内只承载地图，不给站内入口 */
 html[data-shell='1'] .site-nav {
   display: none;
