@@ -55,3 +55,12 @@ Pull requests should include a brief description, verification commands run, and
 ## Security & Configuration Tips
 
 Keep `vite.config.ts` using relative `base: './'` unless deployment requirements change; this supports GitHub Pages project paths. Do not commit secrets or local environment files. Large generated artifacts should be justified, especially changes under `dist/`.
+
+## 开发规则（硬约束，2026-11-20 定）
+
+1. **CNB NPC 优先**：功能/UI 需求一律走 CNB issue + `work_mode` 派工给 CodeBuddy / 项目 NPC，由它拉分支、写代码、开 PR。本机只管复核、验证、记录，不抢着写。
+2. **例外要留痕**：负责人当轮直接点的修补，或 NPC 不交付且负责人点头的抢修，PR 正文必须写「为什么没走 NPC」+ issue 号。
+3. **一个邮箱**：GitHub 与 CNB 两仓同步同一份内容，提交作者统一为 `mico-v <232133607+mico-v@users.noreply.github.com>`。不出现第二个邮箱。
+4. **放行看证据**：`npx tsc --noEmit`、`npm test`、`npm run build`、`verify:*` 的输出现场跑，不看「应该没问题」。
+5. 细则见 `docs/agent/pipeline.md`（开发通道 / 提交身份 / 进度追踪 / 规划口径）。
+
