@@ -62,14 +62,14 @@ src/scene/CampusScene.ts// 场景/相机/灯光/控制器/渲染循环 + 按数�
 src/ui/panel.ts         // 侧栏/路线信息/实体列表/DOM 标签/选中提示
 src/interaction.ts      // 拾取(raycast) + 建筑聚焦
 src/data/campusData.ts  // 类型 + 加载器（瘦身）
-src/data/campus.json    // 几何数据（从死 JSON 抽出，数值不变）
+`packs/usts-tianping/`    // 几何数据（从死 JSON 抽出，数值不变）
 ```
 
 每个单元职责单一、接口清晰、可独立理解与测试。
 
 ### 数据流
 
-`campus.json` → `createDefaultCampusData()` → `CampusScene.setData()` → `builders.*` 经 `geo.ts` 生成网格 → 加入 `campusGroup`。编辑器（末期）在内存中修改 `CampusData` → 重建 → 导出 JSON。
+`packs/usts-tianping/` → `createDefaultCampusData()` → `CampusScene.setData()` → `builders.*` 经 `geo.ts` 生成网格 → 加入 `campusGroup`。编辑器（末期）在内存中修改 `CampusData` → 重建 → 导出 JSON。
 
 ## 观感设计（Apple 地图风 / 方案甲）
 
@@ -99,7 +99,7 @@ src/data/campus.json    // 几何数据（从死 JSON 抽出，数值不变）
 
 ## 实施顺序（用户指定）
 
-1. **数据重整**：抽 `campus.json`，瘦身 `campusData.ts`（数值不变）。
+1. **数据重整**：抽取包内几何数据，瘦身 `campusData.ts`（数值不变）。
 2. **坐标修复**：`geo.ts` + vitest 单测（先红后绿，根因）。
 3. **模块化 + 重建渲染**：拆分 main.ts，所有几何走 geo.ts。
 4. **观感升级**：Apple 地图风（配色/道路描边/层级/灯光/标签/UI）。
@@ -109,4 +109,4 @@ src/data/campus.json    // 几何数据（从死 JSON 抽出，数值不变）
 
 - 编辑器适配工作量较大，第 5 阶段可能需要单独的实现子计划。
 - 观感为主观目标，靠截图迭代收敛。
-- 数据重整须确保抽出的 `campus.json` 与原死 JSON **逐字节等价**（先快照对比再删除原内联数据）。
+- 数据重整须确保抽取出的包内几何数据 与原死 JSON **逐字节等价**（先快照对比再删除原内联数据）。

@@ -15,8 +15,8 @@
 ## 目标与范围
 
 - 把编辑器文件 cherry-pick 进当前 main（不引入对方旧数据/旧 3D main.ts）。
-- 数据源统一到我们的 `src/data/campus.json`。
-- 保留 dev API 后端，"保存"直接写回 `campus.json`（带备份）；线上静态部署只读不受影响。
+- 数据源统一到我们的 `packs/usts-tianping/`。
+- 保留 dev API 后端，"保存"直接写回 `packs/usts-tianping/` 包内数据文件（带备份）；线上静态部署只读不受影响。
 - 编辑范围最小整合：建筑可编 footprint 顶点（编辑器已支持），zone/water/field 编 center/size 矩形。它们新增的 `footprint?` 字段在编辑器中原样保留（深拷贝透明），暂不支持顶点编辑。
 - 修复卫星底图显示。
 
@@ -39,7 +39,7 @@
 **手工调和**：
 - `vite.config.ts`：加 `plugins: [campusApiPlugin()]` + `build.rollupOptions.input` 多页（main=index.html, editor=editor.html）；保留 `base: './'`
 - `package.json`：devDeps 加 `happy-dom`（编辑器 DOM 测试需要）
-- 数据源：编辑器 `api.ts` 后端与 `tools/campus-store.ts` 读写路径统一指向 `src/data/campus.json`（替换对方的 `campusData.json` 文件名）
+- 数据源：编辑器 `api.ts` 后端与 `tools/campus-store.ts` 读写路径统一指向 `packs/usts-tianping/`（替换对方的 `campusData.json` 文件名）
 - `.gitignore`：`.editor-backups/`（已忽略）
 
 ### 数据契约（Q3=A）
@@ -51,7 +51,7 @@
 
 ### 数据流
 
-`editor.html` → `src/editor/main.ts` → `api.loadCampus()` GET `/api/campus`（dev 后端读 `campus.json`）→ `EditorStore` 持有可变副本 → 用户编辑（canvas 拖拽 / form 表单，两向绑定，撤销/重做）→ `api.saveCampus()` POST → 后端写回 `campus.json`（备份到 `.editor-backups/`）。3D 页面（`index.html`）下次加载即见更新。后端不可用时编辑器进只读模式（`createDefaultCampusData()` 回退）。
+`editor.html` → `src/editor/main.ts` → `api.loadCampus()` GET `/api/campus`（dev 后端读 `packs/usts-tianping/`）→ `EditorStore` 持有可变副本 → 用户编辑（canvas 拖拽 / form 表单，两向绑定，撤销/重做）→ `api.saveCampus()` POST → 后端写回 `packs/usts-tianping/` 包内数据文件（备份到 `.editor-backups/`）。3D 页面（`index.html`）下次加载即见更新。后端不可用时编辑器进只读模式（`createDefaultCampusData()` 回退）。
 
 ## 卫星底图修复
 
@@ -72,7 +72,7 @@
 
 - 编辑器自带 8 测试随文件带入，须在本仓库跑通（happy-dom）。
 - 底图坐标换算 `buildWorldToGeo` / `buildMapImageSize` 加 node 单测，钉住 bbox 计算（不依赖浏览器）。
-- 数据完整性：编辑器加载→导出 与 `campus.json` 等价。
+- 数据完整性：编辑器加载→导出 与 `packs/usts-tianping/` 等价。
 - `npm run build` 多页（index + editor）均通过。
 - 浏览器验证（用户）：底图显示 + 编辑→保存→3D 查看闭环。
 

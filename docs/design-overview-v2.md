@@ -26,7 +26,7 @@
 |---|---|---|
 | 目标 | 完成一个可演示的三维导航原型 | 可复用的开源底座 + 本校运行实例 |
 | 空间范围 | 单一校区，75 栋楼，室外为主 | 多校园包并存，室外 + 室内分层 |
-| 数据 | 手写 `campus.json`，字段扁平 | JSON Schema + 导入器 + 校验器 + 版本 |
+| 数据 | 早期手写 JSON，字段扁平 | packs 唯一数据源 + JSON Schema + 导入器 + 校验器 + 版本 |
 | 室内 | 规划中 | 一等公民：楼层、单元、竖向连接、室内路网 |
 | 2D/3D | 只有 3D | 同源双渲染，状态互通 |
 | 信息 | 无 | 地点级帖子与活动，带时效与治理 |
@@ -35,7 +35,7 @@
 | 开发 | 人写代码 | agent 写代码，人审方向与验收 |
 | 验收 | 手工点一遍 | 脚本门禁 + CI 矩阵 + 截图对比 |
 
-保留不动的部分：现有的 75 建筑 / 7 分区 / 14 条道路数据、`roadNetwork` 寻路、landing 与 plan 页的排版体系、168 项测试基线、Pages 部署链路。
+保留不动的部分：`packs/usts-tianping/` 中的 75 建筑 / 7 分区 / 14 条道路数据、`roadNetwork` 寻路、landing 与 plan 页的排版体系、168 项测试基线、Pages 部署链路。
 
 ---
 
@@ -372,7 +372,7 @@ src/
     map/  info/  events/  editor/  share/
   data/           # 类型 + loader + schema 校验入口
 packs/            # 多校数据包（每个子目录一个校园）
-  usts-tianping/  campus.json  buildings/  indoor/  assets/
+  usts-tianping/  pack.json  campus-data/  indoor/  assets/
 packages/
   campus-cli/     # import / validate / bundle 三个命令
 ```

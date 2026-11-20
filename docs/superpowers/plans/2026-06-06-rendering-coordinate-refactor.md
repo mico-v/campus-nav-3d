@@ -4,7 +4,7 @@
 
 **Goal:** 修复道路被镜像翻转的渲染 bug（根因：坐标系不统一），并把 807 行 `main.ts` 重构为模块化、Apple 地图风格的干净渲染。
 
-**Architecture:** 确立唯一坐标约定（数据 `[x,z]` → 世界 `(x,Y,z)`，永不取反/镜像），所有平面与拉伸几何统一经 `src/scene/geo.ts`。数据从死 JSON 抽到 `campus.json`（数值不变）。渲染拆分为 geo / theme / builders / CampusScene / ui / interaction 模块。观感走 Apple 地图风（无投影、无雾、道路描边、分层防 z-fighting）。
+**Architecture:** 确立唯一坐标约定（数据 `[x,z]` → 世界 `(x,Y,z)`，永不取反/镜像），所有平面与拉伸几何统一经 `src/scene/geo.ts`。数据从死 JSON 抽到包内几何数据（数值不变）。渲染拆分为 geo / theme / builders / CampusScene / ui / interaction 模块。观感走 Apple 地图风（无投影、无雾、道路描边、分层防 z-fighting）。
 
 **Tech Stack:** Vite 8 + TypeScript 6 + Three.js 0.183；新增 Vitest 做坐标纯函数回归测试。
 
@@ -19,7 +19,7 @@
 ```
 vitest.config.ts          // 新增：vitest 配置（node 环境）
 tests/geo.test.ts         // 新增：坐标纯函数回归测试（钉死 bug）
-tests/data.test.ts        // 新增：campus.json 与原数据等价校验
+tests/data.test.ts        // 新增：包内数据与原数据等价校验
 src/scene/geo.ts          // 新增：唯一坐标/形状映射（根因修复所在）
 src/scene/theme.ts        // 新增：Apple 地图风配色 + Y 层级常量
 src/scene/builders.ts     // 新增：各实体 → 网格（从 main.ts 迁移并改走 geo）
@@ -27,8 +27,8 @@ src/scene/CampusScene.ts  // 新增：场景/相机/灯光/控制器/循环 + �
 src/ui/panel.ts           // 新增：侧栏/路线/实体列表/DOM 标签/选中提示
 src/interaction.ts        // 新增：拾取(raycast) + 建筑聚焦
 src/main.ts               // 改薄：组装模块、启动
-src/data/campusData.ts    // 改薄：类型 + 从 campus.json 加载
-src/data/campus.json      // 新增：几何数据（从死 JSON 抽出，数值不变）
+src/data/campusData.ts    // 改薄：类型 + 从 packs/usts-tianping/ 包内加载
+packs/usts-tianping/       // 新增：几何数据（从死 JSON 抽出，数值不变）
 tsconfig.json             // 改：resolveJsonModule
 package.json              // 改：vitest 依赖 + test 脚本
 ```
@@ -87,10 +87,10 @@ git commit -m "chore: add vitest for coordinate regression tests"
 
 ## Phase 1 — 数据重整（数值不变）
 
-### Task 2: 把死 JSON 抽到 campus.json
+### Task 2: 把死 JSON 抽到包内几何数据
 
 **Files:**
-- Create: `src/data/campus.json`
+- Create: `packs/usts-tianping/` 包内数据文件
 - Modify: `src/data/campusData.ts`
 - Modify: `tsconfig.json`
 - Create: `tests/data.test.ts`
@@ -112,9 +112,9 @@ function extractInlineBase(): unknown {
   return JSON.parse(src.slice(start, end).trim())
 }
 
-describe('campus.json 等价性', () => {
-  it('campus.json 与原内联数据逐字段相等', async () => {
-    const json = (await import('../src/data/campus.json', { with: { type: 'json' } })).default
+describe('包内数据等价性', () => {
+  it('包内数据与原内联数据逐字段相等', async () => {
+    const json = (await import('../`packs/usts-tianping/`', { with: { type: 'json' } })).default
     const inline = extractInlineBase()
     // 重构完成后 inline 为 null，仅校验 json 非空且键齐全
     if (inline === null) {
@@ -129,9 +129,9 @@ describe('campus.json 等价性', () => {
 - [ ] **Step 2: 运行测试确认失败**
 
 Run: `npx vitest run tests/data.test.ts`
-Expected: FAIL —— `campus.json` 尚不存在，import 报错。
+Expected: FAIL —— 包内数据文件尚不存在，import 报错。
 
-- [ ] **Step 3: 生成 campus.json（数值不变）**
+- [ ] **Step 3: 生成包内几何数据（数值不变）**
 
 Run（用脚本从当前内联数据精确抽取，避免手抄）:
 
@@ -142,7 +142,7 @@ const s=fs.readFileSync("src/data/campusData.ts","utf8");
 const a=s.indexOf("{",s.indexOf("const baseCampusData"));
 const b=s.indexOf("\nexport function cloneCampusData");
 const d=JSON.parse(s.slice(a,b).trim());
-fs.writeFileSync("src/data/campus.json", JSON.stringify(d,null,2)+"\n");
+fs.writeFileSync("packs/usts-tianping/campus-data.json", JSON.stringify(d,null,2)+"\n");
 console.log("written buildings=",d.buildings.length,"roads=",d.roads.length);
 '
 ```
@@ -168,7 +168,7 @@ Expected: PASS（`json` deep-equals 内联）。
 2. 在文件顶部（类型定义之前或之后均可，需在使用前）加入：
 
 ```ts
-import campusJson from './campus.json'
+import campusJson from '../../packs/usts-tianping/campus-data'
 ```
 3. 用下面这行替代被删除的字面量声明：
 
@@ -186,8 +186,8 @@ Expected: 测试 PASS（内联已删，走 json 分支，键齐全）；`tsc` �
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/data/campus.json src/data/campusData.ts tsconfig.json tests/data.test.ts
-git commit -m "refactor(data): extract baked map data to campus.json (values unchanged)"
+git add `packs/usts-tianping/` src/data/campusData.ts tsconfig.json tests/data.test.ts
+git commit -m "refactor(data): extract baked map data to campus pack (values unchanged)"
 ```
 
 ---
@@ -1308,7 +1308,7 @@ git commit -m "chore: drop incomplete .editor-backups snapshots"
 
 - [ ] **Step 4: 更新 README 功能描述（移除已删的编辑器/旧 UI 描述，补充模块结构）**
 
-将 `README.md` 中"后续手工编辑入口"等过时段落更新为当前结构（`src/scene/*` 模块、`src/data/campus.json` 数据源、编辑器为后续计划）。
+将 `README.md` 中"后续手工编辑入口"等过时段落更新为当前结构（`src/scene/*` 模块、`packs/usts-tianping/` 数据源、编辑器为后续计划）。
 
 ```bash
 git add README.md
