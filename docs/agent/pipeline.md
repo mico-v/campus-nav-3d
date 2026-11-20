@@ -35,12 +35,40 @@
 - 不夹带格式化、不改无关文件；确实需要顺手修就单开一个 `chore` PR。
 - 审查只回答三件事：对不对、越没越界、测够没测够。
 
-## 开发通道（2026-11-18 定）
+## 开发通道（2026-11-18 定，2026-11-20 修订：CNB NPC 优先）
 
-- 需求先落 **cnb.cool issue**（模板与门禁标签齐了才开工），在 issue 里 `work_mode: true` 并 @CodeBuddy 或项目 NPC，让它写代码、推分支、开 PR。
-- GitHub 侧只承担 PR 评审与 Pages 部署；分支与代码从 CNB 同步过来后合入 `main`。
-- 重活不占本机：web 侧构建与全量测试走 CNB 云原生构建/开发环境，Android 构建走 GitHub Actions。
-- 项目管家负责确认与统筹：维护切片索引、判门禁色、核对验收命令、在 PR 上给「可合 / 不行」结论，并把长任务进度随时报给负责人。
+**第一原则：功能开发一律先由 CNB NPC 编排完成，本机不抢着写。**
+
+派工流程（照做，顺序不能反）：
+
+1. 先 `cnb` 上查有没有现成切片，别重复开。
+2. 写 issue，四段齐：目标 / 范围（可改目录 + 明确不动什么）/ 验收（可粘贴命令与期望）/ 风险（回滚与依赖）。
+3. 在 issue 里 `work_mode: true` 并 @CodeBuddy 或项目 NPC 派工，评论写清五条：分支名、改动目录白名单、自测命令、PR 标题前缀、越界处理（越界直接丢弃，不辩论）。
+4. GitHub 侧只承担 PR 复核与 Pages 部署；分支与代码从 CNB 同步过来后合入 `main`。
+5. 重活不占本机：web 侧构建与全量测试走 CNB 云原生构建/开发环境，Android 构建走 GitHub Actions。
+
+本机（项目管家）只做四件事：
+
+- 统筹与确认：维护切片索引、判门禁色、核对验收命令、在 PR 上给「可合 / 不行」结论。
+- 本机验证：`npx tsc --noEmit`、`npm test`、`npm run build` 与 `verify:*` 脚本，作为放行前的独立复核。
+- 记录：进度、决策、风险回写台账（`docs/agent/memory.md`）。
+- 例外才自己动手：负责人当轮直接点的修补，或 NPC 迟迟不交付而负责人点头的抢修。例外必须在 PR 正文里写明「为什么没走 NPC」+ issue 号，否则视为违规。
+
+## 提交身份（2026-11-20 定）
+
+两个仓库（GitHub `mico-v/campus-nav-3d` 与 CNB `mico-v/campus-nav-3d`）**同步同一份内容**，提交身份只用一套：
+
+- 统一作者：`mico-v <232133607+mico-v@users.noreply.github.com>`
+- 不许出现第二个邮箱（含 `kei-bot@users.noreply.github.com`、任何个人邮箱、任何 CI 机器人私有地址）。
+- 发送前自检：
+
+```bash
+git config user.email   # 期望 232133607+mico-v@users.noreply.github.com
+git log -1 --format='%ae %ce'  # 期望两个都是上面那个
+```
+
+- 已经进历史的旧提交不改写，新提交一律守这条；`git merge` 产生的 merge commit 由合并人身份决定，手动合并前先确认本机 `user.email` 已切好。
+- CNB 侧同样用这一个邮箱，不另设。
 
 ## 进度追踪（2026-11-18 定）
 
