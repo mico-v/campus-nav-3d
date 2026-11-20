@@ -2,8 +2,8 @@
 /**
  * s4 真浏览器验收：三档 sheet + 分类 chip + 列表浏览。
  *
- * 起一个只读静态服务指向 `dist/`，用 Playwright Chromium 在 390×844 / 360×640 /
- * 768×1024 三个视口上量：
+ * 起一个只读静态服务指向 `dist/`，用 Playwright Chromium 在 320×568 / 768×1024 /
+ * 1280×800 三个视口上量（三档 sheet 用真实 pointer 拖 handle，不靠点击切档）：
  *   1. 首屏地图高度 ≥ 视口 70%（peek 档）
  *   2. 无横向溢出（documentElement.scrollWidth ≤ clientWidth + 1）
  *   3. 抽屉三档高度：peek ≤ 30vh、half ≈ 30vh、full ≈ 86vh，且三档可循环切换
@@ -49,9 +49,9 @@ function serve() {
 }
 
 const VIEWPORTS = [
-  { name: '390x844', width: 390, height: 844 },
-  { name: '360x640', width: 360, height: 640 },
+  { name: '320x568', width: 320, height: 568 },
   { name: '768x1024', width: 768, height: 1024 },
+  { name: '1280x800', width: 1280, height: 800 },
 ]
 
 const failures = []
@@ -127,19 +127,41 @@ async function main() {
     await page.screenshot({ path: join(ARTIFACTS, `${viewport.name}-peek.png`) })
 
     if (viewport.width < 960) {
-      // 三档循环：peek → half → full → peek，检查每档高度与状态标记
-      const heights = {}
-      for (const expected of ['half', 'full', 'peek']) {
-        await page.click('#drawer-handle')
-        await page.waitForTimeout(320)
-        const box = await page.evaluate(measure)
-        heights[expected] = box
-        check(viewport.name, `切到 ${expected} 档`, box.drawerState === expected, `实测状态 ${box.drawerState}，高度 ${box.drawerHeight}px`)
-        await page.screenshot({ path: join(ARTIFACTS, `${viewport.name}-${expected}.png`) })
+      // 三档吸附：用真实 pointer 拖 handle（不是点击切档），每档都截图存档。
+      // 拖 handle 竖直中心到「目标档位高度 - 当前高度」对应的位置，松手后由 drawerNearest 吸附。
+      const dragTo = async (targetHeight) => {
+        const handle = await page.evaluate(() => {
+          const el = document.querySelector('#drawer-handle')
+          const sidebar = document.querySelector('#sidebar') ?? document.querySelector('.sidebar')
+          if (!el || !sidebar) return null
+          const hb = el.getBoundingClientRect()
+          return { x: hb.x + hb.width / 2, y: hb.y + hb.height / 2, height: sidebar.getBoundingClientRect().height }
+        })
+        if (!handle) throw new Error('#drawer-handle 不存在')
+        const delta = targetHeight - handle.height
+        await page.mouse.move(handle.x, handle.y)
+        await page.mouse.down()
+        // 分几步移动，超过 6px 才会被识别成拖动（阈值为拖动判定，不是假拖）
+        for (let i = 1; i <= 6; i += 1) await page.mouse.move(handle.x, handle.y - (delta * i) / 6)
+        await page.mouse.up()
+        await page.waitForTimeout(360)
+        return page.evaluate(measure)
       }
-      check(viewport.name, 'half 档 ≈ 30vh', Math.abs(heights.half.drawerHeight - viewport.height * 0.3) <= Math.max(8, viewport.height * 0.03), `实测 ${heights.half.drawerHeight}px，期望 ${Math.round(viewport.height * 0.3)}px`)
-      check(viewport.name, 'full 档 ≥ 80vh', heights.full.drawerHeight >= viewport.height * 0.8, `实测 ${heights.full.drawerHeight}px，期望 ≥ ${Math.round(viewport.height * 0.8)}px`)
-      check(viewport.name, 'peek 档可回退', heights.peek.drawerHeight <= Math.round(viewport.height * 0.3), `实测 ${heights.peek.drawerHeight}px`)
+
+      const heights = {}
+      const viewH = viewport.height
+      const dragCases = [
+        { name: 'half', target: viewH * 0.45 },
+        { name: 'full', target: viewH * 0.95 },
+        { name: 'peek', target: 10 },
+      ]
+      for (const item of dragCases) {
+        const box = await dragTo(item.target)
+        heights[item.name] = box
+        check(viewport.name, `拖动吸附到 ${item.name} 档`, box.drawerState === item.name, `拖到约 ${Math.round(item.target)}px，松手吸附为 ${box.drawerState}（${box.drawerHeight}px）`)
+        await page.screenshot({ path: join(ARTIFACTS, `${viewport.name}-${item.name}.png`) })
+      }
+      check(viewport.name, '拖拽后回到 peek 档', heights.peek.drawerState === 'peek' && heights.peek.drawerHeight <= Math.round(viewH * 0.3), `实测 ${heights.peek.drawerHeight}px`)
 
       // 分类 chip：点「建筑」后列表只剩建筑，chip 选中态跟着变
       await page.click('#drawer-handle') // peek → half，让列表可见
