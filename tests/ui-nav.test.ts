@@ -6,7 +6,7 @@
  * 1. 三入口并列：项目首页 / 3D 地图 / 地图编辑器，同一个 `site-nav` 里显示，当前页带 aria-current；
  * 2. 应用内（demo / editor）不出现 `plan.html` —— 计划书只作为 Pages 独立页存在；
  * 3. 地图页不再有「← 项目首页」这种孤立出口，也不挂站点页脚；
- * 4. 站点首页仍能到达 `plan.html`，且站点导航真的被三个页面用上了（不是写了没接）。
+ * 4. `plan.html` 只在站点导航末尾挂一格 `site-nav-aside` 出口，站点首页另有入口，且站点导航真的被三个页面用上了（不是写了没接）。
  *
  * 注意：只扫 `index.html` / `demo.html` / `editor.html` 与 `src/`（不含 tests、docs），
  * 免得断言去匹配到测试文件自身而变成假绿。
@@ -54,6 +54,8 @@ function sourceFiles(dir = 'src'): string[] {
 }
 
 const SITE_PAGES = ['./index.html', './demo.html', './editor.html']
+/** plan.html 在源码里唯一允许出现的位置：站点导航的 aside 出口 */
+const SITE_NAV_ASIDE_SOURCE = 'src/ui/site-nav.ts'
 
 describe('三入口并列', () => {
   it('入口表就是 index / demo / editor 三个，顺序和标签固定', () => {
@@ -70,6 +72,10 @@ describe('三入口并列', () => {
       for (const href of SITE_PAGES) expect(html, key).toContain(`href="${href}"`)
       expect(count(html, 'aria-current="page"'), key).toBe(1)
       expect(html, key).toContain(`href="./${key}.html" aria-current="page"`)
+      // 并列入口仍只有三个；plan.html 只以 aside 身份出现一次，且不带 aria-current
+      expect(count(html, 'class="site-nav-aside"'), key).toBe(1)
+      expect(html, key).toContain('<a href="./plan.html" class="site-nav-aside">')
+      expect(/class="site-nav-aside"[^>]*aria-current/.test(html), key).toBe(false)
     }
   })
 
@@ -87,16 +93,22 @@ describe('三入口并列', () => {
 })
 
 describe('计划书只在 Pages 上独立可达', () => {
-  it('地图页与编辑器页 0 条 plan.html 链接', () => {
+  it('地图页与编辑器页的静态 HTML 里 0 条 plan.html 链接', () => {
     expect(count(demoHtml, 'plan.html')).toBe(0)
     expect(count(editorHtml, 'plan.html')).toBe(0)
   })
 
-  it('应用源码（src/，含地图页与编辑器）里没有 plan.html 引用', () => {
+  it('应用源码里的 plan.html 引用只允许站点导航那一格 aside 出口', () => {
     const offenders = sourceFiles()
       .filter((rel) => PLAN_LINK_RE.test(stripComments(read(rel))))
       .map((rel) => relative(repoRoot, join(repoRoot, rel)))
+      .filter((rel) => rel !== SITE_NAV_ASIDE_SOURCE)
     expect(offenders).toEqual([])
+
+    // 唯一允许的那处必须是 aside、且只出现一次
+    const navSource = stripComments(read(SITE_NAV_ASIDE_SOURCE))
+    expect(count(navSource, 'plan.html')).toBe(1)
+    expect(navSource).toContain('<a href="./plan.html" class="site-nav-aside">计划报告</a>')
   })
 
   it('守卫本身不是假绿：真正的引用会被抓到', () => {

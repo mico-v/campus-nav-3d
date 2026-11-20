@@ -161,6 +161,7 @@ async function main() {
         check(viewport.name, `拖动吸附到 ${item.name} 档`, box.drawerState === item.name, `拖到约 ${Math.round(item.target)}px，松手吸附为 ${box.drawerState}（${box.drawerHeight}px）`)
         await page.screenshot({ path: join(ARTIFACTS, `${viewport.name}-${item.name}.png`) })
       }
+      check(viewport.name, '真拖 handle 生效', Boolean(heights.full) && heights.full.drawerHeight > heights.peek.drawerHeight + 40, `peek ${heights.peek.drawerHeight}px → full ${heights.full?.drawerHeight}px（pointer down/move/up 实测）`)
       check(viewport.name, '拖拽后回到 peek 档', heights.peek.drawerState === 'peek' && heights.peek.drawerHeight <= Math.round(viewH * 0.3), `实测 ${heights.peek.drawerHeight}px`)
 
       // 分类 chip：点「建筑」后列表只剩建筑，chip 选中态跟着变
