@@ -442,6 +442,33 @@ h3 {
   accent-color: var(--primary);
 }
 
+/* s4：分类筛选 chip 栏，横向可滚，窄屏不换行挤掉列表。 */
+.filter-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0 8px;
+  scrollbar-width: none;
+}
+.filter-chips::-webkit-scrollbar { display: none; }
+
+.filter-chips .chip {
+  flex: 0 0 auto;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--outline);
+  background: var(--surface-1);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.filter-chips .chip.active {
+  border-color: var(--primary);
+  color: var(--on-primary);
+  background: var(--primary);
+}
+
 .entity-list {
   display: grid;
   gap: 2px;
