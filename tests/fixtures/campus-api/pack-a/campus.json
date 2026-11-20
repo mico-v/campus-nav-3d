@@ -1,0 +1,21 @@
+{
+  "zones": [
+    {
+      "id": "zone-a",
+      "name": "Zone A",
+      "category": "academic",
+      "center": [20, 20],
+      "size": [40, 40],
+      "color": "#111111",
+      "footprint": [[0, 0], [40, 0], [40, 40], [0, 40]]
+    }
+  ],
+  "buildings": [
+    { "id": "b-a", "name": "Building A", "category": "academic", "position": [10, 10], "size": [10, 10], "height": 10, "zoneId": "zone-a" }
+  ],
+  "roads": [],
+  "waters": [],
+  "fields": [],
+  "trees": [],
+  "pois": []
+}
