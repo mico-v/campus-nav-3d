@@ -54,21 +54,37 @@
 - 记录：进度、决策、风险回写台账（`docs/agent/memory.md`）。
 - 例外才自己动手：负责人当轮直接点的修补，或 NPC 迟迟不交付而负责人点头的抢修。例外必须在 PR 正文里写明「为什么没走 NPC」+ issue 号，否则视为违规。
 
-## 提交身份（2026-11-20 定）
+## 提交身份（2026-11-20 定，同日修订：两个平台各用自家 noreply）
 
-两个仓库（GitHub `mico-v/campus-nav-3d` 与 CNB `mico-v/campus-nav-3d`）**同步同一份内容**，提交身份只用一套：
+两个仓库 **同步同一份内容**：GitHub `mico-v/campus-nav-3d`（远程 `origin`）与 CNB `mico-v/campus-nav-3d`（远程 `cnb2`）。
+平台各有自己的提交身份，**只认这两个地址，不许出现第三个**：
 
-- 统一作者：`mico-v <232133607+mico-v@users.noreply.github.com>`
-- 不许出现第二个邮箱（含 `kei-bot@users.noreply.github.com`、任何个人邮箱、任何 CI 机器人私有地址）。
+| 平台 | 提交作者 |
+| --- | --- |
+| GitHub | `mico-v <232133607+mico-v@users.noreply.github.com>` |
+| CNB | `mico-v <300VF8hf4PTB0jXk8GkciD+cnb.mico-v@noreply.cnb.cool>` |
+
+规矩：
+
+- 在本机往 `origin` 提交，用 GitHub 那套（本仓库 `git config user.email` 就设它）。
+- 往 CNB 提交时按下面命令临时带上，**不要改全局配置**：
+
+```bash
+git -c user.name='mico-v' \
+    -c user.email='300VF8hf4PTB0jXk8GkciD+cnb.mico-v@noreply.cnb.cool' commit -m '...'
+```
+
+- 派出 NPC 干活时，在派工评论里写明 CNB 侧提交作者用上面那个地址。
+- 严禁：个人邮箱、`kei-bot@users.noreply.github.com`、任何自建机器人地址。
 - 发送前自检：
 
 ```bash
-git config user.email   # 期望 232133607+mico-v@users.noreply.github.com
-git log -1 --format='%ae %ce'  # 期望两个都是上面那个
+git config user.email                       # GitHub 侧：232133607+mico-v@users.noreply.github.com
+git log -1 --format='%ae %ce'               # 与即将推送的平台一致
 ```
 
-- 已经进历史的旧提交不改写，新提交一律守这条；`git merge` 产生的 merge commit 由合并人身份决定，手动合并前先确认本机 `user.email` 已切好。
-- CNB 侧同样用这一个邮箱，不另设。
+- 历史提交里的旧邮箱不改写；`git merge` 产生的 merge commit 由合并人身份决定，合并前先确认身份已切好。
+- GitHub squash 合并时 committer 会被服务端替换成 `GitHub <noreply@github.com>`，这是平台行为，不算违规；作者仍是上表地址。
 
 ## 进度追踪（2026-11-18 定）
 
