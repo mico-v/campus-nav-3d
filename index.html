@@ -312,7 +312,7 @@
             <div class="layer-label"><strong>数据层</strong><span>data</span></div>
             <div class="layer-body">
               <p>室外几何来自 OpenStreetMap 与开源校园路网工程，室内楼层由自研编辑器维护，两者统一为可版本化的 JSON；课程与活动通过只读接口接入，不落地个人数据。</p>
-              <div class="chips"><span class="chip">campus.json</span><span class="chip">楼层 JSON</span><span class="chip">GeoJSON</span><span class="chip">只读 API</span></div>
+              <div class="chips"><span class="chip">packs 包数据</span><span class="chip">楼层 JSON</span><span class="chip">GeoJSON</span><span class="chip">只读 API</span></div>
             </div>
           </div>
           <div class="layer">
@@ -386,11 +386,11 @@
  <span class="ok">✓</span> three-vendor  147 kB gzip
 
 <span class="k">$</span> jq '.buildings | length' \
-    packs/usts-tianping/campus.json
+    packs/usts-tianping/ 包内数据
  <span class="ok">75</span>
 
 <span class="k">$</span> jq '.roads | length' \
-    packs/usts-tianping/campus.json
+    packs/usts-tianping/ 包内数据
  <span class="ok">14</span>   <span class="muted">→ 42 segments</span></pre>
           </div>
         </div>
