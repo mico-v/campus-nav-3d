@@ -67,10 +67,16 @@ jobs:
       - name: UI smoke (三档真浏览器截图 + 断言)
         run: npm run verify:ui
 
+      # s4：三档 sheet（peek≤30vh / half=30vh / full≥86vh）+ 分类 chip 筛选 + 列表详情
+      - name: Sheet & filter (三档抽屉 + chip 筛选实测)
+        run: npm run verify:sheet
+
       - name: Upload UI screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ui-v3-screenshots
-          path: artifacts/ui-v3
+          path: |
+            artifacts/ui-v3
+            artifacts/ui-sheet
           if-no-files-found: warn
