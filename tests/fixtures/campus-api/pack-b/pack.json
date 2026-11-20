@@ -1,0 +1,10 @@
+{
+  "schema": "campus-pack/2",
+  "id": "pack-b",
+  "name": "Pack B",
+  "crs": "local-meters",
+  "origin": { "lat": 31.2822, "lng": 120.5564, "rotation": 0 },
+  "bounds": { "min": [200, 200], "max": [280, 260] },
+  "units": "meter",
+  "license": "CC-BY-SA-4.0"
+}

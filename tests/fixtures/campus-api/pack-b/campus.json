@@ -1,0 +1,21 @@
+{
+  "zones": [
+    {
+      "id": "zone-b",
+      "name": "Zone B",
+      "category": "service",
+      "center": [240, 230],
+      "size": [60, 40],
+      "color": "#222222",
+      "footprint": [[210, 210], [270, 210], [270, 250], [210, 250]]
+    }
+  ],
+  "buildings": [
+    { "id": "b-b", "name": "Building B", "category": "service", "position": [230, 225], "size": [12, 12], "height": 14, "zoneId": "zone-b" }
+  ],
+  "roads": [],
+  "waters": [],
+  "fields": [],
+  "trees": [],
+  "pois": []
+}
