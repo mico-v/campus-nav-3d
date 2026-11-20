@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 把 `feat/map-editor` 的独立 2D 地图编辑器 cherry-pick 进当前 main，统一数据源到 `campus.json`，并修复卫星底图不显示的问题。
+**Goal:** 把 `feat/map-editor` 的独立 2D 地图编辑器 cherry-pick 进当前 main，统一数据源到 `packs/usts-tianping/`，并修复卫星底图不显示的问题。
 
-**Architecture:** 编辑器是自包含的 `src/editor/*` 模块 + dev-server API 后端，仅通过 `CampusData` 类型与 3D 渲染器耦合。整合 = 复制文件 + 调和 vite/package 配置 + 把后端数据路径指向 `campus.json`。底图修复 = 让 SVG 不透明 ground 矩形在底图启用时透明（消除遮挡）。
+**Architecture:** 编辑器是自包含的 `src/editor/*` 模块 + dev-server API 后端，仅通过 `CampusData` 类型与 3D 渲染器耦合。整合 = 复制文件 + 调和 vite/package 配置 + 把后端数据路径指向 `packs/usts-tianping/`。底图修复 = 让 SVG 不透明 ground 矩形在底图启用时透明（消除遮挡）。
 
 **Tech Stack:** Vite 8 多页构建 + TypeScript + Vitest（+ happy-dom 用于编辑器 DOM 测试）。
 
@@ -14,7 +14,7 @@
 - 编辑器 `src/editor/*` 不依赖任何已删除的坐标 hack（0 命中）。
 - 后端 `validateCampusData` 只校验必填字段，**不拒绝额外字段** → `footprint` 自动放行。
 - 客户端 `api.ts` 与后端均用 **PUT** `/api/campus`。
-- 我们的 `campus.json` 有 `name`(string) 和 `bounds.{width,depth}`(number) → 通过后端校验。
+- 包内几何数据有 `name`(string) 和 `bounds.{width,depth}`(number) → 通过后端校验。
 - DOM 测试用 per-file `// @vitest-environment happy-dom`；其余用全局 node 环境 → 与现配置兼容。
 - 底图遮挡根因：SVG `ground` 层画不透明深色矩形 `fill:'#0c1a2e'`，DOM 中排在 `<img>` 之后，盖住底图。
 - ArcGIS `export` 端点实测 HTTP 200 返回真实 PNG；bbox 经纬跨度 ~1.23km（合理）。问题在显示层，非端点/数据。
@@ -35,7 +35,7 @@ src/editor/api.ts                    # 新增：/api/campus 客户端
 src/editor/types.ts                  # 新增：LayerFlags 等
 src/editor/editor.css                # 新增：编辑器样式
 src/editor/*.test.ts                 # 新增：8 个编辑器测试
-vite-plugin-campus-api.ts            # 新增：dev API 中间件（DATA_PATH 改 campus.json）
+vite-plugin-campus-api.ts            # 新增：dev API 中间件（DATA_PATH 指向 packs/usts-tianping）
 tools/campus-store.ts                # 新增：后端读写/校验
 tools/campus-store.test.ts           # 新增：后端测试
 tests/backdrop-geo.test.ts           # 新增：底图坐标换算单测
@@ -72,7 +72,7 @@ Expected: 这些路径出现在工作区（`git status` 显示 new files）。`s
 Run: `ls src/editor/ && ls tools/ && test -f editor.html && echo OK`
 Expected: 列出 canvas2d/store/form/geometry/projection/api/types/main/editor.css + 各 test；`tools/campus-store.ts`；`editor.html` 存在。
 
-- [ ] **Step 3: 把后端数据路径从 campusData.json 改为 campus.json**
+- [ ] **Step 3: 把后端数据路径从旧 JSON 改为 packs/usts-tianping**
 
 在 `vite-plugin-campus-api.ts` 中，将：
 ```ts
@@ -80,19 +80,19 @@ const DATA_PATH = resolve(process.cwd(), 'src/data/campusData.json')
 ```
 改为：
 ```ts
-const DATA_PATH = resolve(process.cwd(), 'src/data/campus.json')
+const DATA_PATH = resolve(process.cwd(), 'packs/usts-tianping')
 ```
 
 - [ ] **Step 4: 确认编辑器不引用对方旧数据文件**
 
 Run: `grep -rn "campusData.json" src/editor tools vite-plugin-campus-api.ts || echo "无残留引用"`
-Expected: `无残留引用`（若有命中，把该引用也改成 `campus.json`，仅限路径字符串）。
+Expected: `无残留引用`（若有命中，把该引用也改成 `packs/usts-tianping/`，仅限路径字符串）。
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/editor editor.html vite-plugin-campus-api.ts tools/campus-store.ts tools/campus-store.test.ts
-git commit -m "feat(editor): cherry-pick 2D map editor; point backend at campus.json"
+git commit -m "feat(editor): cherry-pick 2D map editor; point backend at packs/usts-tianping"
 ```
 
 ### Task 2: 配置多页构建、API 插件、测试环境
@@ -161,7 +161,7 @@ git add vite.config.ts vitest.config.ts package.json package-lock.json
 git commit -m "build: multipage (index+editor) + campus-api plugin + happy-dom test env"
 ```
 
-### Task 3: 验证数据契约（编辑器 ↔ campus.json，footprint 保留）
+### Task 3: 验证数据契约（编辑器 ↔ packs/usts-tianping，footprint 保留）
 
 **Files:**
 - Create: `tools/campus-store.footprint.test.ts`
@@ -192,7 +192,7 @@ describe('campus-store 保留 footprint 字段', () => {
 
     const dir = await mkdtemp(join(tmpdir(), 'campus-fp-'))
     try {
-      const dataPath = join(dir, 'campus.json')
+      const dataPath = join(dir, 'campus-data.json')
       const backupDir = join(dir, 'backups')
       await saveCampusData(dataPath, backupDir, data, '2026-06-07T00:00:00.000Z')
       const written = JSON.parse(await readFile(dataPath, 'utf8'))
@@ -411,7 +411,7 @@ Expected: 编辑器加载，顶栏/画布/表单可见；非只读模式（无"�
 
 - [ ] **Step 3: 验证编辑→保存→3D 闭环**
 
-在编辑器中拖动一条道路的某个点 → 点"保存" → 应提示成功（写回 `src/data/campus.json`，并在 `.editor-backups/` 生成备份）。打开 `http://localhost:5173/`（3D 页）刷新 → 该道路位置应已更新。
+在编辑器中拖动一条道路的某个点 → 点"保存" → 应提示成功（写回 `packs/usts-tianping/` 包内数据文件，并在 `.editor-backups/` 生成备份）。打开 `http://localhost:5173/`（3D 页）刷新 → 该道路位置应已更新。
 
 - [ ] **Step 4: 记录验证结果**
 
@@ -421,7 +421,7 @@ Expected: 编辑器加载，顶栏/画布/表单可见；非只读模式（无"�
 
 ## Self-Review 结论
 
-- **Spec 覆盖**：cherry-pick(Task1) / 多页+插件+happy-dom(Task2) / 数据契约+footprint(Task3) / 底图遮挡修复(Task4) / 坐标换算测试(Task5) / 浏览器验证(Task6) 均有对应任务。数据源统一到 campus.json：Task1 Step3 + Task3。
+- **Spec 覆盖**：cherry-pick(Task1) / 多页+插件+happy-dom(Task2) / 数据契约+footprint(Task3) / 底图遮挡修复(Task4) / 坐标换算测试(Task5) / 浏览器验证(Task6) 均有对应任务。数据源统一到 packs/usts-tianping：Task1 Step3 + Task3。
 - **验证约束**：底图最终显示由 Task6 用户浏览器验证（spec 已声明此约束）。
-- **类型/契约一致**：DATA_PATH→campus.json、PUT 端点、validateCampusData 放行 footprint（已核实不拒额外字段）、happy-dom per-file 环境——均与已核实事实一致。
+- **类型/契约一致**：DATA_PATH→packs/usts-tianping、PUT 端点、validateCampusData 放行 footprint（已核实不拒额外字段）、happy-dom per-file 环境——均与已核实事实一致。
 - **无占位符**：每步含真实命令/代码。文件复制用 `git checkout feat/map-editor -- <paths>` 取精确内容，避免手抄。
