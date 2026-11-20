@@ -4,7 +4,7 @@ import { createDefaultCampusData } from './data/campusData'
 import { CampusScene } from './scene/CampusScene'
 import { ViewState, type LayerKey } from './core/view/state'
 import { pickEntity, type PickedEntity } from './interaction'
-import { renderEntityList, renderDetails, searchEntities, updateSelectionToast, escapeHtml } from './ui/panel'
+import { renderEntityList, renderDetails, renderFilterChips, searchEntities, updateSelectionToast, escapeHtml, type EntityFilter } from './ui/panel'
 import { chooseScaleBar, metersPerPixel } from './ui/scale'
 import { mountWebglFallback, probeWebgl } from './ui/webgl-fallback'
 import { siteNavHtml } from './ui/site-nav'
@@ -46,6 +46,7 @@ app.innerHTML = `
     </section>
     <section class="card">
       <div class="section-head"><h2>对象列表</h2><span class="muted">建筑 / 地标</span></div>
+      <div id="entity-filters" class="filter-chips" role="group" aria-label="按分类筛选对象"></div>
       <div id="entity-list" class="entity-list"></div>
     </section>
   </aside>
@@ -71,7 +72,7 @@ const scaleBarEl = document.querySelector<HTMLElement>('#map-scale-bar')
 const scaleLabelEl = document.querySelector<HTMLElement>('#map-scale-label')
 
 const $ = <T extends HTMLElement>(sel: string): T => { const el = document.querySelector<T>(sel); if (!el) throw new Error(`UI element missing: ${sel}`); return el }
-const sceneHost = $<HTMLDivElement>('#scene'), labelLayer = $<HTMLDivElement>('#label-layer'), heroTitle = $<HTMLElement>('#hero-title'), entityList = $<HTMLDivElement>('#entity-list'), details = $<HTMLDivElement>('#details'), toast = $<HTMLDivElement>('#selection-toast'), search = $<HTMLInputElement>('#entity-search'), searchResults = $<HTMLDivElement>('#search-results'), layerControls = $<HTMLDivElement>('#layer-controls'), layerSummary = $<HTMLSpanElement>('#layer-summary'), sidebar = $<HTMLElement>('#sidebar'), detailCard = $<HTMLElement>('#detail-card'), detailClose = $<HTMLButtonElement>('#detail-close')
+const sceneHost = $<HTMLDivElement>('#scene'), labelLayer = $<HTMLDivElement>('#label-layer'), heroTitle = $<HTMLElement>('#hero-title'), entityList = $<HTMLDivElement>('#entity-list'), filterChips = $<HTMLDivElement>('#entity-filters'), details = $<HTMLDivElement>('#details'), toast = $<HTMLDivElement>('#selection-toast'), search = $<HTMLInputElement>('#entity-search'), searchResults = $<HTMLDivElement>('#search-results'), layerControls = $<HTMLDivElement>('#layer-controls'), layerSummary = $<HTMLSpanElement>('#layer-summary'), sidebar = $<HTMLElement>('#sidebar'), detailCard = $<HTMLElement>('#detail-card'), detailClose = $<HTMLButtonElement>('#detail-close')
 const data = createDefaultCampusData()
 const initialSelection: PickedEntity | null = data.buildings.length ? { kind: 'building', index: 0 } : null
 const view = new ViewState<PickedEntity>(initialSelection)
@@ -272,9 +273,13 @@ const layerDefs = [
 ] as const
 layerControls.innerHTML = layerDefs.map(([key, label]) => `<label class="toggle"><input type="checkbox" data-layer="${key}" ${view.layers[key] ? 'checked' : ''}><span>${label}</span></label>`).join('')
 
+// 分类筛选（s4）：chip 选中态与列表同步，搜索框输入时保持当前分类。
+let activeFilter: EntityFilter = 'all'
+
 function syncUi(): void {
   heroTitle.textContent = data.name
-  renderEntityList(data, view.selected, entityList, search.value)
+  renderFilterChips(filterChips, activeFilter)
+  renderEntityList(data, view.selected, entityList, search.value, activeFilter)
   // 详情卡是浮在图上的一块独立卡片（§6.3）：选中才出，关掉后重新选中还会再弹。
   renderDetails(data, view.selected, details)
   // 手动关掉的卡片不许被下一次 syncUi（切图层、拉抽屉）又弹回来。
@@ -301,6 +306,12 @@ function select(entity: PickedEntity, focus = true): void {
 }
 syncUi()
 
+filterChips.addEventListener('click', (event) => {
+  const chip = (event.target as HTMLElement).closest<HTMLElement>('[data-filter]')
+  if (!chip) return
+  activeFilter = (chip.dataset.filter ?? 'all') as EntityFilter
+  syncUi()
+})
 entityList.addEventListener('click', (event) => { const item = (event.target as HTMLElement).closest<HTMLElement>('[data-kind]'); if (!item) return; select(item.dataset.kind === 'building' ? { kind: 'building', index: Number(item.dataset.index) } : { kind: 'poi', id: item.dataset.id ?? '' }) })
 // 搜索联想浮层（§6.3）：输入即出，↑↓ 选项、Enter 选中、Esc 收起。
 let searchIndex = -1
@@ -327,7 +338,7 @@ function highlightSearchResult(step: number): void {
   search.setAttribute('aria-activedescendant', items[searchIndex].id)
   items[searchIndex].scrollIntoView({ block: 'nearest' })
 }
-search.addEventListener('input', () => { renderSearchResults(); renderEntityList(data, view.selected, entityList, search.value) })
+search.addEventListener('input', () => { renderSearchResults(); renderEntityList(data, view.selected, entityList, search.value, activeFilter) })
 search.addEventListener('keydown', (event) => {
   if (event.key === 'ArrowDown') { event.preventDefault(); highlightSearchResult(1) }
   else if (event.key === 'ArrowUp') { event.preventDefault(); highlightSearchResult(-1) }

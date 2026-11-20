@@ -66,3 +66,30 @@ describe('entity filters', () => {
     expect(chips.querySelector('[data-filter="all"]')?.classList.contains('active')).toBe(true)
   })
 })
+
+describe('filter chip wiring', () => {
+  // main.ts 启动要 WebGL，happydom 里跑不起来；这里覆盖 chip 状态 + 列表联动这一层，
+  // 真实点击链路由 Playwright 的 ui-smoke 验收。
+  it('marks the selected chip active and re-renders the list on chip change', () => {
+    const chips = document.createElement('div')
+    const list = document.createElement('div')
+    const data = createDefaultCampusData()
+    renderFilterChips(chips, 'all')
+    renderEntityList(data, null, list, '', 'all')
+    const allCount = list.querySelectorAll('.entity-item').length
+    expect(chips.querySelectorAll('[data-filter]').length).toBeGreaterThan(1)
+    expect(chips.querySelector('[data-filter="all"]')?.classList.contains('active')).toBe(true)
+
+    renderFilterChips(chips, 'academic')
+    renderEntityList(data, null, list, '', 'academic')
+    expect(chips.querySelector('[data-filter="academic"]')?.classList.contains('active')).toBe(true)
+    expect(chips.querySelector('[data-filter="all"]')?.classList.contains('active')).toBe(false)
+    const filtered = list.querySelectorAll('.entity-item').length
+    expect(filtered).toBeGreaterThan(0)
+    expect(filtered).toBeLessThan(allCount)
+
+    renderFilterChips(chips, 'all')
+    renderEntityList(data, null, list, '', 'all')
+    expect(list.querySelectorAll('.entity-item').length).toBe(allCount)
+  })
+})
