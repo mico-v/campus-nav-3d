@@ -11,7 +11,8 @@ import { mountWebglFallback, probeWebgl } from './ui/webgl-fallback'
 import { siteNavHtml } from './ui/site-nav'
 import { parseDeepLink, type DeepLinkState } from './deeplink/index'
 import { mountIndoorLevels, normalizeIndoorLevel } from './ui/indoor-levels'
-import { planRouteBetweenBuildings } from './navigation/route'
+import { isNavigationMode, planRoute, resolveBuildingIndex } from './navigation/route'
+import type { NavigationMode } from './navigation/types'
 import { createRouteOverlay, mountNavigationUi, navigationPickEntity, type NavigationRouteState } from './ui/navigation-ui'
 
 const appRoot = document.querySelector<HTMLDivElement>('#app')
@@ -194,21 +195,31 @@ function updateScaleBar(): void {
 
 /* ---------- M5-B 导航 UI：起终点选择 → 聚合路线 → 高亮 + 摘要 ---------- */
 const routeOverlay = createRouteOverlay(campus.scene)
-const routeState: NavigationRouteState = { origin: null, destination: null, summary: null, error: '' }
+const requestedMode = deepLink?.mode
+const initialMode: NavigationMode = isNavigationMode(requestedMode) ? requestedMode : 'pedestrian'
+const routeState: NavigationRouteState = {
+  origin: resolveBuildingIndex(data, deepLink?.from),
+  destination: resolveBuildingIndex(data, deepLink?.to),
+  summary: null,
+  error: null,
+  mode: initialMode,
+}
 
+// M5-B 兼容入口 planRouteBetweenBuildings 仍由 route.ts 导出；M5-C 用带错误码的 planRoute 做渲染判定。
 function applyRoute(): void {
   if (routeState.origin === null || routeState.destination === null) {
     routeState.summary = null
-    routeState.error = ''
+    routeState.error = null
     routeOverlay.setRoute(null)
     navUi.update(data, routeState)
     requestRender()
     return
   }
-  const summary = planRouteBetweenBuildings(data, routeState.origin, routeState.destination)
-  routeState.summary = summary
-  routeState.error = summary ? '' : '这两栋建筑之间没有可通行的步行路线'
-  routeOverlay.setRoute(summary)
+  const result = planRoute(data, routeState.origin, routeState.destination, { mode: routeState.mode })
+  routeState.summary = result.route
+  routeState.error = result.error
+  // 任何 error 都不进渲染：保留上一次无路线状态，绝不画半条线。
+  routeOverlay.setRoute(result.route)
   navUi.update(data, routeState)
   const bounds = routeOverlay.bounds()
   if (bounds) {
@@ -221,9 +232,14 @@ function applyRoute(): void {
 }
 
 const navUi = mountNavigationUi($<HTMLElement>('#navigation-ui'), {
-  onRouteRequest: (origin, destination) => {
+  onRouteRequest: (origin, destination, mode) => {
     routeState.origin = origin >= 0 && data.buildings[origin] ? origin : null
     routeState.destination = destination >= 0 && data.buildings[destination] ? destination : null
+    routeState.mode = isNavigationMode(mode) ? mode : 'pedestrian'
+    applyRoute()
+  },
+  onModeChange: (mode) => {
+    routeState.mode = mode
     applyRoute()
   },
   onClear: () => {
@@ -237,6 +253,8 @@ const navUi = mountNavigationUi($<HTMLElement>('#navigation-ui'), {
 const navSummaryEl = app.querySelector<HTMLElement>('#nav-summary')
 if (navSummaryEl) app.appendChild(navSummaryEl)
 navUi.update(data, routeState)
+// M5-C 首屏深链：?from=&to= 与 ?q= / ?building=&level= 并存，只把路线交给导航层。
+if (routeState.origin !== null && routeState.destination !== null) applyRoute()
 if (import.meta.env.DEV) {
   ;(window as Window & { __m5bRouteOverlay?: () => number }).__m5bRouteOverlay = () => campus.scene.getObjectByName('m5b-route-overlay')?.children.length ?? -1
 }

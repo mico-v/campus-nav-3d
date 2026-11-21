@@ -5,19 +5,22 @@
 import * as THREE from 'three'
 import type { CampusData } from '../data/campusData'
 import type { PickedEntity } from '../interaction'
-import type { RouteSummary } from '../navigation/route'
-import { buildingAnchorId, formatRouteSummary } from '../navigation/route'
+import type { RouteSummary, RouteError } from '../navigation/route'
+import { buildingAnchorId, formatRouteSummary, isNavigationMode, NAVIGATION_MODE_LABELS } from '../navigation/route'
+import type { NavigationMode } from '../navigation/types'
 import { escapeHtml } from './panel'
 
 export interface NavigationRouteState {
   origin: number | null
   destination: number | null
   summary: RouteSummary | null
-  error: string
+  error: RouteError | null
+  mode: NavigationMode
 }
 
 export interface NavigationUiHandlers {
-  onRouteRequest: (origin: number, destination: number) => void
+  onRouteRequest: (origin: number, destination: number, mode: NavigationMode) => void
+  onModeChange: (mode: NavigationMode) => void
   onClear: () => void
   onPickModeChange: (mode: 'origin' | 'destination' | null) => void
 }
@@ -25,6 +28,7 @@ export interface NavigationUiHandlers {
 export interface NavigationUi {
   update: (data: CampusData, state: NavigationRouteState) => void
   setPickMode: (mode: 'origin' | 'destination' | null) => void
+  setMode: (mode: NavigationMode) => void
   pickMode: () => 'origin' | 'destination' | null
   setRoute: (route: RouteSummary | null) => void
   destroy: () => void
@@ -103,6 +107,11 @@ export function mountNavigationUi(host: HTMLElement, handlers: NavigationUiHandl
         <label class="nav-leg"><span class="nav-leg-dot origin"></span><select id="nav-origin" aria-label="起点"><option value="">选择起点建筑</option></select></label>
         <label class="nav-leg"><span class="nav-leg-dot destination"></span><select id="nav-destination" aria-label="终点"><option value="">选择终点建筑</option></select></label>
       </div>
+      <div class="nav-modes" id="nav-modes" role="group" aria-label="出行模式">
+        <button type="button" data-mode="pedestrian" class="nav-mode active" aria-pressed="true">步行</button>
+        <button type="button" data-mode="bicycle" class="nav-mode" aria-pressed="false">骑行</button>
+        <button type="button" data-mode="vehicle" class="nav-mode" aria-pressed="false">车行</button>
+      </div>
       <div class="nav-actions">
         <button type="button" id="nav-pick-origin" class="nav-pick">地图选起点</button>
         <button type="button" id="nav-pick-destination" class="nav-pick">地图选终点</button>
@@ -116,9 +125,21 @@ export function mountNavigationUi(host: HTMLElement, handlers: NavigationUiHandl
   const summaryEl = host.querySelector<HTMLElement>('#nav-summary')!
   const pickOriginBtn = host.querySelector<HTMLButtonElement>('#nav-pick-origin')!
   const pickDestinationBtn = host.querySelector<HTMLButtonElement>('#nav-pick-destination')!
+  const modeButtons = Array.from(host.querySelectorAll<HTMLButtonElement>('#nav-modes [data-mode]'))
   let pickMode: 'origin' | 'destination' | null = null
   let cachedData: CampusData | null = null
   let cachedState: NavigationRouteState | null = null
+
+  const setMode = (mode: NavigationMode): void => {
+    if (!cachedState || !isNavigationMode(mode) || mode === cachedState.mode) return
+    cachedState = { ...cachedState, mode }
+    modeButtons.forEach((button) => {
+      const active = button.dataset.mode === mode
+      button.classList.toggle('active', active)
+      button.setAttribute('aria-pressed', String(active))
+    })
+    handlers.onModeChange(mode)
+  }
 
   const setPickMode = (mode: 'origin' | 'destination' | null): void => {
     pickMode = mode
@@ -138,35 +159,50 @@ export function mountNavigationUi(host: HTMLElement, handlers: NavigationUiHandl
     destinationSelect.value = state.destination === null ? '' : String(state.destination)
     originSelect.classList.toggle('is-set', state.origin !== null)
     destinationSelect.classList.toggle('is-set', state.destination !== null)
+    modeButtons.forEach((button) => {
+      const active = button.dataset.mode === state.mode
+      button.classList.toggle('active', active)
+      button.setAttribute('aria-pressed', String(active))
+    })
     hint.textContent = pickMode
       ? `点击地图选${pickMode === 'origin' ? '起点' : '终点'}`
-      : state.origin !== null && state.destination !== null ? '已规划' : '选起点 → 选终点'
+      : state.origin !== null && state.destination !== null ? `已规划 · ${NAVIGATION_MODE_LABELS[state.mode]}` : '选起点 → 选终点'
   }
 
   const renderSummary = (state: NavigationRouteState): void => {
     if (state.error) {
       summaryEl.hidden = false
-      summaryEl.innerHTML = `<p class="nav-error">${escapeHtml(state.error)}</p>`
+      summaryEl.dataset.state = 'error'
+      summaryEl.innerHTML = `<p class="nav-error" role="status">${escapeHtml(state.error.message)}</p>`
       return
     }
     const summary = state.summary
     if (!summary || state.origin === null || state.destination === null) {
       summaryEl.hidden = true
+      summaryEl.removeAttribute('data-state')
       summaryEl.innerHTML = ''
       return
     }
     const formatted = formatRouteSummary(summary)
     summaryEl.hidden = false
+    summaryEl.removeAttribute('data-state')
     summaryEl.innerHTML = `
+      <p class="nav-mode-now">当前模式：${escapeHtml(formatted.mode)}</p>
       <div class="nav-metrics"><span><strong>${formatted.distance}</strong><small>距离</small></span><span><strong>${formatted.duration}</strong><small>预计用时</small></span></div>
       <p class="nav-stops"><span>途经节点</span>${escapeHtml(formatted.stops)}</p>`
   }
 
   originSelect.addEventListener('change', () => {
-    handlers.onRouteRequest(originSelect.value === '' ? -1 : Number(originSelect.value), cachedState?.destination ?? -1)
+    handlers.onRouteRequest(originSelect.value === '' ? -1 : Number(originSelect.value), cachedState?.destination ?? -1, cachedState?.mode ?? 'pedestrian')
   })
   destinationSelect.addEventListener('change', () => {
-    handlers.onRouteRequest(cachedState?.origin ?? -1, destinationSelect.value === '' ? -1 : Number(destinationSelect.value))
+    handlers.onRouteRequest(cachedState?.origin ?? -1, destinationSelect.value === '' ? -1 : Number(destinationSelect.value), cachedState?.mode ?? 'pedestrian')
+  })
+  modeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const mode = button.dataset.mode
+      if (isNavigationMode(mode)) setMode(mode)
+    })
   })
   pickOriginBtn.addEventListener('click', () => setPickMode(pickMode === 'origin' ? null : 'origin'))
   pickDestinationBtn.addEventListener('click', () => setPickMode(pickMode === 'destination' ? null : 'destination'))
@@ -180,10 +216,11 @@ export function mountNavigationUi(host: HTMLElement, handlers: NavigationUiHandl
       renderSummary(state)
     },
     setPickMode,
+    setMode,
     pickMode: () => pickMode,
     setRoute(route) {
       if (!cachedState || !cachedData) return
-      cachedState = { ...cachedState, summary: route, error: route ? '' : '两点间没有可通行的路线' }
+      cachedState = { ...cachedState, summary: route, error: route ? null : { code: 'unreachable', message: '这两栋建筑之间不可达，请换一个终点' } }
       renderSummary(cachedState)
       renderOptions(cachedData, cachedState)
     },
