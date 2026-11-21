@@ -40,3 +40,17 @@ export interface CampusDataSource {
 
 白名单：`src/data/adapter.ts`、`src/data/adapter.test.ts`、`src/main.ts`（仅数据装配处）、本文档、`packages/campus-schema/src/index.ts`（仅追加可选导出）。
 回滚：本片纯新增文件 + `main.ts` 一处装配改动，revert 单个 commit 即可回到现状，不影响 `campusData.ts`。
+
+## M6-B 远程实现与降级
+
+`createDataSource({ kind: 'remote', baseUrl, fallback: 'static' })` 创建远程数据源（工厂仍是同步的）。`kind` 恒为 `'remote'`。
+
+- **拉取**：`GET baseUrl/campus-pack.json`；若 `baseUrl` 以 `.json`（可带 query）结尾则直接请求该 URL。只用内置 `fetch`，不新增运行时依赖。
+- **校验**：响应 `ok` 为 true 且 `response.json()` 解析出的对象过 `validateCampusPack()`，结果才交给渲染层。
+- **显式降级策略**：`fallback: 'static'` 必须显式写出，工厂才启用远程实现；缺省的 `{ kind: 'remote', baseUrl }` 仍同步抛错（保留 M6-A「不静默回退」的既有断言）。
+- **降级触发**：校验失败、网络失败、非 2xx、超时（默认 `8000ms`，可用 `timeoutMs` 覆盖）任一情况，均降级到 `createStaticDataSource()` 的静态包，**不向调用方 reject**。
+- **可读提示**：每次降级会调用一次 `console.warn`（可注入 `warn` 覆盖），消息含具体原因（HTTP 状态 / 校验 issue / 超时 / 网络错误）与 `baseUrl`；不会静默回退。`load()` 幂等，整个数据源生命周期内最多 warn 一次。
+- **`getMeta()` 在远程模式下的语义**：**不触发网络请求**，直接返回静态 pack 的 meta（`createStaticDataSource().getMeta()`）。理由：远程失败时渲染用的是静态包，meta 必须与降级后的数据一致，避免首屏标题/边界与实际数据错配。若远程成功，`CampusPack` 自身的 meta 字段仍来自远端响应并通过校验；但 `getMeta()` 的返回值不保证等于远程 pack 的 meta（契约只要求 `getMeta()` 不依赖 `load()`）。
+- **装配**：`src/main.ts` 仍用 `createDataSource({ kind: 'static' })`；远程模式由调用方显式配置，不改动默认首屏行为。
+
+`src/data/remote-source.test.ts` 新增 3 例锁定三条路径：远程成功（校验通过 + `load()` 幂等 + `getMeta()` 不请求）、非法 pack（降级 + warn 非空）、网络失败 / 非 2xx / 超时（降级不抛）。

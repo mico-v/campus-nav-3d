@@ -9,6 +9,7 @@ import packMetaJson from '../../packs/usts-tianping/pack.json'
 import type { CampusPack, CampusPackMeta, RoadEdge } from '../../packages/campus-schema/src/index'
 import { validateCampusPack } from '../../packages/campus-schema/src/index'
 import { createDefaultCampusData } from './campusData'
+import { createRemoteDataSource } from './remote-source'
 import type { CanonicalCampusData, Building } from './campusData'
 
 export interface CampusDataSource {
@@ -218,14 +219,35 @@ export function createStaticDataSource(): CampusDataSource {
 /** 数据源选择参数：静态包（默认）或远程端点。 */
 export type DataSourceConfig =
   | { kind: 'static' }
-  | { kind: 'remote'; baseUrl: string }
+  | {
+      kind: 'remote'
+      baseUrl: string
+      /**
+       * M6-B：显式降级策略。仅当为 'static' 时才启用远程实现；
+       * 缺省仍同步抛错，保留 M6-A「remote 未落地、不静默回退」的既有断言。
+       */
+      fallback?: 'static'
+      timeoutMs?: number
+      /** 测试注入点，生产不传。 */
+      fetchFn?: typeof fetch
+      warn?: (message: string) => void
+    }
 
 /**
  * 按 kind 选数据源。前端入口只调这个工厂，不直接 new 具体实现。
- * M6-A 阶段只有 'static' 可用；'remote' 在 s6 落地，此处先明确拒绝，
- * 保证「按 kind 切换」这条路存在且行为可验（不会静默回退成静态）。
+ * static 走静态实现；remote 必须显式声明 `fallback: 'static'` 才创建远程实现，
+ * 远程失败会 warn 并降级到静态包，不会把异常抛到渲染层。
  */
 export function createDataSource(config: DataSourceConfig = { kind: 'static' }): CampusDataSource {
   if (config.kind === 'static') return createStaticDataSource()
+  if (config.fallback === 'static') {
+    return createRemoteDataSource({
+      baseUrl: config.baseUrl,
+      timeoutMs: config.timeoutMs,
+      fetchFn: config.fetchFn,
+      warn: config.warn,
+      staticSource: createStaticDataSource,
+    })
+  }
   throw new Error(`远程数据源尚未实现（baseUrl=${config.baseUrl}），M6-B 交付`)
 }
