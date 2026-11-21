@@ -3,7 +3,8 @@
 #       https://docs.cnb.cool/zh/workspaces/custom-dev-pipeline.html
 #
 # 分工：本机只做编辑、单测、类型检查；构建与 e2e 交给 CNB 云原生构建或 Codespaces；
-# Android 原生壳（apps/android）不在本文件里跑，构建走 .github/workflows/android.yml。
+# Android 原生壳（apps/android）默认走 .github/workflows/android.yml，
+# 本文件里的 android-debug-apk 只提供「手动触发一次、编出 debug APK」的通道。
 # GitHub Actions 只保留为对外可验证的兜底通道。
 #
 # 分支键支持三种写法：精确名（main）、glob（feature/*）、兜底（$）。
@@ -29,6 +30,36 @@
   <<: *check
   name: pr-check
 
+# Android 原生壳：只编 debug APK（不签名、不发 Release）。
+# 只挂在 api_trigger 上，普通 push / PR 不跑 —— 镜像大、Google Maven 拉依赖也慢，
+# 当门禁跑不划算。需要产物时在 CNB 界面手动触发，或 OpenAPI POST /{repo}/-/build/start。
+.android-debug: &android-debug
+  name: android-debug-apk
+  runner:
+    cpus: 4
+  docker:
+    image: mingc/android-build-box:latest
+  env:
+    GRADLE_USER_HOME: /root/.gradle
+  volumes:
+    - /root/.gradle:copy-on-write
+  stages:
+    - name: android-env
+      script:
+        - java -version
+        - gradle -v
+        - echo "ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+    - name: theme-and-build
+      script:
+        - cd apps/android
+        - bash tools/assert-theme-tokens.sh
+        - gradle :app:assembleDebug :app:testDebugUnitTest --no-daemon --stacktrace
+    - name: apk-info
+      script:
+        - cd apps/android
+        - ls -lh app/build/outputs/apk/debug/
+        - sha256sum app/build/outputs/apk/debug/*.apk
+
 # 云原生开发：4 核 8G，进环境即装好依赖
 .vscode: &vscode
   runner:
@@ -49,6 +80,7 @@ main:
   # 供 API 手动触发（POST /{repo}/-/build/start，event=api_trigger）
   api_trigger:
     - <<: *check
+    - <<: *android-debug
   vscode:
     - <<: *vscode
 
@@ -57,5 +89,8 @@ $:
     - <<: *check
   pull_request:
     - <<: *pr-check
+  api_trigger:
+    - <<: *check
+    - <<: *android-debug
   vscode:
     - <<: *vscode

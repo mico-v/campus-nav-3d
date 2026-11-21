@@ -46,3 +46,26 @@ jobs:
 
       - name: 组装 Debug APK 与单测
         run: gradle :app:assembleDebug :app:testDebugUnitTest --no-daemon --stacktrace
+
+      # debug 包不签名、不对外发布，只作为可下载的构建产物留档（14 天）。
+      - name: 产物信息
+        run: |
+          ls -lh app/build/outputs/apk/debug/
+          sha256sum app/build/outputs/apk/debug/*.apk | tee /tmp/apk-sha256.txt
+          {
+            echo '### Debug APK'
+            echo ''
+            echo '```'
+            cat /tmp/apk-sha256.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 上传 Debug APK 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: campus-nav-debug-apk
+          path: |
+            apps/android/app/build/outputs/apk/debug/*.apk
+            apps/android/app/build/outputs/apk/debug/output-metadata.json
+          if-no-files-found: error
+          retention-days: 14
