@@ -35,8 +35,10 @@ export const FLOOR_CONNECTOR_KINDS: readonly FloorConnectorKind[] = ['stairs', '
 /**
  * 楼与楼之间的竖向/连廊连接。跨楼合法（例如两栋楼二层之间的连廊）。
  * `from` / `to` 是有序端点：`A→B` 与 `B→A` 算两对。
+ * `id` 是包内唯一标识，错误信息用它定位具体连接。
  */
 export interface FloorConnector {
+  /** 包内唯一标识；建议小写连字符 slug。 */
   id: string
   from: FloorEndpoint
   to: FloorEndpoint
