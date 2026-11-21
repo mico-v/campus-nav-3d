@@ -3,7 +3,7 @@
  * M6-A 契约用例：签名 + 四条契约（meta 独立 / load 幂等 / pack 合法 / 失败 message 非空）。
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { createStaticDataSource, toCampusData, __adapterTestHooks } from './adapter'
+import { createDataSource, createStaticDataSource, toCampusData, __adapterTestHooks } from './adapter'
 import { createDefaultCampusData } from './campusData'
 import { validateCampusPack } from '../../packages/campus-schema/src/index'
 
@@ -67,5 +67,19 @@ describe('M6-A 数据源适配层契约', () => {
     } finally {
       __adapterTestHooks.buildPack = original
     }
+  })
+
+  it('工厂按 kind 选数据源：static 走静态实现，remote 明确拒绝而非静默回退', () => {
+    const staticSource = createDataSource({ kind: 'static' })
+    expect(staticSource.kind).toBe('static')
+    expect(() => createDataSource({ kind: 'remote', baseUrl: 'https://example.invalid/pack.json' }))
+      .toThrow(/远程数据源尚未实现/)
+  })
+
+  it('工厂默认参数等价于静态数据源（前端入口不写死实现）', async () => {
+    const source = createDataSource()
+    expect(source.kind).toBe('static')
+    const pack = await source.load()
+    expect(pack.buildings?.length ?? 0).toBeGreaterThan(0)
   })
 })
