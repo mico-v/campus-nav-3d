@@ -10,6 +10,11 @@ export type DeepLinkState = {
   building?: string
   level?: number
   q?: string
+  /** M5-C 导航深链：建筑 id，必须同时出现才生效。 */
+  from?: string
+  to?: string
+  /** 出行模式；非法值由入口回落到 pedestrian。 */
+  mode?: string
 }
 
 export type ShortLinkState = {
@@ -110,8 +115,15 @@ export function parseDeepLink(input: unknown): DeepLinkState | ShortLinkState | 
   if (!pack || !isValidId(pack) || pack.endsWith('.html')) return null
 
   for (const key of params.keys()) {
-    if (key !== 'building' && key !== 'level' && key !== 'q') return null
+    if (key !== 'building' && key !== 'level' && key !== 'q' && key !== 'from' && key !== 'to' && key !== 'mode') return null
   }
+  // 导航三参数是一个整体：任一非法或缺一半，整条深链回落，不抛异常。
+  const hasFrom = params.has('from')
+  const hasTo = params.has('to')
+  if (hasFrom !== hasTo) return null
+  const from = hasFrom ? params.get('from')! : null
+  const to = hasTo ? params.get('to')! : null
+  if (from !== null && (!isValidId(from) || !isValidId(to!))) return null
 
   const state: DeepLinkState = { pack }
   if (params.has('building')) {
@@ -129,12 +141,19 @@ export function parseDeepLink(input: unknown): DeepLinkState | ShortLinkState | 
     if (!q) return null
     state.q = q
   }
+  if (from !== null) state.from = from
+  if (to !== null) state.to = to
+  if (params.has('mode')) {
+    const mode = params.get('mode')!
+    if (!/^[a-z][a-z0-9-]{0,31}$/.test(mode)) return null
+    state.mode = mode
+  }
   return state
 }
 
 /**
  * 由状态生成相对深链；任何字段非法或缺 pack 时返回 null。
- * 输出键顺序固定为 building / level / q，便于快照与比较。
+ * 输出键顺序固定为 building / level / q / from / to / mode，便于快照与比较。
  */
 export function buildDeepLink(state: unknown): string | null {
   if (!state || typeof state !== 'object' || Array.isArray(state)) return null
@@ -156,13 +175,28 @@ export function buildDeepLink(state: unknown): string | null {
     if (!q) return null
     normalized.q = q
   }
+  const keys = ['from', 'to'] as const
+  for (const key of keys) {
+    const value = candidate[key]
+    if (value === undefined) continue
+    if (typeof value !== 'string' || !isValidId(value)) return null
+    normalized[key] = value
+  }
+  if ((normalized.from === undefined) !== (normalized.to === undefined)) return null
+  if (candidate.mode !== undefined) {
+    if (typeof candidate.mode !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(candidate.mode)) return null
+    normalized.mode = candidate.mode
+  }
   for (const key of Object.keys(candidate)) {
-    if (key !== 'pack' && key !== 'building' && key !== 'level' && key !== 'q') return null
+    if (key !== 'pack' && key !== 'building' && key !== 'level' && key !== 'q' && key !== 'from' && key !== 'to' && key !== 'mode') return null
   }
   const params = new URLSearchParams()
   if (normalized.building !== undefined) params.set('building', normalized.building)
   if (normalized.level !== undefined) params.set('level', String(normalized.level))
   if (normalized.q !== undefined) params.set('q', normalized.q)
+  if (normalized.from !== undefined) params.set('from', normalized.from)
+  if (normalized.to !== undefined) params.set('to', normalized.to)
+  if (normalized.mode !== undefined) params.set('mode', normalized.mode)
   const query = params.toString()
   const url = `/${normalized.pack}${query ? `?${query}` : ''}`
   // 自检：生成结果必须能被 parseDeepLink 原样解析，否则视为非法。
