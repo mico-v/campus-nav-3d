@@ -122,7 +122,9 @@ function ruleForStatusBar(): string {
 
 describe('窄屏顶栏与搜索不挤爆', () => {
   it('顶栏按 44px 搜索框长高，品牌名让位给搜索', () => {
-    expect(narrowRule('.appbar')).toContain('calc(var(--appbar-h) + 8px)')
+    // 窄屏顶栏 = 桌面档 + 8px，差值走令牌，规则里不再散落魔法算式
+    expect(css).toContain('--appbar-h-narrow: calc(var(--appbar-h) + 8px)')
+    expect(narrowRule('.appbar')).toContain('height: var(--appbar-h-narrow)')
     expect(narrowRule('.sb-credit-dim')).toContain('display: none')
     expect(narrowRule('.searchbox')).toContain('flex: 1 1 auto')
     expect(narrowRule('#entity-search')).toContain('height: var(--tap)')
@@ -154,5 +156,31 @@ describe('窄屏卡片与抽屉不打架', () => {
   it('地图容器始终铺满，窄屏不靠 flex 给面板让位', () => {
     expect(css).toMatch(/\.map-pane \{\s*position: absolute;\s*inset: 0;/)
     expect(narrowCss).not.toMatch(/\.map-pane\s*\{[^}]*height:\s*\d/)
+  })
+})
+
+describe('顶栏与状态条不为挤字幕让位', () => {
+  const siteNavCss = read('src/ui/site-nav.css')
+
+  it('顶栏定死一行：宽度不够时只挤站点导航，不把搜索框截断', () => {
+    // 截图回归：导航占宽 + 搜索框被压 → 「搜索建筑 / 地」被裁成半截
+    expect(narrowRule('.appbar')).toContain('flex-wrap: nowrap')
+    expect(siteNavCss).toContain('flex: 0 1 auto')
+    // 手机档导航整组收起，宽度全留给搜索框（三入口在抽屉 / 落地页仍有出口）
+    const phoneCss = siteNavCss.slice(siteNavCss.indexOf('@media (max-width: 560px)'))
+    expect(phoneCss).toMatch(/\.site-nav \{\s*display: none;/)
+  })
+
+  it('站点导航自己可省略，但不撑破顶栏', () => {
+    expect(siteNavCss).toMatch(/\.site-nav \{[^}]*min-width: 0;[^}]*overflow: hidden;/)
+    expect(siteNavCss).toMatch(/\.site-nav a \{[^}]*text-overflow: ellipsis;/)
+  })
+
+  it('状态条的选中对象不省略、最多折两行，名称必须可读', () => {
+    // 截图回归：底部只剩「已选…」，看不出选中了哪栋楼
+    expect(css).toMatch(/\.sb-status \{[^}]*white-space: normal;/)
+    expect(css).toMatch(/\.sb-status \{[^}]*text-overflow: clip;/)
+    expect(css).toMatch(/\.sb-status \{[^}]*flex: 1 1 auto;/)
+    expect(css).toMatch(/-webkit-line-clamp: 2;/)
   })
 })
