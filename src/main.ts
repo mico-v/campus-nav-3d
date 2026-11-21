@@ -1,6 +1,6 @@
 import './style.css'
 import './ui/site-nav.css'
-import { createDefaultCampusData } from './data/campusData'
+import { createStaticDataSource, toCampusData } from './data/adapter'
 import packDataJson from '../packs/usts-tianping/campus.json'
 import { CampusScene } from './scene/CampusScene'
 import { ViewState, type LayerKey } from './core/view/state'
@@ -81,7 +81,9 @@ const scaleLabelEl = document.querySelector<HTMLElement>('#map-scale-label')
 
 const $ = <T extends HTMLElement>(sel: string): T => { const el = document.querySelector<T>(sel); if (!el) throw new Error(`UI element missing: ${sel}`); return el }
 const sceneHost = $<HTMLDivElement>('#scene'), labelLayer = $<HTMLDivElement>('#label-layer'), heroTitle = $<HTMLElement>('#hero-title'), entityList = $<HTMLDivElement>('#entity-list'), filterChips = $<HTMLDivElement>('#entity-filters'), details = $<HTMLDivElement>('#details'), toast = $<HTMLDivElement>('#selection-toast'), search = $<HTMLInputElement>('#entity-search'), searchResults = $<HTMLDivElement>('#search-results'), layerControls = $<HTMLDivElement>('#layer-controls'), layerSummary = $<HTMLSpanElement>('#layer-summary'), sidebar = $<HTMLElement>('#sidebar'), detailCard = $<HTMLElement>('#detail-card'), detailClose = $<HTMLButtonElement>('#detail-close')
-const data = createDefaultCampusData()
+const dataSource = createStaticDataSource()
+const pack = await dataSource.load()
+const data = toCampusData(pack)
 
 /** M2-A 的 floors 在 packToLegacyData 里没带过来；这里只做内存补齐，不改 schema / packs。 */
 type RawFloor = { level: number; name?: string }
