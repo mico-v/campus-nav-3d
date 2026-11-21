@@ -1,6 +1,7 @@
 import './style.css'
 import './ui/site-nav.css'
 import { createDefaultCampusData } from './data/campusData'
+import packDataJson from '../packs/usts-tianping/campus.json'
 import { CampusScene } from './scene/CampusScene'
 import { ViewState, type LayerKey } from './core/view/state'
 import { pickEntity, type PickedEntity } from './interaction'
@@ -8,6 +9,8 @@ import { renderEntityList, renderDetails, renderFilterChips, searchEntities, upd
 import { chooseScaleBar, metersPerPixel } from './ui/scale'
 import { mountWebglFallback, probeWebgl } from './ui/webgl-fallback'
 import { siteNavHtml } from './ui/site-nav'
+import { parseDeepLink, type DeepLinkState } from './deeplink/index'
+import { mountIndoorLevels, normalizeIndoorLevel } from './ui/indoor-levels'
 
 const appRoot = document.querySelector<HTMLDivElement>('#app')
 if (!appRoot) throw new Error('App root not found')
@@ -38,6 +41,7 @@ app.innerHTML = `
     ${siteNavHtml('demo')}
     <button type="button" class="icon-button" id="theme-toggle" aria-label="切换深浅主题" title="切换深浅主题">◐</button>
   </header>
+  <div class="indoor-levels" id="indoor-levels" hidden></div>
   <aside class="sidebar" id="sidebar" data-drawer="peek" aria-label="地图面板">
     <button type="button" class="drawer-handle" id="drawer-handle" aria-label="收起或展开面板"><span></span></button>
     <section class="card">
@@ -74,8 +78,51 @@ const scaleLabelEl = document.querySelector<HTMLElement>('#map-scale-label')
 const $ = <T extends HTMLElement>(sel: string): T => { const el = document.querySelector<T>(sel); if (!el) throw new Error(`UI element missing: ${sel}`); return el }
 const sceneHost = $<HTMLDivElement>('#scene'), labelLayer = $<HTMLDivElement>('#label-layer'), heroTitle = $<HTMLElement>('#hero-title'), entityList = $<HTMLDivElement>('#entity-list'), filterChips = $<HTMLDivElement>('#entity-filters'), details = $<HTMLDivElement>('#details'), toast = $<HTMLDivElement>('#selection-toast'), search = $<HTMLInputElement>('#entity-search'), searchResults = $<HTMLDivElement>('#search-results'), layerControls = $<HTMLDivElement>('#layer-controls'), layerSummary = $<HTMLSpanElement>('#layer-summary'), sidebar = $<HTMLElement>('#sidebar'), detailCard = $<HTMLElement>('#detail-card'), detailClose = $<HTMLButtonElement>('#detail-close')
 const data = createDefaultCampusData()
-const initialSelection: PickedEntity | null = data.buildings.length ? { kind: 'building', index: 0 } : null
+
+/** M2-A 的 floors 在 packToLegacyData 里没带过来；这里只做内存补齐，不改 schema / packs。 */
+type RawFloor = { level: number; name?: string }
+type RawBuilding = { id: string; floors?: RawFloor[] }
+type RawConnector = { id: string; kind: string; from: { building: string; level: number }; to: { building: string; level: number } }
+const rawPack = packDataJson as unknown as { buildings?: RawBuilding[]; connectors?: RawConnector[] }
+const floorsById = new Map((rawPack.buildings ?? []).filter((b) => Array.isArray(b.floors) && b.floors.length).map((b) => [b.id, b.floors!]))
+for (const building of data.buildings) {
+  const floors = floorsById.get(building.id)
+  if (floors) Object.assign(building, { floors })
+}
+if (Array.isArray(rawPack.connectors)) Object.assign(data, { connectors: rawPack.connectors })
+
+/** M2-C + M4-A：?q= 与 ?building=&level= 走同一个解析器，互不覆盖。非法参数整条回落。 */
+function resolveDeepLink(href: string): DeepLinkState | null {
+  const url = new URL(href, window.location.origin)
+  // demo.html 是壳内入口；M4-A 对 .html 只放行单参数 ?q=（遗留锁）。
+  // 用包名换掉入口文件名，让同一解析器一次吃下 q + building + level，不另写一套解析。
+  const isEntry = /\.html$/.test(url.pathname)
+  const normalized = isEntry
+    ? `${url.origin}/usts-tianping${url.search}${url.hash}`
+    : href
+  const parsed = parseDeepLink(normalized)
+  if (!parsed || !('pack' in parsed)) return null
+  // 老 ?q= 单参数链接：保留 M4-A 的默认 pack 语义。
+  return parsed
+}
+const deepLink = resolveDeepLink(window.location.href)
+
+const deepLinkBuildingIndex = deepLink?.building
+  ? data.buildings.findIndex((building) => building.id === deepLink.building)
+  : -1
+const initialSelection: PickedEntity | null = deepLinkBuildingIndex >= 0
+  ? { kind: 'building', index: deepLinkBuildingIndex }
+  : data.buildings.length ? { kind: 'building', index: 0 } : null
 const view = new ViewState<PickedEntity>(initialSelection)
+
+/** 室内楼层状态：null = 整楼视图；只对带 floors 的建筑开放。 */
+let indoorLevel: number | null = null
+function applyIndoorState(entity: PickedEntity | null, requestedLevel: number | null): void {
+  const building = entity?.kind === 'building' ? data.buildings[entity.index] : undefined
+  indoorLevel = requestedLevel === null ? null : normalizeIndoorLevel(building, requestedLevel)
+}
+// 首屏深链：楼合法才解析层；非法楼/层都优雅回落整楼视图，不白屏。
+applyIndoorState(initialSelection, deepLink?.level ?? null)
 /** 探测过了也可能在建渲染器时抛（上下文数量到上限、驱动崩）：兜底提示之后照旧把错误抛出去。 */
 function createScene(host: HTMLDivElement, labels: HTMLDivElement): CampusScene {
   try {
@@ -276,6 +323,36 @@ layerControls.innerHTML = layerDefs.map(([key, label]) => `<label class="toggle"
 // 分类筛选（s4）：chip 选中态与列表同步，搜索框输入时保持当前分类。
 let activeFilter: EntityFilter = 'all'
 
+/** 把室内状态写回 URL；只动 building/level 两个键，保留 ?q= 与其它查询参数。 */
+function syncIndoorUrl(): void {
+  const url = new URL(window.location.href)
+  const selected = view.selected
+  const building = selected?.kind === 'building' ? data.buildings[selected.index] : undefined
+  if (building && indoorLevel !== null) {
+    url.searchParams.set('building', building.id)
+    url.searchParams.set('level', String(indoorLevel))
+  } else {
+    url.searchParams.delete('building')
+    url.searchParams.delete('level')
+  }
+  const next = `${url.pathname}${url.search}${url.hash}`
+  if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+    window.history.replaceState(null, '', next)
+  }
+}
+
+const indoorHost = $<HTMLElement>('#indoor-levels')
+const indoorBar = mountIndoorLevels(indoorHost, {
+  data,
+  onSelect: (level) => {
+    if (!view.selected || view.selected.kind !== 'building') return
+    applyIndoorState(view.selected, level)
+    syncIndoorUrl()
+    indoorBar.update(data.buildings[view.selected.index], indoorLevel)
+    requestRender()
+  },
+})
+
 function syncUi(): void {
   heroTitle.textContent = data.name
   renderFilterChips(filterChips, activeFilter)
@@ -286,6 +363,8 @@ function syncUi(): void {
   detailCard.hidden = !view.selected || selectionKey(view.selected) === dismissedDetail
   updateSelectionToast(data, view.selected, toast)
   const active = layerDefs.filter(([key]) => view.layers[key]).length; layerSummary.textContent = `${active}/${layerDefs.length} 开启`
+  const indoorBuilding = view.selected?.kind === 'building' ? data.buildings[view.selected.index] : undefined
+  indoorBar.update(indoorBuilding, indoorLevel)
 }
 /** 选中对象的稳定标识，用来记住「这张卡是用户自己关掉的」。 */
 const selectionKey = (selected: PickedEntity | null): string => !selected ? '' : selected.kind === 'building' ? `building:${selected.index}` : `poi:${selected.id}`
@@ -295,8 +374,11 @@ function select(entity: PickedEntity, focus = true): void {
   if (entity.kind === 'building' && !data.buildings[entity.index]) return
   const poiIndex = entity.kind === 'poi' ? data.pois.findIndex((poi) => poi.id === entity.id) : -1
   if (entity.kind === 'poi' && poiIndex < 0) return
+  const sameBuilding = view.selected?.kind === 'building' && entity.kind === 'building' && view.selected.index === entity.index
   view.setSelected(entity)
   dismissedDetail = null
+  if (!sameBuilding) applyIndoorState(entity, null)
+  syncIndoorUrl()
   campus.setEditorSelection(entity.kind === 'building' ? entity : { kind: 'poi', index: poiIndex })
   if (focus) entity.kind === 'building' ? campus.focusBuilding(entity.index) : campus.focusPoi(entity.id)
   // 窄屏默认 peek：选中对象才把抽屉拉到半屏，否则详情根本看不见。
@@ -369,8 +451,17 @@ window.addEventListener('keydown', (event) => {
 })
 
 // 壳内搜索深链：?q=图书馆 预先填入并跑一次搜索，否则原生壳搜索框只改 URL、页面没反应。
+// 与 ?building=&level= 共用上面的 parseDeepLink 结果，两者互不覆盖。
+// 遗留锁（PR #29）：?q= 的既有读法与「填入 + 派发 input」这一条保持不变。
 const initialQuery = new URLSearchParams(window.location.search).get('q')?.trim()
-if (initialQuery) {
+if (initialQuery && !deepLink?.q) {
   search.value = initialQuery
   search.dispatchEvent(new Event('input'))
 }
+// M4-A 解析结果优先：?q= 与 ?building&level= 由同一个函数产出，互不覆盖。
+// parseDeepLink 给出 q 时（含与 building/level 组合），用它覆盖上面的遗留读法。
+if (deepLink?.q) {
+  search.value = deepLink.q
+  search.dispatchEvent(new Event('input'))
+}
+syncIndoorUrl()

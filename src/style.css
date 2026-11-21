@@ -1130,3 +1130,103 @@ html[data-shell='1'] .wf-link {
     transition: none;
   }
 }
+
+/* ---------- M2-C 室内楼层条：只追加，不改现有布局与相机参数 ----------
+   楼层条浮在地图上方、顶栏下沿，窄屏避让抽屉手柄与状态条；
+   命中区 ≥44px，不新增 --map-inset-* 改动，地图视区保持不变。 */
+:root {
+  --indoor-bar-h: 48px;
+  --indoor-bar-gap: 8px;
+  --z-indoor-levels: 19;
+  --indoor-bar-bottom: calc(var(--drawer-h) + var(--status-bar-block-height) + var(--indoor-bar-gap));
+}
+
+.indoor-levels {
+  position: absolute;
+  z-index: var(--z-indoor-levels);
+  bottom: calc(var(--status-bar-block-height) + var(--indoor-bar-gap));
+  left: calc(var(--map-ui-padding) + 320px + var(--gap));
+  max-width: min(420px, calc(100vw - 320px - 3 * var(--map-ui-padding)));
+  pointer-events: none;
+}
+
+.indoor-levels[hidden] {
+  display: none;
+}
+
+.indoor-levels-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 4px 12px;
+  min-height: var(--indoor-bar-h);
+  border: 1px solid var(--outline);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  pointer-events: auto;
+}
+
+.indoor-levels-caption {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.indoor-level-buttons {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.indoor-level-btn {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.indoor-level-btn:hover {
+  border-color: var(--outline-strong);
+}
+
+.indoor-level-btn.is-active {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+}
+
+.indoor-level-btn.has-connector::after {
+  content: '↕';
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+@media (max-width: 959px) {
+  .indoor-levels {
+    bottom: var(--indoor-bar-bottom);
+    left: 8px;
+    right: 8px;
+    max-width: none;
+  }
+
+  .indoor-levels-inner {
+    padding: 4px 8px;
+  }
+
+  .indoor-levels-caption {
+    display: none;
+  }
+
+  .indoor-level-buttons {
+    width: 100%;
+  }
+}
