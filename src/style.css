@@ -1231,46 +1231,187 @@ html[data-shell='1'] .wf-link {
   }
 }
 
-/* ---------- M5-A 建筑详情/列表：只追加建筑字段相关样式 ---------- */
-.detail-building-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 650;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
+/* ---------- M5-B 导航 UI：起终点选择 + 摘要卡（只追加，不改既有规则） ---------- */
+/* z-index 复用已有 --z-detail：导航卡片与详情卡同层，浮在抽屉之上、顶栏之下。 */
+
+#navigation-ui {
+  flex: none;
 }
 
-.detail-facts-building {
+.nav-card {
   display: grid;
-  gap: 3px;
-  margin: 6px 0 0;
-}
-
-.detail-facts-building div {
-  display: grid;
-  grid-template-columns: 4.5em minmax(0, 1fr);
   gap: 8px;
-  font-size: 12px;
-  line-height: 1.45;
 }
 
-.detail-facts-building dt {
+.nav-legs {
+  display: grid;
+  gap: 6px;
+}
+
+.nav-leg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 0 8px;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-sm);
+  background: var(--surface-1);
+}
+
+.nav-leg.is-set {
+  border-color: var(--primary);
+}
+
+.nav-leg-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.nav-leg-dot.origin {
+  background: var(--state-free);
+}
+
+.nav-leg-dot.destination {
+  background: var(--state-alert);
+}
+
+.nav-leg select {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.nav-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nav-card button {
+  flex: 1 1 auto;
+  min-height: var(--tap);
+  padding: 0 8px;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-sm);
+  background: var(--surface-1);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+
+.nav-card button.active {
+  border-color: var(--primary);
+  background: var(--select-bg);
+  color: var(--primary);
+}
+
+.nav-card button:hover {
+  border-color: var(--outline-strong);
+}
+
+.nav-summary {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-sm);
+  background: var(--surface-1);
+}
+
+.nav-summary[hidden] {
+  display: none;
+}
+
+.nav-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.nav-metrics span {
+  display: grid;
+  gap: 2px;
+}
+
+.nav-metrics strong {
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.nav-metrics small {
+  font-size: 11px;
   color: var(--ink-3);
 }
 
-.detail-facts-building dd {
+.nav-stops {
+  display: grid;
+  gap: 2px;
   margin: 0;
-  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
   overflow-wrap: anywhere;
 }
 
-.entity-item .building-sub {
-  display: block;
-  overflow-wrap: anywhere;
+.nav-stops span {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.nav-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--state-alert);
 }
 
 @media (max-width: 959px) {
-  .detail-facts-building div {
-    grid-template-columns: 4em minmax(0, 1fr);
+  /* 抽屉 half 档时导航卡片在列表下方，滚动可见；点击区沿用窄屏 44px 令牌。 */
+  #navigation-ui {
+    order: 2;
+  }
+
+  .nav-actions button {
+    min-height: var(--tap);
+    font-size: 14px;
+  }
+}
+
+/* M5-B 摘要卡独立浮层：不塞进侧栏，避免详情卡展开时挡住路线信息。 */
+.nav-summary {
+  position: absolute;
+  z-index: var(--z-detail);
+  right: var(--gap);
+  bottom: calc(var(--status-bar-block-height) + var(--gap));
+  width: min(320px, calc(100vw - 2 * var(--map-ui-padding)));
+  padding: 10px;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-md);
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-2);
+}
+
+.nav-summary[hidden] {
+  display: none;
+}
+
+@media (max-width: 959px) {
+  /* 窄屏详情卡会占满屏宽中段，摘要卡沉到抽屉上沿、状态条之上。 */
+  .nav-summary {
+    left: var(--map-ui-padding);
+    right: var(--map-ui-padding);
+    bottom: calc(var(--drawer-h) + var(--status-bar-block-height) + var(--gap) + env(safe-area-inset-bottom, 0px));
+    width: auto;
   }
 }

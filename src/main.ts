@@ -11,6 +11,8 @@ import { mountWebglFallback, probeWebgl } from './ui/webgl-fallback'
 import { siteNavHtml } from './ui/site-nav'
 import { parseDeepLink, type DeepLinkState } from './deeplink/index'
 import { mountIndoorLevels, normalizeIndoorLevel } from './ui/indoor-levels'
+import { planRouteBetweenBuildings } from './navigation/route'
+import { createRouteOverlay, mountNavigationUi, navigationPickEntity, type NavigationRouteState } from './ui/navigation-ui'
 
 const appRoot = document.querySelector<HTMLDivElement>('#app')
 if (!appRoot) throw new Error('App root not found')
@@ -53,6 +55,7 @@ app.innerHTML = `
       <div id="entity-filters" class="filter-chips" role="group" aria-label="按分类筛选对象"></div>
       <div id="entity-list" class="entity-list"></div>
     </section>
+    <div id="navigation-ui"></div>
   </aside>
   <aside class="detail-card" id="detail-card" aria-label="地点详情" hidden>
     <div class="dc-head">
@@ -144,6 +147,7 @@ if (import.meta.env.DEV) {
     __campusRender?: () => void
     __campusResetMetrics?: () => void
     __campusFocus?: (name: string) => boolean
+    __m5bRouteOverlay?: () => number
   }
   debugWindow.__campusRenderMetrics = () => campus.getRenderMetrics()
   debugWindow.__campusRenderBudget = (budget) => campus.evaluateRenderBudget(budget)
@@ -187,6 +191,56 @@ function updateScaleBar(): void {
   scaleLabelEl.textContent = bar.label
   scaleBarEl.style.width = `${bar.pixels}px`
 }
+
+/* ---------- M5-B 导航 UI：起终点选择 → 聚合路线 → 高亮 + 摘要 ---------- */
+const routeOverlay = createRouteOverlay(campus.scene)
+const routeState: NavigationRouteState = { origin: null, destination: null, summary: null, error: '' }
+
+function applyRoute(): void {
+  if (routeState.origin === null || routeState.destination === null) {
+    routeState.summary = null
+    routeState.error = ''
+    routeOverlay.setRoute(null)
+    navUi.update(data, routeState)
+    requestRender()
+    return
+  }
+  const summary = planRouteBetweenBuildings(data, routeState.origin, routeState.destination)
+  routeState.summary = summary
+  routeState.error = summary ? '' : '这两栋建筑之间没有可通行的步行路线'
+  routeOverlay.setRoute(summary)
+  navUi.update(data, routeState)
+  const bounds = routeOverlay.bounds()
+  if (bounds) {
+    campus.controls.target.set(bounds.center[0], 0, bounds.center[1])
+    const distance = Math.max(90, bounds.size * 1.8)
+    campus.camera.position.set(bounds.center[0] - distance * 0.65, distance * 0.85, bounds.center[1] + distance * 0.75)
+    campus.controls.update()
+  }
+  requestRender()
+}
+
+const navUi = mountNavigationUi($<HTMLElement>('#navigation-ui'), {
+  onRouteRequest: (origin, destination) => {
+    routeState.origin = origin >= 0 && data.buildings[origin] ? origin : null
+    routeState.destination = destination >= 0 && data.buildings[destination] ? destination : null
+    applyRoute()
+  },
+  onClear: () => {
+    routeState.origin = null
+    routeState.destination = null
+    applyRoute()
+  },
+  onPickModeChange: () => requestRender(),
+})
+// 摘要卡独立浮在地图上，不放侧栏内：详情卡展开时也不会把路线信息挡住（M5-A 零重叠）。
+const navSummaryEl = app.querySelector<HTMLElement>('#nav-summary')
+if (navSummaryEl) app.appendChild(navSummaryEl)
+navUi.update(data, routeState)
+if (import.meta.env.DEV) {
+  ;(window as Window & { __m5bRouteOverlay?: () => number }).__m5bRouteOverlay = () => campus.scene.getObjectByName('m5b-route-overlay')?.children.length ?? -1
+}
+
 campus.setDisplayOptions({ ...view.layers, showEditorAids: false })
 campus.setDataAndSelection(data, 0)
 campus.resize()
@@ -438,7 +492,21 @@ detailClose.addEventListener('click', () => { dismissedDetail = selectionKey(vie
 layerControls.addEventListener('change', (event) => { const input = (event.target as HTMLInputElement).closest<HTMLInputElement>('[data-layer]'); if (!input) return; const key = input.dataset.layer as LayerKey; view.setLayer(key, input.checked); campus.setDisplayOptions(view.layers); requestRender(); syncUi() })
 $<HTMLButtonElement>('#reset-camera').addEventListener('click', () => { campus.setOverviewCamera(); requestRender() })
 $<HTMLButtonElement>('#fit-camera').addEventListener('click', () => { campus.setOverviewCamera(); requestRender() })
-campus.renderer.domElement.addEventListener('click', (event) => { const entity = pickEntity(event, campus.renderer.domElement, campus.camera, campus.clickableObjects); if (entity) select(entity) })
+campus.renderer.domElement.addEventListener('click', (event) => {
+  const entity = pickEntity(event, campus.renderer.domElement, campus.camera, campus.clickableObjects)
+  if (!entity) return
+  const mode = navUi.pickMode()
+  if (mode) {
+    const building = navigationPickEntity(entity)
+    if (building === null) return
+    if (mode === 'origin') routeState.origin = building
+    else routeState.destination = building
+    navUi.setPickMode(null)
+    applyRoute()
+    return
+  }
+  select(entity)
+})
 const onResize = () => { campus.resize(); syncDrawerOffset(); requestRender() }; onResize(); window.addEventListener('resize', onResize)
 requestRender()
 
