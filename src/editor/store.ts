@@ -1,6 +1,7 @@
 import type { CampusData } from '../data/campusData.ts'
 import type { Selection } from './types.ts'
 import { syncRoadNetwork } from '../data/roadNormalization.ts'
+import { clampFloor, floorRangeOf } from './floors.ts'
 
 const UNDO_LIMIT = 100
 
@@ -17,6 +18,7 @@ export class EditorStore {
   private _selection: Selection = null
   private _dirty = false
   private _revision = 0
+  private _activeFloor = 0
   private undoStack: CampusData[] = []
   private redoStack: CampusData[] = []
   private subscribers = new Set<() => void>()
@@ -32,6 +34,11 @@ export class EditorStore {
 
   get selection(): Selection {
     return this._selection
+  }
+
+  /** Current floor of the selected building; always clamped to its available levels. */
+  get activeFloor(): number {
+    return this._activeFloor
   }
 
   get dirty(): boolean {
@@ -62,7 +69,29 @@ export class EditorStore {
 
   select(sel: Selection): void {
     this._selection = sel
+    this.clampActiveFloor()
     this.notify()
+  }
+
+  /** Change the viewed floor only; no data mutation, no undo step. Out-of-range values clamp silently. */
+  setActiveFloor(level: unknown): void {
+    const next = clampFloor(level, this.currentFloorLevels())
+    if (next === this._activeFloor) return
+    this._activeFloor = next
+    this.notify()
+  }
+
+  private currentFloorLevels(): number[] {
+    return this.floorLevelsFor(this._selection)
+  }
+
+  private floorLevelsFor(sel: Selection): number[] {
+    if (!sel || sel.kind !== 'building') return [0]
+    return floorRangeOf(this._data.buildings[sel.index])
+  }
+
+  private clampActiveFloor(): void {
+    this._activeFloor = clampFloor(this._activeFloor, this.currentFloorLevels())
   }
 
   /** Apply a mutation and record one undo step only when data actually changes. */
@@ -79,6 +108,7 @@ export class EditorStore {
     this.redoStack = []
     this._dirty = true
     this._revision += 1
+    this.clampActiveFloor()
     this.notify()
   }
 
@@ -91,6 +121,7 @@ export class EditorStore {
     this._dirty = true
     this._revision += 1
     this.clampSelection()
+    this.clampActiveFloor()
     this.notify()
   }
 
@@ -103,6 +134,7 @@ export class EditorStore {
     this._dirty = true
     this._revision += 1
     this.clampSelection()
+    this.clampActiveFloor()
     this.notify()
   }
 
@@ -139,6 +171,7 @@ export class EditorStore {
     this.undoStack = []
     this.redoStack = []
     this._selection = null
+    this._activeFloor = 0
     this._dirty = false
     this._revision += 1
     this.notify()

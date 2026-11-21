@@ -196,3 +196,58 @@ describe('FormPanel', () => {
   })
 
 })
+
+describe('FormPanel floors', () => {
+  function floorData(): CampusData {
+    const d = data()
+    d.buildings = [
+      {
+        ...d.buildings[0],
+        floors: [{ level: -1, name: 'B1' }, { level: 0, name: '1F' }, { level: 2, name: '3F' }],
+      } as unknown as CampusData['buildings'][number],
+    ]
+    return d
+  }
+
+  it('renders a floor selector from levelRange and changes floor without undo steps', () => {
+    const host = document.createElement('div')
+    const store = new EditorStore(floorData())
+    const form = new FormPanel(host, store)
+    store.subscribe(() => form.render())
+    store.select({ kind: 'building', index: 0 })
+
+    const select = inputByLabel(host, '楼层') as HTMLSelectElement
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['-1', '0', '2'])
+    select.value = '2'
+    fire(select, 'change')
+    expect(store.activeFloor).toBe(2)
+    expect(store.dirty).toBe(false)
+    expect(store.canUndo).toBe(false)
+    expect((inputByLabel(host, '楼层') as HTMLSelectElement).value).toBe('2')
+  })
+
+  it('renders building connectors or the empty hint', () => {
+    const host = document.createElement('div')
+    const d = floorData()
+    Object.assign(d, {
+      connectors: [
+        { id: 'c1', kind: 'stairs', from: { building: 'b1', level: 0 }, to: { building: 'b1', level: 2 } },
+      ],
+    })
+    const store = new EditorStore(d)
+    const form = new FormPanel(host, store)
+    store.subscribe(() => form.render())
+    store.select({ kind: 'building', index: 0 })
+    expect(host.querySelector('.connector-table')).toBeTruthy()
+    expect(Array.from(host.querySelectorAll('.connector-table th')).map((th) => th.textContent)).toEqual(['类型', 'from→to 楼层'])
+    expect(host.querySelector('.connector-table tbody tr td')?.textContent).toBe('stairs')
+    expect(host.querySelector('.connector-table tbody tr td:last-child')?.textContent).toBe('0F→2F')
+
+    const emptyStore = new EditorStore(floorData())
+    const emptyHost = document.createElement('div')
+    const emptyForm = new FormPanel(emptyHost, emptyStore)
+    emptyStore.subscribe(() => emptyForm.render())
+    emptyStore.select({ kind: 'building', index: 0 })
+    expect(emptyHost.querySelector('.connector-table .empty-hint')?.textContent).toBe('本栋暂无竖向连接')
+  })
+})
