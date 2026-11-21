@@ -756,3 +756,6 @@ export function validateCampusPack(value: unknown): PackValidationResult {
 export function isCampusPack(value: unknown): value is CampusPack {
   return validateCampusPack(value).ok
 }
+
+/** M6-A：数据源适配层引用的可选导出；不改变任何既有字段/类型。 */
+export type CampusDataSourceKind = 'static' | 'remote'
