@@ -1,5 +1,6 @@
 import type { Building, CampusData, PoiMarker } from '../data/campusData'
 import { resolvedPoi } from '../scene/displayRules'
+import { buildingFields, type BuildingDetailFields } from './detail-fields'
 
 export type EntitySelection = { kind: 'building' | 'poi'; index?: number; id?: string }
 export type EntityFilter = 'all' | 'building' | 'poi' | Building['category']
@@ -43,7 +44,10 @@ export function renderFilterChips(container: HTMLElement, active: EntityFilter):
 
 function entityItems(data: CampusData): Array<{ kind: 'building' | 'poi'; index?: number; id: string; name: string; subtitle: string; category: string }> {
   return [
-    ...data.buildings.map((b, index) => ({ kind: 'building' as const, index, id: b.id, name: b.name, subtitle: `${b.category} · ${data.zones.find((z) => z.id === b.zoneId)?.name ?? b.zoneId ?? '未分区'}`, category: b.category })),
+    ...data.buildings.map((b, index) => {
+      const fields = buildingFields(data, b)
+      return { kind: 'building' as const, index, id: fields.id, name: fields.name, subtitle: `${fields.category} · ${fields.zone}`, category: b.category }
+    }),
     ...data.pois.map((poi) => ({ kind: 'poi' as const, id: poi.id, name: poi.name, subtitle: `地标 · ${poi.kind}`, category: poi.kind })),
   ]
 }
@@ -68,13 +72,28 @@ export function renderEntityList(data: CampusData, selected: EntitySelection | n
   }).join('') || '<p class="empty-state">没有匹配对象</p>'
 }
 
+/** 详情面板的建筑正文；列表与详情共用 buildingFields 的结果。 */
+export function renderBuildingFields(fields: BuildingDetailFields): string {
+  const facts: Array<[string, string]> = [
+    ['名称', fields.name],
+    ['类别', fields.category],
+    ['分区', fields.zone],
+    ['坐标', fields.coordinate],
+    ['高度', fields.height],
+    ['楼层', fields.floorSummary],
+    ['室内入口', fields.entrance],
+    ['设施', fields.facilitySummary],
+  ]
+  return `<h3 class="detail-building-title">${escapeHtml(fields.name)}</h3><p class="detail-meta">建筑 · ${escapeHtml(fields.category)} · ${escapeHtml(fields.zone)}</p><p class="detail-fact">${escapeHtml(fields.info)}</p><dl class="detail-facts-building">${facts.map(([label, value]) => `<div><dt>${label}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>`
+}
+
 export function renderDetails(data: CampusData, selected: EntitySelection | null, container: HTMLElement): void {
   const rawItem: Building | PoiMarker | undefined = selected?.kind === 'building' ? data.buildings[selected.index ?? -1] : data.pois.find((poi) => poi.id === selected?.id)
   const item: Building | PoiMarker | undefined = rawItem && 'kind' in rawItem ? resolvedPoi(rawItem, data.buildings) : rawItem
   if (!item) { container.innerHTML = '<p class="empty-state">点击地图或搜索结果查看详情。</p>'; return }
   if ('category' in item && 'height' in item) {
-    const zone = data.zones.find((z) => z.id === item.zoneId)?.name ?? item.zoneId ?? '未分区'
-    container.innerHTML = `<h3>${escapeHtml(item.name)}</h3><p class="detail-meta">建筑 · ${escapeHtml(item.category)} · ${escapeHtml(zone)}</p><p class="detail-fact">${escapeHtml(item.info ?? '暂无简介')}</p><dl><div><dt>位置</dt><dd>X ${formatCoordinate(item.position[0])} / Z ${formatCoordinate(item.position[1])}</dd></div><div><dt>高度</dt><dd>${formatCoordinate(item.height)}</dd></div></dl>`
+    const fields = buildingFields(data, item)
+    container.innerHTML = renderBuildingFields(fields)
   } else {
     container.innerHTML = `<h3>${escapeHtml(item.name)}</h3><p class="detail-meta">POI · ${escapeHtml(item.kind)}</p><p class="detail-fact">${escapeHtml(item.info ?? '暂无简介')}</p><p class="detail-meta">位置 X ${formatCoordinate(item.position[0])} / Z ${formatCoordinate(item.position[2])}</p>`
   }

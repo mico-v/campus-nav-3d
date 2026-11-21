@@ -1230,3 +1230,47 @@ html[data-shell='1'] .wf-link {
     width: 100%;
   }
 }
+
+/* ---------- M5-A 建筑详情/列表：只追加建筑字段相关样式 ---------- */
+.detail-building-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.detail-facts-building {
+  display: grid;
+  gap: 3px;
+  margin: 6px 0 0;
+}
+
+.detail-facts-building div {
+  display: grid;
+  grid-template-columns: 4.5em minmax(0, 1fr);
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.detail-facts-building dt {
+  color: var(--ink-3);
+}
+
+.detail-facts-building dd {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.entity-item .building-sub {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 959px) {
+  .detail-facts-building div {
+    grid-template-columns: 4em minmax(0, 1fr);
+  }
+}
