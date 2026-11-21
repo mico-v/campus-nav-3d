@@ -6,11 +6,19 @@
   display: flex;
   align-items: center;
   gap: 2px;
+  /* 顶栏宽度不够时只允许导航被挤压（省略号），不许把搜索框挤成「搜索建筑 / 地」。
+     min-width: 0 是省略号生效的前提。 */
+  flex: 0 1 auto;
   min-width: 0;
+  overflow: hidden;
 }
 
 .site-nav a {
   display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   align-items: center;
   height: 32px;
   padding: 0 10px;
@@ -54,7 +62,14 @@ html[data-shell='1'] .site-nav {
   display: none;
 }
 
+/* 窄屏优先保搜索框：站点导航收成「当前页 + 更多」太复杂，这里直接整组收起，
+   三入口在抽屉/落地页仍有出口，壳内本来也不出现。 */
 @media (max-width: 560px) {
+  /* 手机档整组收起：顶栏宽度优先给搜索框，三入口在抽屉和落地页仍有出口 */
+  .site-nav {
+    display: none;
+  }
+
   .site-nav a {
     height: 36px;
     padding: 0 8px;
