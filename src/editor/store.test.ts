@@ -109,3 +109,67 @@ describe('EditorStore', () => {
     expect(store.data.buildings[0].height).toBe(12)
   })
 })
+
+describe('EditorStore activeFloor', () => {
+  function floorData(): CampusData {
+    const data = makeData()
+    data.buildings = [
+      {
+        ...data.buildings[0],
+        levels: [
+          { index: -1, name: 'B1', elevation: -3, height: 3 },
+          { index: 0, name: '1F', elevation: 0, height: 3 },
+          { index: 2, name: '3F', elevation: 6, height: 3 },
+        ],
+      } as CampusData['buildings'][number],
+    ]
+    return data
+  }
+
+  it('select clamps the active floor to the building levels', () => {
+    const store = new EditorStore(floorData())
+    store.select({ kind: 'building', index: 0 })
+    expect(store.activeFloor).toBe(0)
+    store.setActiveFloor(99)
+    expect(store.activeFloor).toBe(2)
+    store.select(null)
+    expect(store.activeFloor).toBe(0)
+    store.select({ kind: 'building', index: 0 })
+    expect(store.activeFloor).toBe(0)
+    store.setActiveFloor(-99)
+    expect(store.activeFloor).toBe(-1)
+  })
+
+  it('setActiveFloor notifies only, without dirty data or undo history', () => {
+    const store = new EditorStore(floorData())
+    store.select({ kind: 'building', index: 0 })
+    const fn = vi.fn()
+    store.subscribe(fn)
+    store.setActiveFloor(2)
+    expect(store.activeFloor).toBe(2)
+    expect(store.dirty).toBe(false)
+    expect(store.canUndo).toBe(false)
+    expect(fn).toHaveBeenCalledTimes(1)
+    store.setActiveFloor(2)
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+
+  it('undo, redo and replaceAll re-clamp the active floor', () => {
+    const store = new EditorStore(floorData())
+    store.select({ kind: 'building', index: 0 })
+    store.setActiveFloor(2)
+    store.mutate('truncate levels', (d) => {
+      ;(d.buildings[0] as CampusData['buildings'][number] & { levels: unknown[] }).levels = [{ index: 0, name: '1F', elevation: 0, height: 3 }]
+      ;(d.buildings[0] as CampusData['buildings'][number]).height = 30
+    })
+    expect(store.activeFloor).toBe(0)
+    // Undo restores a wider range; current floor stays valid, no restoration of view state.
+    store.undo()
+    expect(store.activeFloor).toBe(0)
+    store.redo()
+    expect(store.activeFloor).toBe(0)
+    store.replaceAll(floorData())
+    expect(store.activeFloor).toBe(0)
+    expect(store.selection).toBeNull()
+  })
+})

@@ -3,6 +3,7 @@ import type { CampusData, BuildingCategory, ZoneCategory } from '../data/campusD
 import { buildingCategoryOptions } from '../data/campusData.ts'
 import { translatePoints, polygonBounds, polygonCentroid, type Point } from './geometry.ts'
 import type { Selection } from './types.ts'
+import { floorRangeOf, listBuildingConnectors } from './floors.ts'
 
 type Option = { value: string; label: string }
 
@@ -69,7 +70,7 @@ export class FormPanel {
     if (!sel) return 'none'
     const data = this.store.data
     let shapeSize = 0
-    if (sel.kind === 'building') shapeSize = data.buildings[sel.index]?.footprint?.length ?? 0
+    if (sel.kind === 'building') shapeSize = (data.buildings[sel.index]?.footprint?.length ?? 0) + floorRangeOf(data.buildings[sel.index]).join(',').length
     else if (sel.kind === 'road') shapeSize = data.roads[sel.index]?.points.length ?? 0
     else if (sel.kind === 'road-node') shapeSize = data.roadNetwork?.nodes.find((node) => node.id === sel.id)?.sourceIds?.length ?? 0
     else if (sel.kind === 'zone') shapeSize = data.zones[sel.index]?.footprint?.length ?? 0
@@ -80,7 +81,7 @@ export class FormPanel {
 
   render(): void {
     const sel = this.store.selection
-    const key = this.selectionKey(sel)
+    const key = sel?.kind === 'building' ? `${this.selectionKey(sel)}:floor${this.store.activeFloor}` : this.selectionKey(sel)
     if (key !== this.renderedKey) {
       this.renderedKey = key
       this.before = null
@@ -188,13 +189,16 @@ export class FormPanel {
       el.setAttribute('disabled', 'true')
     } else if (f.apply) {
       const apply = f.apply
-      el.addEventListener('focus', () => this.captureBefore())
-      el.addEventListener('input', () => {
+      const isFloorSelect = f.id === 'activeFloor'
+      if (!isFloorSelect) el.addEventListener('focus', () => this.captureBefore())
+      el.addEventListener(isFloorSelect ? 'change' : 'input', () => {
         apply(el.value)
-        this.store.notifyChange()
+        if (!isFloorSelect) this.store.notifyChange()
       })
-      el.addEventListener('change', () => this.commit())
-      el.addEventListener('blur', () => this.commit())
+      if (!isFloorSelect) {
+        el.addEventListener('change', () => this.commit())
+        el.addEventListener('blur', () => this.commit())
+      }
     }
     this.inputs.set(f.id, el)
     wrap.appendChild(el)
@@ -242,9 +246,12 @@ export class FormPanel {
             },
           })
           editor.appendChild(this.convertBuildingToBoxButton(sel.index))
+          editor.appendChild(this.connectorTable(sel.index))
           return editor
         }
-        return this.convertToFootprintButton('building', sel.index)
+        const convert = this.convertToFootprintButton('building', sel.index)
+        convert.appendChild(this.connectorTable(sel.index))
+        return convert
       }
       case 'road': {
         const r = () => this.store.data.roads[sel.index]
@@ -386,6 +393,47 @@ export class FormPanel {
     return wrap
   }
 
+  /** Read-only connector table for the selected building; source pack data is untouched. */
+  private connectorTable(i: number): HTMLElement {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'connector-table'
+    const title = document.createElement('h3')
+    title.textContent = '竖向连接'
+    wrapper.appendChild(title)
+    const rows = listBuildingConnectors(this.store.data, this.store.data.buildings[i])
+    if (!rows.length) {
+      const empty = document.createElement('p')
+      empty.className = 'empty-hint'
+      empty.textContent = '本栋暂无竖向连接'
+      wrapper.appendChild(empty)
+      return wrapper
+    }
+    const table = document.createElement('table')
+    const header = document.createElement('thead')
+    const headRow = document.createElement('tr')
+    for (const label of ['类型', 'from→to 楼层']) {
+      const th = document.createElement('th')
+      th.textContent = label
+      headRow.appendChild(th)
+    }
+    header.appendChild(headRow)
+    table.appendChild(header)
+    const body = document.createElement('tbody')
+    for (const row of rows) {
+      const tr = document.createElement('tr')
+      const kind = document.createElement('td')
+      kind.textContent = row.kind
+      const range = document.createElement('td')
+      range.textContent = `${row.from}F→${row.to}F`
+      tr.appendChild(kind)
+      tr.appendChild(range)
+      body.appendChild(tr)
+    }
+    table.appendChild(body)
+    wrapper.appendChild(table)
+    return wrapper
+  }
+
   /** Convert a box-shaped item into an editable polygon footprint. */
   private convertToFootprintButton(kind: 'building' | 'zone' | 'water' | 'field', i: number): HTMLElement {
     const wrap = document.createElement('div')
@@ -480,6 +528,7 @@ export class FormPanel {
     return [
       { id: 'id', label: 'ID', kind: 'text', get: () => b().id, apply: (v) => { const id = v.trim(); if (id) b().id = id } },
       { id: 'name', label: '名称', kind: 'text', get: () => b().name, apply: (v) => { b().name = v } },
+      { id: 'activeFloor', label: '楼层', kind: 'select', options: floorRangeOf(b()).map((level) => ({ value: String(level), label: `${level}F` })), get: () => String(this.store.activeFloor), apply: (v) => this.store.setActiveFloor(Number(v)) },
       {
         id: 'category',
         label: '类别',
