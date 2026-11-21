@@ -5,6 +5,8 @@ import { normalizeCampusData } from './roadNormalization'
 import { validateCampusDataValue } from './campusValidation'
 import { enhanceCampusData } from './campusEnhancements'
 import type { RoadAccess, RoadClass, RoadNetwork, RoadSurface } from './roadNetwork'
+import type { CampusFloor } from './pack-schema'
+import { M5A_DEMO_BUILDING_FIELDS } from './m5aDemoFields'
 
 export type ZoneCategory = 'dorm' | 'academic' | 'landscape' | 'sports' | 'service' | 'admin'
 
@@ -33,6 +35,13 @@ export interface Zone {
   footprint?: [number, number][]
 }
 
+/** M5-A：室内入口的展示信息；level 与 M2-A floors 的 level 对齐。 */
+export interface BuildingEntrance {
+  level?: number
+  name?: string
+  position?: [number, number]
+}
+
 export interface Building {
   id: string
   name: string
@@ -44,7 +53,13 @@ export interface Building {
   /** Optional until the campus is subdivided into authoritative zones. */
   zoneId?: string
   footprint?: [number, number][]
+  /** 简介；旧 pack 缺失时由 UI 层回落。 */
   info?: string
+  /** M2-A 的楼层定义；与室内楼层条共用同一份数据。 */
+  floors?: Array<Partial<CampusFloor> & { level: number }>
+  /** 公共服务设施列表；旧 pack 缺失时由 UI 层回落。 */
+  facilities?: string[]
+  entrance?: BuildingEntrance
 }
 
 export interface Road {
@@ -124,6 +139,13 @@ export type CanonicalCampusData = Omit<MapDataset, 'roadNetwork'> & { roadNetwor
 function packToLegacyData(data: unknown, meta: unknown): CampusData {
   const migrated = migrateCampusData(data)
   const pack = migrated
+  // migrate 只保留 core schema 字段；M5-A 的展示字段直接从原始 pack 透传，
+  // 老 pack 没有这些字段时保持 undefined，交给下游回落。
+  const rawBuildings = new Map(
+    ((data as { buildings?: Array<Record<string, unknown>> })?.buildings ?? [])
+      .filter((raw) => raw && typeof raw.id === 'string')
+      .map((raw) => [raw.id as string, raw]),
+  )
   const network = pack.roadNetwork!
   const zones: Zone[] = pack.zones!.map((zone) => ({
     id: zone.id,
@@ -134,17 +156,27 @@ function packToLegacyData(data: unknown, meta: unknown): CampusData {
     color: zone.color!,
     footprint: zone.polygon as [number, number][],
   }))
-  const buildings: Building[] = pack.buildings!.map((building) => ({
-    id: building.id,
-    name: building.name,
-    category: building.category as BuildingCategory,
-    position: building.position!,
-    size: building.size!,
-    height: building.height,
-    color: building.color,
-    zoneId: building.zoneId,
-    footprint: building.footprint as [number, number][],
-  }))
+  const buildings: Building[] = pack.buildings!.map((building) => {
+    const raw = rawBuildings.get(building.id) ?? {}
+    const floors = Array.isArray(raw.floors) ? raw.floors as CampusFloor[] : undefined
+    const facilities = Array.isArray(raw.facilities) ? raw.facilities.filter((item): item is string => typeof item === 'string') : undefined
+    const rawEntrance = raw.entrance as BuildingEntrance | undefined
+    return {
+      id: building.id,
+      name: building.name,
+      category: building.category as BuildingCategory,
+      position: building.position!,
+      size: building.size!,
+      height: building.height,
+      color: building.color,
+      zoneId: building.zoneId,
+      footprint: building.footprint as [number, number][],
+      info: typeof raw.info === 'string' ? raw.info : undefined,
+      floors,
+      facilities,
+      entrance: rawEntrance && typeof rawEntrance === 'object' ? rawEntrance : undefined,
+    }
+  })
   const roads: Road[] = pack.roads!.map((road) => ({
     id: road.id,
     name: road.name,
@@ -210,7 +242,18 @@ export function prepareCampusData(data: CampusData): CanonicalCampusData {
 }
 
 export function createDefaultCampusData(): CanonicalCampusData {
-  return prepareCampusData(baseCampusData)
+  const data = prepareCampusData(baseCampusData)
+  // 当前 pack 还没有 M5-A 的展示字段；只在默认演示数据里补几栋楼的楼层/入口/设施，
+  // 让 UI 有真实可点的例子。其余建筑保持缺字段状态，走详情面板的回落路径。
+  for (const building of data.buildings) {
+    const demo = M5A_DEMO_BUILDING_FIELDS[building.id]
+    if (!demo) continue
+    if (!building.floors?.length && demo.floors) building.floors = demo.floors
+    if (!building.facilities?.length && demo.facilities) building.facilities = demo.facilities
+    if (!building.info && demo.info) building.info = demo.info
+    if (!building.entrance && demo.entrance) building.entrance = demo.entrance
+  }
+  return data
 }
 
 /** Return actionable errors before an edited dataset is serialized. */
