@@ -214,3 +214,18 @@ export function createStaticDataSource(): CampusDataSource {
     },
   }
 }
+
+/** 数据源选择参数：静态包（默认）或远程端点。 */
+export type DataSourceConfig =
+  | { kind: 'static' }
+  | { kind: 'remote'; baseUrl: string }
+
+/**
+ * 按 kind 选数据源。前端入口只调这个工厂，不直接 new 具体实现。
+ * M6-A 阶段只有 'static' 可用；'remote' 在 s6 落地，此处先明确拒绝，
+ * 保证「按 kind 切换」这条路存在且行为可验（不会静默回退成静态）。
+ */
+export function createDataSource(config: DataSourceConfig = { kind: 'static' }): CampusDataSource {
+  if (config.kind === 'static') return createStaticDataSource()
+  throw new Error(`远程数据源尚未实现（baseUrl=${config.baseUrl}），M6-B 交付`)
+}
