@@ -25,7 +25,7 @@ export function isNavigationMode(value: unknown): value is NavigationMode {
 }
 
 /** 错误码稳定，文案给 UI 直接展示。 */
-export type RouteErrorCode = 'same-point' | 'no-node' | 'unreachable' | 'invalid-position'
+export type RouteErrorCode = 'same-point' | 'no-node' | 'unreachable' | 'invalid-position' | 'via-conflict'
 
 export interface RouteError {
   code: RouteErrorCode
@@ -161,6 +161,112 @@ export function planRoute(
       geometry: result.geometry,
       segmentIds: result.segmentPath,
       rawNodePath: path,
+      mode,
+    },
+    error: null,
+  }
+}
+
+/**
+ * 多地点顺序导航参数：origin → via[0] → ... → destination。
+ * mode 非法时回落 pedestrian，与 planRoute 保持一致。
+ */
+export interface ViaRouteParams {
+  originIndex: number
+  via: number[]
+  destinationIndex: number
+  mode?: NavigationMode
+}
+
+function sameGeometryPoint(a: [number, number], b: [number, number]): boolean {
+  return a[0] === b[0] && a[1] === b[1]
+}
+
+/**
+ * 在 planRoute 之上做分段聚合：via 只出现在用户指定的 stops 里，
+ * A* 中间节点留在 rawNodePath / geometry；任一段失败就整体失败，不给半条路线。
+ */
+export function planRouteWithVia(data: CampusData, params: ViaRouteParams): RouteResult {
+  const { originIndex, destinationIndex, via } = params
+  const mode: NavigationMode = isNavigationMode(params.mode) ? params.mode : 'pedestrian'
+  const options = { mode }
+  const viaIndexes = Array.isArray(via) ? via : []
+
+  if (viaIndexes.length === 0) {
+    return planRoute(data, originIndex, destinationIndex, options)
+  }
+
+  const allIndexes = [originIndex, ...viaIndexes, destinationIndex]
+  if (allIndexes.some((index) => !validPosition(data, index))) {
+    return routeError('invalid-position', '途经点坐标无效，没有可通行的路线')
+  }
+  if (viaIndexes.some((index) => index === originIndex || index === destinationIndex)) {
+    return routeError('via-conflict', '途经点不能与起点或终点相同')
+  }
+
+  const network = data.roadNetwork
+  if (!network || !network.nodes.length || !network.segments.length) {
+    return routeError('no-node', '这片区域没有可用的路网节点，暂时无法规划路线')
+  }
+
+  const segments: RouteSummary[] = []
+  for (let index = 0; index < viaIndexes.length + 1; index += 1) {
+    const from = index === 0 ? originIndex : viaIndexes[index - 1]
+    const to = index === viaIndexes.length ? destinationIndex : viaIndexes[index]
+    const result = planRoute(data, from, to, options)
+    if (!result.route) return result
+    segments.push(result.route)
+  }
+
+  const stopIndexes = [originIndex, ...viaIndexes, destinationIndex]
+  const stops: RouteStop[] = stopIndexes.map((buildingIndex, index) => {
+    const role: RouteStop['role'] = index === 0
+      ? 'origin'
+      : index === stopIndexes.length - 1 ? 'destination' : 'via'
+    const nodeId = index === 0
+      ? segments[0].rawNodePath[0]
+      : index === stopIndexes.length - 1
+        ? segments[segments.length - 1].rawNodePath[segments[segments.length - 1].rawNodePath.length - 1]
+        : segments[index].rawNodePath[0]
+    const node = network.nodes.find((candidate) => candidate.id === nodeId)
+    return {
+      nodeId,
+      name: data.buildings[buildingIndex]?.name ?? stopLabel(nodeId, network),
+      position: [node?.position[0] ?? 0, node?.position[1] ?? 0],
+      role,
+    }
+  })
+
+  const geometry: [number, number][] = []
+  const rawNodePath: string[] = []
+  const segmentIds: string[] = []
+  let distanceMeters = 0
+  let durationSeconds = 0
+  for (const segment of segments) {
+    distanceMeters += segment.distanceMeters
+    durationSeconds += segment.durationSeconds
+    for (const point of segment.geometry) {
+      if (!geometry.length || !sameGeometryPoint(geometry[geometry.length - 1], point)) {
+        geometry.push([...point] as [number, number])
+      }
+    }
+    for (const nodeId of segment.rawNodePath) {
+      if (rawNodePath.length && rawNodePath[rawNodePath.length - 1] === nodeId) continue
+      rawNodePath.push(nodeId)
+    }
+    for (const segmentId of segment.segmentIds) {
+      if (!segmentIds.includes(segmentId)) segmentIds.push(segmentId)
+    }
+  }
+
+  return {
+    route: {
+      distanceMeters,
+      durationSeconds,
+      stops,
+      geometry,
+      segmentIds,
+      rawNodePath,
       mode,
     },
     error: null,
