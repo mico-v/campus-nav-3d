@@ -76,3 +76,99 @@ html[data-shell='1'] .site-nav {
     font-size: 12px;
   }
 }
+
+/* 导航面板途经点（s4-ui-via）：只加 via 相关类，不碰既有 .nav-* 规则 */
+.nav-via {
+  margin: 10px 0 0;
+}
+
+.nav-via-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nav-via-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2, currentColor);
+}
+
+.nav-via-add {
+  border: 1px dashed var(--line, rgba(127, 137, 145, 0.5));
+  border-radius: 8px;
+  background: transparent;
+  color: var(--primary, currentColor);
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.nav-via-add:hover:not(:disabled) {
+  border-style: solid;
+  background: var(--surface-2, rgba(127, 137, 145, 0.12));
+}
+
+.nav-via-add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nav-via-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.nav-via-row {
+  display: grid;
+  grid-template-columns: 1fr repeat(3, 28px);
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-via-select {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--line, rgba(127, 137, 145, 0.5));
+  border-radius: 8px;
+  background: var(--surface-1, transparent);
+  color: var(--ink, currentColor);
+  font: inherit;
+  font-size: 12px;
+}
+
+.nav-via-move,
+.nav-via-remove {
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line, rgba(127, 137, 145, 0.5));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2, currentColor);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nav-via-move:hover,
+.nav-via-remove:hover {
+  background: var(--surface-2, rgba(127, 137, 145, 0.12));
+}
+
+.nav-via-tip {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--ink-2, currentColor);
+  opacity: 0.8;
+}
+
+.nav-via-count {
+  margin: 2px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f43f5e;
+}

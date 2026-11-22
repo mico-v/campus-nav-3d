@@ -12,14 +12,17 @@ import { escapeHtml } from './panel'
 
 export interface NavigationRouteState {
   origin: number | null
+  via: number[]
   destination: number | null
   summary: RouteSummary | null
   error: RouteError | null
   mode: NavigationMode
 }
 
+export const MAX_VIA_COUNT = 5
+
 export interface NavigationUiHandlers {
-  onRouteRequest: (origin: number, destination: number, mode: NavigationMode) => void
+  onRouteRequest: (origin: number, via: number[], destination: number, mode: NavigationMode) => void
   onModeChange: (mode: NavigationMode) => void
   onClear: () => void
   onPickModeChange: (mode: 'origin' | 'destination' | null) => void
@@ -107,6 +110,11 @@ export function mountNavigationUi(host: HTMLElement, handlers: NavigationUiHandl
         <label class="nav-leg"><span class="nav-leg-dot origin"></span><select id="nav-origin" aria-label="起点"><option value="">选择起点建筑</option></select></label>
         <label class="nav-leg"><span class="nav-leg-dot destination"></span><select id="nav-destination" aria-label="终点"><option value="">选择终点建筑</option></select></label>
       </div>
+      <div class="nav-via" id="nav-via" aria-label="途经点">
+        <div class="nav-via-head"><span class="nav-via-title">途经点</span><button type="button" id="nav-via-add" class="nav-via-add">+ 添加途经点</button></div>
+        <div class="nav-via-list" id="nav-via-list"></div>
+        <p class="nav-via-tip" id="nav-via-tip" hidden></p>
+      </div>
       <div class="nav-modes" id="nav-modes" role="group" aria-label="出行模式">
         <button type="button" data-mode="pedestrian" class="nav-mode active" aria-pressed="true">步行</button>
         <button type="button" data-mode="bicycle" class="nav-mode" aria-pressed="false">骑行</button>
@@ -121,6 +129,9 @@ export function mountNavigationUi(host: HTMLElement, handlers: NavigationUiHandl
     <aside class="nav-summary" id="nav-summary" aria-label="路线摘要" hidden></aside>`
   const originSelect = host.querySelector<HTMLSelectElement>('#nav-origin')!
   const destinationSelect = host.querySelector<HTMLSelectElement>('#nav-destination')!
+  const viaList = host.querySelector<HTMLElement>('#nav-via-list')!
+  const viaAddBtn = host.querySelector<HTMLButtonElement>('#nav-via-add')!
+  const viaTip = host.querySelector<HTMLElement>('#nav-via-tip')!
   const hint = host.querySelector<HTMLElement>('#nav-hint')!
   const summaryEl = host.querySelector<HTMLElement>('#nav-summary')!
   const pickOriginBtn = host.querySelector<HTMLButtonElement>('#nav-pick-origin')!
@@ -129,6 +140,8 @@ export function mountNavigationUi(host: HTMLElement, handlers: NavigationUiHandl
   let pickMode: 'origin' | 'destination' | null = null
   let cachedData: CampusData | null = null
   let cachedState: NavigationRouteState | null = null
+  let cachedOptions = ''
+  let viaInitialized = false
 
   const setMode = (mode: NavigationMode): void => {
     if (!cachedState || !isNavigationMode(mode) || mode === cachedState.mode) return
@@ -153,6 +166,7 @@ export function mountNavigationUi(host: HTMLElement, handlers: NavigationUiHandl
     const options = data.buildings.map((building, index) =>
       `<option value="${index}"${buildingAnchorId(data, index) === null ? ' disabled' : ''}>${escapeHtml(building.name)}</option>`,
     ).join('')
+    cachedOptions = options
     originSelect.innerHTML = `<option value="">选择起点建筑</option>${options}`
     destinationSelect.innerHTML = `<option value="">选择终点建筑</option>${options}`
     originSelect.value = state.origin === null ? '' : String(state.origin)
@@ -164,9 +178,51 @@ export function mountNavigationUi(host: HTMLElement, handlers: NavigationUiHandl
       button.classList.toggle('active', active)
       button.setAttribute('aria-pressed', String(active))
     })
+    const count = viaList.querySelectorAll('[data-via-row]').length
+    const atLimit = count >= MAX_VIA_COUNT
+    viaAddBtn.disabled = atLimit
+    viaTip.hidden = !atLimit
+    viaTip.textContent = atLimit ? `最多添加 ${MAX_VIA_COUNT} 个途经点` : ''
     hint.textContent = pickMode
       ? `点击地图选${pickMode === 'origin' ? '起点' : '终点'}`
       : state.origin !== null && state.destination !== null ? `已规划 · ${NAVIGATION_MODE_LABELS[state.mode]}` : '选起点 → 选终点'
+  }
+
+  const dataHasBuilding = (data: CampusData, index: number): boolean => Boolean(data.buildings[index])
+
+  /** 只认 DOM 顺序：重排不维护独立数组，提交/校验前现读，避免出现两份真相。 */
+  const readVia = (): number[] => Array.from(viaList.querySelectorAll<HTMLSelectElement>('[data-via-row] select'))
+    .map((select) => (select.value === '' ? -1 : Number(select.value)))
+    .filter((index) => index >= 0)
+
+  /** 起点/终点的当前 DOM 值；via 里不许选同样的楼，下拉里直接标灰。 */
+  const blockedIndexes = (): Set<number> => new Set(
+    [originSelect.value, destinationSelect.value].filter((value) => value !== '').map(Number),
+  )
+
+  const refreshViaAvailability = (): void => {
+    for (const select of viaList.querySelectorAll<HTMLSelectElement>('[data-via-row] select')) {
+      const blocked = blockedIndexes()
+      for (const option of Array.from(select.options)) {
+        if (option.value === '') continue
+        option.disabled = blocked.has(Number(option.value)) || cachedData === null
+          || buildingAnchorId(cachedData, Number(option.value)) === null
+      }
+      // 当前值撞上起终点时清空，且不把冲突交给引擎。
+      if (blocked.has(Number(select.value))) select.value = ''
+    }
+  }
+
+  const requestRoute = (): void => {
+    const viaIndexes = readVia()
+    const blocked = blockedIndexes()
+    if (viaIndexes.some((index) => blocked.has(index))) return
+    handlers.onRouteRequest(
+      originSelect.value === '' ? -1 : Number(originSelect.value),
+      viaIndexes,
+      destinationSelect.value === '' ? -1 : Number(destinationSelect.value),
+      cachedState?.mode ?? 'pedestrian',
+    )
   }
 
   const renderSummary = (state: NavigationRouteState): void => {
@@ -188,16 +244,58 @@ export function mountNavigationUi(host: HTMLElement, handlers: NavigationUiHandl
     summaryEl.removeAttribute('data-state')
     summaryEl.innerHTML = `
       <p class="nav-mode-now">当前模式：${escapeHtml(formatted.mode)}</p>
+      ${state.via.length ? `<p class="nav-via-count" data-via-count="${state.via.length}">途经 ${state.via.length} 站</p>` : ''}
       <div class="nav-metrics"><span><strong>${formatted.distance}</strong><small>距离</small></span><span><strong>${formatted.duration}</strong><small>预计用时</small></span></div>
       <p class="nav-stops"><span>途经节点</span>${escapeHtml(formatted.stops)}</p>`
   }
 
-  originSelect.addEventListener('change', () => {
-    handlers.onRouteRequest(originSelect.value === '' ? -1 : Number(originSelect.value), cachedState?.destination ?? -1, cachedState?.mode ?? 'pedestrian')
+  const addViaRow = (selected?: number): void => {
+    if (cachedData === null || viaList.querySelectorAll('[data-via-row]').length >= MAX_VIA_COUNT) return
+    const row = document.createElement('div')
+    row.className = 'nav-via-row'
+    row.dataset.viaRow = ''
+    row.innerHTML = `
+      <select class="nav-via-select" aria-label="途经点建筑"><option value="">选择途经点建筑</option>${cachedOptions}</select>
+      <button type="button" class="nav-via-move" data-action="up" aria-label="上移途经点" title="上移">↑</button>
+      <button type="button" class="nav-via-move" data-action="down" aria-label="下移途经点" title="下移">↓</button>
+      <button type="button" class="nav-via-remove" data-action="remove" aria-label="删除途经点" title="删除">×</button>`
+    viaList.appendChild(row)
+    const select = row.querySelector<HTMLSelectElement>('.nav-via-select')!
+    if (selected !== undefined && dataHasBuilding(cachedData, selected)) select.value = String(selected)
+    refreshViaAvailability()
+    if (cachedState) renderOptions(cachedData, cachedState)
+  }
+
+  const clearViaRows = (): void => {
+    viaList.innerHTML = ''
+    if (cachedData && cachedState) renderOptions(cachedData, cachedState)
+  }
+
+  viaAddBtn.addEventListener('click', () => addViaRow())
+  viaList.addEventListener('change', (event) => {
+    const target = event.target
+    if (!(target instanceof HTMLSelectElement) || !target.closest('[data-via-row]')) return
+    requestRoute()
   })
-  destinationSelect.addEventListener('change', () => {
-    handlers.onRouteRequest(cachedState?.origin ?? -1, destinationSelect.value === '' ? -1 : Number(destinationSelect.value), cachedState?.mode ?? 'pedestrian')
+  viaList.addEventListener('click', (event) => {
+    const target = event.target
+    if (!(target instanceof HTMLButtonElement)) return
+    const row = target.closest<HTMLElement>('[data-via-row]')
+    if (!row) return
+    const action = target.dataset.action
+    if (action === 'remove') {
+      row.remove()
+      if (cachedData && cachedState) renderOptions(cachedData, cachedState)
+    } else if (action === 'up' || action === 'down') {
+      const sibling = action === 'up' ? row.previousElementSibling : row.nextElementSibling
+      if (!sibling) return
+      if (action === 'up') viaList.insertBefore(row, sibling)
+      else viaList.insertBefore(sibling, row)
+    }
   })
+
+  originSelect.addEventListener('change', () => { refreshViaAvailability(); requestRoute() })
+  destinationSelect.addEventListener('change', () => { refreshViaAvailability(); requestRoute() })
   modeButtons.forEach((button) => {
     button.addEventListener('click', () => {
       const mode = button.dataset.mode
@@ -206,12 +304,20 @@ export function mountNavigationUi(host: HTMLElement, handlers: NavigationUiHandl
   })
   pickOriginBtn.addEventListener('click', () => setPickMode(pickMode === 'origin' ? null : 'origin'))
   pickDestinationBtn.addEventListener('click', () => setPickMode(pickMode === 'destination' ? null : 'destination'))
-  host.querySelector<HTMLButtonElement>('#nav-clear')!.addEventListener('click', () => { setPickMode(null); handlers.onClear() })
+  host.querySelector<HTMLButtonElement>('#nav-clear')!.addEventListener('click', () => {
+    clearViaRows()
+    setPickMode(null)
+    handlers.onClear()
+  })
 
   return {
     update(data, state) {
       cachedData = data
       cachedState = state
+      if (!viaInitialized) {
+        viaInitialized = true
+        for (const index of state.via.slice(0, MAX_VIA_COUNT)) addViaRow(index)
+      }
       renderOptions(data, state)
       renderSummary(state)
     },

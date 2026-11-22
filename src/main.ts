@@ -11,7 +11,7 @@ import { mountWebglFallback, probeWebgl } from './ui/webgl-fallback'
 import { siteNavHtml } from './ui/site-nav'
 import { parseDeepLink, type DeepLinkState } from './deeplink/index'
 import { mountIndoorLevels, normalizeIndoorLevel } from './ui/indoor-levels'
-import { isNavigationMode, planRoute, resolveBuildingIndex } from './navigation/route'
+import { isNavigationMode, planRouteWithVia, resolveBuildingIndex } from './navigation/route'
 import type { NavigationMode } from './navigation/types'
 import { createRouteOverlay, mountNavigationUi, navigationPickEntity, type NavigationRouteState } from './ui/navigation-ui'
 
@@ -201,6 +201,7 @@ const requestedMode = deepLink?.mode
 const initialMode: NavigationMode = isNavigationMode(requestedMode) ? requestedMode : 'pedestrian'
 const routeState: NavigationRouteState = {
   origin: resolveBuildingIndex(data, deepLink?.from),
+  via: [],
   destination: resolveBuildingIndex(data, deepLink?.to),
   summary: null,
   error: null,
@@ -217,7 +218,12 @@ function applyRoute(): void {
     requestRender()
     return
   }
-  const result = planRoute(data, routeState.origin, routeState.destination, { mode: routeState.mode })
+  const result = planRouteWithVia(data, {
+    originIndex: routeState.origin,
+    via: routeState.via,
+    destinationIndex: routeState.destination,
+    mode: routeState.mode,
+  })
   routeState.summary = result.route
   routeState.error = result.error
   // 任何 error 都不进渲染：保留上一次无路线状态，绝不画半条线。
@@ -234,8 +240,9 @@ function applyRoute(): void {
 }
 
 const navUi = mountNavigationUi($<HTMLElement>('#navigation-ui'), {
-  onRouteRequest: (origin, destination, mode) => {
+  onRouteRequest: (origin, via, destination, mode) => {
     routeState.origin = origin >= 0 && data.buildings[origin] ? origin : null
+    routeState.via = via.filter((index) => Number.isInteger(index) && index >= 0 && data.buildings[index])
     routeState.destination = destination >= 0 && data.buildings[destination] ? destination : null
     routeState.mode = isNavigationMode(mode) ? mode : 'pedestrian'
     applyRoute()
@@ -246,6 +253,7 @@ const navUi = mountNavigationUi($<HTMLElement>('#navigation-ui'), {
   },
   onClear: () => {
     routeState.origin = null
+    routeState.via = []
     routeState.destination = null
     applyRoute()
   },
