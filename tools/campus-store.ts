@@ -259,6 +259,11 @@ export async function savePackCampusData(
 ): Promise<PackSaveResult> {
   validateCampusData(data)
   const normalized = normalizeCampusData(data)
+  // 编辑器在几何变更时已用 syncRoadNetwork 重建拓扑；save 不再从 roads 重建，
+  // 否则只存在于 roadNetwork 的接驳段（无对应 roads 记录）会在往返中丢失。
+  if (data.roadNetwork !== undefined) {
+    normalized.roadNetwork = data.roadNetwork
+  }
   const currentMeta = await parseJsonFile(packPath)
   if (!isRecord(currentMeta)) throw new Error('pack.json 必须是 JSON 对象')
   const currentGeometry = await parseOptionalJsonFile(campusPath)

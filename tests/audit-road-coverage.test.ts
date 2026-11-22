@@ -21,6 +21,18 @@ const campusRaw: unknown = JSON.parse(readFileSync(resolve(repoRoot, 'packs/usts
 const campus = normalizeAuditData(campusRaw)
 const result = auditRoadCoverage(campus, campusRaw)
 
+// s2 在既有数据尾部追加了接驳节点/段；过滤出 s1 的 39 节点/42 段快照，
+// 让「建议支路」断言仍跑在会产生建议的原始数据上，而不是锁死快照数字。
+const s1Raw = {
+  ...(campusRaw as Record<string, unknown>),
+  roadNetwork: {
+    nodes: campus.roadNetwork.nodes.filter((node) => /^node-\d{4}$/.test(node.id)),
+    segments: campus.roadNetwork.segments.filter((segment) => /^road-/.test(segment.id)),
+  },
+}
+const s1Campus = normalizeAuditData(s1Raw)
+const s1Result = auditRoadCoverage(s1Campus, s1Raw)
+
 describe('路网覆盖审计算法', () => {
   it('分档阈值固定，接受边界值且拒绝调整', () => {
     expect(THRESHOLDS).toEqual({ connectedMax: 30, weakMax: 100 })
@@ -55,23 +67,21 @@ describe('路网覆盖审计算法', () => {
 })
 
 describe('真实 pack 锚点', () => {
-  it('集合规模与连通性与基线一致', () => {
+  it('集合规模与连通性符合本片目标', () => {
     expect(result.summary.buildingCount).toBe(75)
-    expect(result.summary.nodeCount).toBe(39)
-    expect(result.summary.segmentCount).toBe(42)
+    expect(result.summary.nodeCount).toBe(146)
+    expect(result.summary.segmentCount).toBe(149)
     expect(result.summary.componentCount).toBe(1)
+    expect(result.summary.isolatedNodeCount).toBe(0)
   })
 
   it('分档数量与极值吻合，数字不因难看被调阈值', () => {
-    expect(result.summary.connectedCount).toBe(1)
-    expect(result.summary.weakCount).toBe(13)
-    expect(result.summary.missingCount).toBe(61)
+    expect(result.summary.connectedCount).toBe(75)
+    expect(result.summary.weakCount).toBe(0)
+    expect(result.summary.missingCount).toBe(0)
     expect(result.summary.minDistanceM).toBeLessThan(2)
-    expect(result.summary.maxDistanceM).toBeGreaterThan(600)
-    expect(result.summary.maxDistanceM).toBeLessThan(610)
-    expect(result.summary.maxDistanceBuilding.name).toBe('东区宿舍与服务区单体楼11')
-    expect(result.summary.medianDistanceM).toBeGreaterThan(225)
-    expect(result.summary.medianDistanceM).toBeLessThan(230)
+    expect(result.summary.maxDistanceM).toBeLessThan(30)
+    expect(result.summary.medianDistanceM).toBeLessThanOrEqual(30)
   })
 
   it('数据质量结论与 issue 描述一致', () => {
@@ -92,11 +102,11 @@ describe('CSV 与建议支路', () => {
     expect(new Set(lines.slice(1).map((line) => line.split(',')[0])).size).toBe(75)
   })
 
-  it('每条建议支路都带起点/终点/宽度/等级/理由，且起点节点真实存在', () => {
-    const suggestions = buildBranchSuggestions(result, campus.roadNetwork.nodes, campus.buildings)
+  it('s1 数据快照下每条建议支路都带起点/终点/宽度/等级/理由，且起点节点真实存在', () => {
+    const suggestions = buildBranchSuggestions(s1Result, s1Campus.roadNetwork.nodes, s1Campus.buildings)
     expect(suggestions.length).toBeGreaterThan(0)
-    const nodeIds = new Set(campus.roadNetwork.nodes.map((node) => node.id))
-    const buildingIds = new Set(campus.buildings.map((building) => building.id))
+    const nodeIds = new Set(s1Campus.roadNetwork.nodes.map((node) => node.id))
+    const buildingIds = new Set(s1Campus.buildings.map((building) => building.id))
     for (const suggestion of suggestions) {
       expect(nodeIds.has(suggestion.startNodeId)).toBe(true)
       expect(buildingIds.has(suggestion.endBuildingId)).toBe(true)
@@ -116,8 +126,8 @@ describe('CSV 与建议支路', () => {
     }
   })
 
-  it('真实数据里穿楼条目单独标 needs_detour，且不因穿楼改动阈值或数据', () => {
-    const suggestions = buildBranchSuggestions(result, campus.roadNetwork.nodes, campus.buildings)
+  it('s1 数据快照里穿楼条目单独标 needs_detour，且不因穿楼改动阈值或数据', () => {
+    const suggestions = buildBranchSuggestions(s1Result, s1Campus.roadNetwork.nodes, s1Campus.buildings)
     const detoured = suggestions.filter((suggestion) => suggestion.needsDetour)
     expect(detoured.length).toBeGreaterThan(0)
     for (const suggestion of detoured) {
