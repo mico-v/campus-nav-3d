@@ -16,7 +16,7 @@ const legacy = readJson('tests/fixtures/legacy-campus.json') as Record<string, u
 const meta = readJson('packs/usts-tianping/pack.json')
 const packData = readJson('packs/usts-tianping/campus.json') as {
   zones: Array<{ polygon: number[][]; category?: string; center?: number[]; size?: number[]; color?: string }>
-  buildings: Array<{ footprint: number[][]; position: number[]; size: number[]; color?: string; zoneId?: string; category?: string }>
+  buildings: Array<{ id: string; footprint: number[][]; position: number[]; size: number[]; color?: string; zoneId?: string; category?: string }>
   roads: unknown[]
   waters: unknown[]
   fields: unknown[]
@@ -38,12 +38,12 @@ describe('M1-S3 数据迁入 packs/usts-tianping', () => {
 
   it('数量与迁移前一致', () => {
     expect(packData.zones).toHaveLength(7)
-    expect(packData.buildings).toHaveLength(75)
-    expect(packData.roads).toHaveLength(14)
+    expect(packData.buildings).toHaveLength(88)
+    expect(packData.roads).toHaveLength(27)
     expect(packData.waters).toHaveLength(2)
     expect(packData.fields).toHaveLength(5)
     expect(packData.trees).toHaveLength(0)
-    expect(packData.pois).toHaveLength(0)
+    expect(packData.pois).toHaveLength(65)
     expect(packData.roadNetwork.nodes.length).toBeGreaterThanOrEqual(39)
     expect(packData.roadNetwork.edges.length).toBeGreaterThanOrEqual(42)
     expect(packData.roadNetwork.segments?.length).toBeGreaterThanOrEqual(42)
@@ -89,8 +89,10 @@ describe('M1-S3 数据迁入 packs/usts-tianping', () => {
   })
 
   it('道路 / 水体 / 场地 / 树木原样映射', () => {
+    // 用 legacy fixture 验证迁移链路本身；M1 扩容后的 pack 不再是它的镜像。
+    const migrated = migrateCampusData(legacy)
     for (const key of ['roads', 'waters', 'fields', 'trees', 'pois'] as const) {
-      expect(packData[key]).toEqual(legacy[key])
+      expect(migrated[key]).toEqual(legacy[key])
     }
   })
 
@@ -99,17 +101,19 @@ describe('M1-S3 数据迁入 packs/usts-tianping', () => {
       nodes: Array<{ position: number[]; kind?: string; sourceIds?: string[] }>
       segments: Array<Record<string, unknown>>
     }
-    packData.roadNetwork.nodes.forEach((node, index) => {
+    const migrated = migrateCampusData(legacy)
+    const network = migrated.roadNetwork!
+    network.nodes.forEach((node, index) => {
       expect(node.at).toEqual(raw.nodes[index].position)
       expect(node.kind).toBe(raw.nodes[index].kind)
       expect(node.sourceIds).toEqual(raw.nodes[index].sourceIds)
     })
-    packData.roadNetwork.edges.forEach((edge, index) => {
+    network.edges.forEach((edge, index) => {
       const source = raw.segments[index]
       expect(edge.from).toBe(source.from)
       expect(edge.to).toBe(source.to)
       for (const key of ['kind', 'width', 'class', 'surface', 'access', 'centerline', 'sourceIds'] as const) {
-        if (source[key] !== undefined) expect((edge as Record<string, unknown>)[key]).toEqual(source[key])
+        if (source[key] !== undefined) expect((edge as unknown as Record<string, unknown>)[key]).toEqual(source[key])
       }
       const centerline = source.centerline as number[][]
       const expected = centerline.slice(1).reduce((sum, point, pointIndex) => {
@@ -118,18 +122,25 @@ describe('M1-S3 数据迁入 packs/usts-tianping', () => {
       }, 0) || source.width
       expect(edge.cost).toBe(expected)
     })
-    expect(packData.roadNetwork.segments).toEqual(raw.segments)
+    expect(network.segments).toEqual(raw.segments)
   })
 
   it('campus.json 不含 meta 字段，迁移函数输出与已落盘 pack 数据一致', () => {
     expect(Object.keys(packData)).not.toEqual(expect.arrayContaining(['schema', 'id', 'name', 'license', 'bounds']))
-    expect(migrateCampusData(legacy)).toEqual(packData)
+    // M1 扩容后 pack 是新的权威数据：校验它自身经迁移后核心结构不变。
+    const migrated = migrateCampusData(packData)
+    expect(migrated.zones).toEqual(packData.zones)
+    expect(migrated.buildings!.map((building) => building.id)).toEqual(packData.buildings.map((building) => building.id))
+    expect(migrated.buildings!.map((building) => building.footprint)).toEqual(packData.buildings.map((building) => building.footprint))
+    expect(migrated.roads).toEqual(packData.roads)
+    expect(migrated.roadNetwork!.nodes).toEqual(packData.roadNetwork.nodes)
+    expect(migrated.roadNetwork!.segments).toEqual(packData.roadNetwork.segments)
   })
 
   it('页面默认数据源来自 pack 且行为等价', () => {
     const data = createDefaultCampusData()
     expect(data.name).toBe((meta as { name: string }).name)
-    expect(data.buildings).toHaveLength(75)
+    expect(data.buildings).toHaveLength(88)
     expect(data.zones).toHaveLength(7)
     expect(data.roadNetwork.nodes.length).toBeGreaterThanOrEqual(39)
     expect(data.roadNetwork.segments.length).toBeGreaterThanOrEqual(42)

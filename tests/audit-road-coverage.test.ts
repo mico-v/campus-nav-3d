@@ -68,15 +68,15 @@ describe('路网覆盖审计算法', () => {
 
 describe('真实 pack 锚点', () => {
   it('集合规模与连通性符合本片目标', () => {
-    expect(result.summary.buildingCount).toBe(75)
-    expect(result.summary.nodeCount).toBe(146)
-    expect(result.summary.segmentCount).toBe(149)
+    expect(result.summary.buildingCount).toBe(88)
+    expect(result.summary.nodeCount).toBe(207)
+    expect(result.summary.segmentCount).toBe(210)
     expect(result.summary.componentCount).toBe(1)
     expect(result.summary.isolatedNodeCount).toBe(0)
   })
 
   it('分档数量与极值吻合，数字不因难看被调阈值', () => {
-    expect(result.summary.connectedCount).toBe(75)
+    expect(result.summary.connectedCount).toBe(88)
     expect(result.summary.weakCount).toBe(0)
     expect(result.summary.missingCount).toBe(0)
     expect(result.summary.minDistanceM).toBeLessThan(2)
@@ -94,12 +94,12 @@ describe('真实 pack 锚点', () => {
 })
 
 describe('CSV 与建议支路', () => {
-  it('表头固定且恰好 75 行数据', () => {
+  it('表头固定且恰好 88 行数据', () => {
     const csv = buildCsv(result.records)
     const lines = csv.trimEnd().split('\n')
     expect(lines[0]).toBe('building_id,building_name,nearest_node_id,nearest_node_kind,distance_m,footprint_min_distance_m,verdict')
-    expect(lines).toHaveLength(76)
-    expect(new Set(lines.slice(1).map((line) => line.split(',')[0])).size).toBe(75)
+    expect(lines).toHaveLength(89)
+    expect(new Set(lines.slice(1).map((line) => line.split(',')[0])).size).toBe(88)
   })
 
   it('s1 数据快照下每条建议支路都带起点/终点/宽度/等级/理由，且起点节点真实存在', () => {

@@ -137,9 +137,9 @@ const ORIGINAL_SEGMENT_ANCHORS: ReadonlyArray<readonly [string, string, string]>
 const distance = (a: Point, b: Point): number => Math.hypot(a[0] - b[0], a[1] - b[1])
 
 describe('s2 建筑接驳路网：硬口径断言', () => {
-  it('75 栋全部 connected，weak 与 missing 均为 0 行', () => {
-    expect(audit.summary.buildingCount).toBe(75)
-    expect(audit.summary.connectedCount).toBe(75)
+  it('88 栋全部 connected，weak 与 missing 均为 0 行', () => {
+    expect(audit.summary.buildingCount).toBe(88)
+    expect(audit.summary.connectedCount).toBe(88)
     expect(audit.summary.weakCount).toBe(0)
     expect(audit.summary.missingCount).toBe(0)
     expect(audit.records.filter((r) => r.verdict !== 'connected(<=30m)')).toEqual([])
@@ -152,10 +152,10 @@ describe('s2 建筑接驳路网：硬口径断言', () => {
     })
   })
 
-  it('既有 39 节点 / 42 段的 id 与坐标一个都没动', () => {
+  it('既有 39 节点 / 42 段及后续接驳段的 id 与坐标一个都没动', () => {
     // s1 基线：39 节点 / 42 段，逐项锚点在 ORIGINAL_*_ANCHORS
-    expect(campus.roadNetwork.nodes).toHaveLength(146)
-    expect(campus.roadNetwork.segments).toHaveLength(149)
+    expect(campus.roadNetwork.nodes).toHaveLength(207)
+    expect(campus.roadNetwork.segments).toHaveLength(210)
     expect(originalNodes[0].id).toBe('node-0001')
     expect(originalNodes[ORIGINAL_NODE_COUNT - 1].id).toBe('node-0038')
     expect(new Set(originalNodes.map((n) => n.id)).size).toBe(ORIGINAL_NODE_COUNT)
