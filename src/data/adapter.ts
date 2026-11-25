@@ -41,6 +41,7 @@ function buildStaticPack(): CampusPack {
     buildings: data.buildings.map((building) => ({
       id: building.id,
       name: building.name,
+      aliases: building.aliases,
       category: building.category,
       footprint: building.footprint ?? [],
       height: building.height,
@@ -93,6 +94,7 @@ function buildStaticPack(): CampusPack {
     pois: data.pois.map((poi) => ({
       id: poi.id,
       name: poi.name,
+      aliases: poi.aliases,
       at: [poi.position[0], poi.position[1]],
       elevation: poi.position[2],
       building: poi.sourceBuildingId,
@@ -124,6 +126,7 @@ export function toCampusData(pack: CampusPack): CanonicalCampusData {
     buildings: (pack.buildings ?? []).map((b) => ({
       id: b.id,
       name: b.name,
+      aliases: b.aliases,
       category: (b.category ?? 'poi') as CanonicalCampusData['buildings'][number]['category'],
       position: b.position ?? [0, 0],
       size: b.size ?? [0, 0],
@@ -171,6 +174,7 @@ export function toCampusData(pack: CampusPack): CanonicalCampusData {
     pois: (pack.pois ?? []).map((p) => ({
       id: p.id,
       name: p.name,
+      aliases: p.aliases,
       kind: ((p as unknown as CanonicalCampusData['pois'][number]).kind ?? 'landmark') as CanonicalCampusData['pois'][number]['kind'],
       position: [p.at[0], p.at[1], (p as unknown as { elevation?: number }).elevation ?? 0],
       color: (p as unknown as CanonicalCampusData['pois'][number]).color,
