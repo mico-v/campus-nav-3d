@@ -112,6 +112,8 @@ export interface CampusBuilding {
   id: string
   name: string
   aliases?: string[]
+  /** 中文口径别名（与 aliases 等价，供数据侧直读）。 */
+  alias?: string[]
   category?: string
   footprint: Point[]
   height: number
@@ -121,6 +123,8 @@ export interface CampusBuilding {
   color?: string
   zoneId?: string
   levels?: CampusLevel[]
+  /** 坐标为相对方位推算，不可当精确坐标使用。 */
+  approx?: boolean
 }
 
 export interface RoadNode {
@@ -175,6 +179,8 @@ export interface CampusPoi {
   level?: number
   building?: string | null
   tags?: string[]
+  /** 室内店面所属建筑（只建 POI，不建室内几何）。 */
+  parentBuilding?: string
 }
 
 /** `pack.json`：只描述包本身，不含几何。 */

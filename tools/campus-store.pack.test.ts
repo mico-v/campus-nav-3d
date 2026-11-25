@@ -43,14 +43,14 @@ describe('pack 读写：GET 合并 / PUT 拆分', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('GET 合并 meta 与几何，含 crs/origin/bounds 和 75 栋建筑', async () => {
+  it('GET 合并 meta 与几何，含 crs/origin/bounds 和 88 栋建筑', async () => {
     const data = await loadPackCampusData(packPath, campusPath)
     const meta = JSON.parse(await readFile(packPath, 'utf8'))
     const geometry = JSON.parse(await readFile(campusPath, 'utf8'))
 
     expect(data.name).toBe(meta.name)
     expect(data.bounds).toEqual({ width: 3070, depth: 1530 })
-    expect(data.buildings.length).toBe(75)
+    expect(data.buildings.length).toBe(88)
     expect(data.buildings).toEqual(geometry.buildings)
     // pack 的 zone 几何存在 `polygon`，编辑器/主应用的契约字段是 `footprint`
     expect(data.zones.map((zone) => zone.footprint)).toEqual(
