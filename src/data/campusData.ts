@@ -218,6 +218,46 @@ function packToLegacyData(data: unknown, meta: unknown): CampusData {
     stripeColor: field.stripeColor,
     footprint: field.footprint as [number, number][],
   }))
+  const packPois: PoiMarker[] = pack.pois!.map((poi) => {
+    const raw = (rawPois.get(poi.id) ?? {}) as Record<string, unknown> & { kind?: string; tags?: string[]; elevation?: number }
+    const at = poi.at!
+    return {
+      id: poi.id,
+      name: poi.name,
+      aliases: normalizedAliases(raw.aliases, raw.alias),
+      kind: (typeof raw.kind === 'string' ? raw.kind : raw.tags?.includes('gate') ? 'gate' : 'landmark') as PoiMarker['kind'],
+      position: [at[0], at[1], typeof raw.elevation === 'number' ? raw.elevation : 0] as [number, number, number],
+      color: raw.color as string | undefined,
+      sourceBuildingId: typeof raw.building === 'string' ? raw.building : undefined,
+      info: typeof raw.info === 'string' ? raw.info : Array.isArray(raw.tags) ? raw.tags[0] : undefined,
+    }
+  })
+  // 室内 POI 与 pack POI 可能同名（例如「KFC」与「KFC（二食堂店）」），判重只认 id，
+  // 同名不是重复。原装配层按 id 跳过，这里沿用同一口径，避免把室内 POI 静默吃掉。
+  const poiIds = new Set(packPois.map((poi) => poi.id))
+  const indoorPois: PoiMarker[] = []
+  for (const raw of (data as { buildings?: Array<Record<string, unknown>> })?.buildings ?? []) {
+    if (!Array.isArray(raw?.floors)) continue
+    for (const floor of raw.floors as Array<Record<string, unknown>>) {
+      if (!Array.isArray(floor?.rooms)) continue
+      for (const room of floor.rooms as Array<Record<string, unknown>>) {
+        if (typeof room?.id !== 'string' || typeof room.name !== 'string' || poiIds.has(room.id)) continue
+        poiIds.add(room.id)
+        const center = (raw.position ?? pack.buildings!.find((building) => building.id === raw.id)?.position ?? [0, 0]) as [number, number]
+        const level = typeof floor.level === 'number' ? floor.level : 0
+        indoorPois.push({
+          id: room.id,
+          name: room.name,
+          aliases: normalizedAliases(room.aliases, room.alias),
+          kind: (typeof room.kind === 'string' && ['service', 'dining', 'shop'].includes(room.kind) ? 'service' : 'landmark') as PoiMarker['kind'],
+          position: [center[0], level * 4, center[1]] as [number, number, number],
+          sourceBuildingId: typeof raw.id === 'string' ? raw.id : undefined,
+          info: typeof room.name === 'string' ? room.name : undefined,
+        })
+      }
+    }
+  }
+
   return {
     name: String((meta as Record<string, unknown>).name),
     bounds: {
@@ -232,20 +272,7 @@ function packToLegacyData(data: unknown, meta: unknown): CampusData {
     trees: pack.trees!.map((tree) => tree.at as [number, number]),
     // pack 的 POI 带 at/level/tags 等字段；编辑器按位置与可选信息读取这里的一份即可，
     // 不给渲染层凭空造新 POI。位置补上第三维高度，POI kind 由 tags 回落。
-    pois: pack.pois!.map((poi) => {
-      const raw = (rawPois.get(poi.id) ?? {}) as Record<string, unknown> & { kind?: string; tags?: string[]; elevation?: number }
-      const at = poi.at!
-      return {
-        id: poi.id,
-        name: poi.name,
-        aliases: normalizedAliases(raw.aliases, raw.alias),
-        kind: (typeof raw.kind === 'string' ? raw.kind : raw.tags?.includes('gate') ? 'gate' : 'landmark') as PoiMarker['kind'],
-        position: [at[0], at[1], typeof raw.elevation === 'number' ? raw.elevation : 0] as [number, number, number],
-        color: raw.color as string | undefined,
-        sourceBuildingId: typeof raw.building === 'string' ? raw.building : undefined,
-        info: typeof raw.info === 'string' ? raw.info : Array.isArray(raw.tags) ? raw.tags[0] : undefined,
-      }
-    }),
+    pois: [...packPois, ...indoorPois],
     roadNetwork: {
       nodes: network.nodes.map((node) => ({
         id: node.id,

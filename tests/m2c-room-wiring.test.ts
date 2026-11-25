@@ -61,15 +61,30 @@ describe('M2-C 装配：店面 POI 与详情标题', () => {
   const mainSourceForRoom = mainSource
 
   it('roomId 命中 pack POI 后进入已存在的 POI 选中入口', () => {
-    // kfc 的 room id 就是 pack POI id；补 POI 后主程序按 id 直接命中。
-    expect(mainSourceForRoom).toMatch(/data\.pois\.push\(\{[\s\S]*id: poi\.id/)
+    // kfc 的 room id 就是 pack POI id；适配层补 POI 后主程序按 id 直接命中。
+    const data = createDefaultCampusData()
+    expect(data.pois.some((poi) => poi.id === 'poi-m1-048')).toBe(true)
+    expect(mainSourceForRoom).toMatch(/if \(!data\.pois\.some\(\(poi\) => poi\.id === roomId\)\) return/)
   })
 
   it('详情卡正文用 POI 名称作为标题，展示 KFC（二食堂店）', () => {
     const data = createDefaultCampusData()
-    data.pois.push({ id: 'poi-m1-048', name: 'KFC（二食堂店）', kind: 'service', position: [-323, 0, 761], info: '室内店面' })
     const container = document.createElement('div')
     renderDetails(data, { kind: 'poi', id: 'poi-m1-048' }, container)
     expect(container.querySelector('h3')?.textContent).toBe('KFC（二食堂店）')
+  })
+})
+
+describe('M3-B 适配层：室内 POI 按 id 判重', () => {
+  // issue #70 给的 65 来自 627edd0b 那份 pack（65 条，含 #74 已删的 poi-m1-055 一食堂）。
+  // 当前 main 的 pack 是 64 条，room 里缺 POI 的是 noodle-stall / stir-fry-stall 两条，
+  // 按 id 判重补齐后写死 66，不用 >= 掩盖数量回退。
+  it('默认数据保留 66 条 POI，KFC 与肯悦咖啡都在且 id 不重复', () => {
+    const pois = createDefaultCampusData().pois
+    expect(pois).toHaveLength(66)
+    const ids = new Set(pois.map((poi) => poi.id))
+    expect(ids.has('poi-m1-048')).toBe(true)
+    expect(ids.has('poi-m1-049')).toBe(true)
+    expect(ids.size).toBe(pois.length)
   })
 })
