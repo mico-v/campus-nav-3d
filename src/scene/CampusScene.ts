@@ -608,11 +608,11 @@ export class CampusScene {
     const viewportAspect = this.host.clientWidth / Math.max(1, this.host.clientHeight)
     const portrait = viewportAspect < 0.9
     const viewDirection = portrait
-      ? new THREE.Vector3(-0.98, 0.5, 0.06)
-      : new THREE.Vector3(-0.62, 0.52, 0.62)
+      ? new THREE.Vector3(-0.98, 0.34, 0.06)
+      : new THREE.Vector3(-0.62, 0.36, 0.62)
     viewDirection.normalize()
-    const halfWidth = rawBounds.width / 2 + (portrait ? 40 : 70)
-    const halfDepth = rawBounds.depth / 2 + (portrait ? 40 : 70)
+    const halfWidth = rawBounds.width / 2 + (portrait ? 20 : 40)
+    const halfDepth = rawBounds.depth / 2 + (portrait ? 20 : 40)
     const maxHeight = Math.max(12, ...this.data.buildings.map((building) => building.height)) + 8
     const framingPoints: THREE.Vector3[] = []
     for (const y of [0, maxHeight]) {
