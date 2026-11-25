@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import packData from '../../packs/usts-tianping/campus.json'
-import { createDefaultCampusData } from './campusData'
+import packData from '../packs/usts-tianping/campus.json'
+import { createDefaultCampusData } from '../src/data/campusData'
 
 describe('pack 别名归一', () => {
   it('建筑不再保留重复 alias 字段，aliases 全部带到运行时', () => {
