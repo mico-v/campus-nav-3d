@@ -77,11 +77,11 @@ describe('M2-C 装配：店面 POI 与详情标题', () => {
 
 describe('M3-B 适配层：室内 POI 按 id 判重', () => {
   // issue #70 给的 65 来自 627edd0b 那份 pack（65 条，含 #74 已删的 poi-m1-055 一食堂）。
-  // 当前 main 的 pack 是 64 条，room 里缺 POI 的是 noodle-stall / stir-fry-stall 两条，
-  // 按 id 判重补齐后写死 66，不用 >= 掩盖数量回退。
-  it('默认数据保留 66 条 POI，KFC 与肯悦咖啡都在且 id 不重复', () => {
+  // #76 又删掉与 place-14 同坐标的二食堂 POI，当前 pack 是 63 条；
+  // room 里缺 POI 的是 noodle-stall / stir-fry-stall 两条，按 id 判重补齐后写死 65。
+  it('默认数据保留 65 条 POI，KFC 与肯悦咖啡都在且 id 不重复', () => {
     const pois = createDefaultCampusData().pois
-    expect(pois).toHaveLength(66)
+    expect(pois).toHaveLength(65)
     const ids = new Set(pois.map((poi) => poi.id))
     expect(ids.has('poi-m1-048')).toBe(true)
     expect(ids.has('poi-m1-049')).toBe(true)

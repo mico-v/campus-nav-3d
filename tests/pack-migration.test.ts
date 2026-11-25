@@ -43,7 +43,7 @@ describe('M1-S3 数据迁入 packs/usts-tianping', () => {
     expect(packData.waters).toHaveLength(2)
     expect(packData.fields).toHaveLength(5)
     expect(packData.trees).toHaveLength(0)
-    expect(packData.pois).toHaveLength(64)
+    expect(packData.pois).toHaveLength(63)
     expect(packData.roadNetwork.nodes.length).toBeGreaterThanOrEqual(39)
     expect(packData.roadNetwork.edges.length).toBeGreaterThanOrEqual(42)
     expect(packData.roadNetwork.segments?.length).toBeGreaterThanOrEqual(42)
