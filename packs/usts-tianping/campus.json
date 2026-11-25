@@ -733,6 +733,46 @@
       "note": "一楼为一食堂，二楼为二食堂；「一食堂」作为 alias 命中本楼。",
       "alias": [
         "一食堂"
+      ],
+      "floors": [
+        {
+          "level": 0,
+          "name": "1F · 一食堂",
+          "rooms": [
+            {
+              "id": "poi-m1-048",
+              "name": "KFC",
+              "aliases": [
+                "肯德基"
+              ],
+              "kind": "service"
+            },
+            {
+              "id": "noodle-stall",
+              "name": "面点档口",
+              "kind": "dining"
+            },
+            {
+              "id": "stir-fry-stall",
+              "name": "热炒档口",
+              "kind": "dining"
+            }
+          ]
+        },
+        {
+          "level": 1,
+          "name": "2F · 二食堂",
+          "rooms": [
+            {
+              "id": "poi-m1-049",
+              "name": "肯悦咖啡",
+              "aliases": [
+                "咖啡"
+              ],
+              "kind": "service"
+            }
+          ]
+        }
       ]
     },
     {

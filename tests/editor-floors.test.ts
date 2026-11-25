@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import type { CampusData } from '../src/data/campusData.ts'
-import { clampFloor, floorRangeOf, levelRange, listBuildingConnectors } from '../src/editor/floors.ts'
+import { clampFloor, floorRangeOf, floorRoomsOf, levelRange, listBuildingConnectors } from '../src/editor/floors.ts'
 
 function data(): CampusData {
   return {
@@ -39,6 +39,24 @@ describe('editor floors 纯函数', () => {
     ] as unknown as CampusData['buildings']
     expect(floorRangeOf(d.buildings[0])).toEqual([0, 1])
     expect(floorRangeOf(d.buildings[1])).toEqual([-1, 0])
+  })
+
+  it('floorRoomsOf 只读当前层 rooms，老数据返回空数组', () => {
+    const d = data()
+    d.buildings = [
+      {
+        id: 'canteen', name: '二食堂', category: 'service', position: [0, 0], size: [10, 10], height: 12,
+        floors: [
+          { level: 0, name: '1F', rooms: [{ id: 'kfc', name: 'KFC', aliases: ['肯德基'], kind: 'service' }] },
+          { level: 1, name: '2F' },
+        ],
+      },
+      { id: 'legacy', name: '老楼', category: 'academic', position: [0, 0], size: [10, 10], height: 12 },
+    ] as unknown as CampusData['buildings']
+    expect(floorRoomsOf(d.buildings[0], 0)).toEqual([{ id: 'kfc', name: 'KFC', aliases: ['肯德基'], kind: 'service' }])
+    expect(floorRoomsOf(d.buildings[0], 1)).toEqual([])
+    expect(floorRoomsOf(d.buildings[1], 0)).toEqual([])
+    expect(floorRoomsOf(undefined, 0)).toEqual([])
   })
 
   it('listBuildingConnectors 从 pack connectors 取本栋连接', () => {

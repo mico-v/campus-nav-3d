@@ -5,22 +5,11 @@
  * `floors` 是「一层一张平面」的显式建模，和旧的 `levels`（楼层高度 + 门/房间）
  * 不是同一层概念；两者可以共存，本片不负责桥接。
  */
-import type { CampusBuilding, CampusPack, Point } from '../../packages/campus-schema/src/index'
+import type { CampusBuilding, CampusFloor, CampusPack, Point } from '../../packages/campus-schema/src/index'
 
-/**
- * 楼层编号约定：
- * - `level: 0` 是一层（地面层）；
- * - 正数为地上层（1 = 二层），负数为地下层（-1 = B1）；
- * - 同一建筑内 `level` 唯一，但不要求连续。
- */
-export interface CampusFloor {
-  level: number
-  name: string
-  /** 该层的平面轮廓，缺省时沿用建筑的 footprint。 */
-  footprint?: Point[]
-  /** 该层层高，单位米；缺省不推断。 */
-  height?: number
-}
+export type { CampusFloor, CampusRoom } from '../../packages/campus-schema/src/index'
+
+/** 楼层编号约定：level 0 是一层，负数地下，正数地上；同一建筑内唯一但不要求连续。 */
 
 export interface FloorEndpoint {
   building: string

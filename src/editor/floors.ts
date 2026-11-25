@@ -5,9 +5,11 @@
  * 连接来源同理：M2-A 的 `connectors` 优先，老数据展开 `levels[].verticals`。
  */
 import type { CampusData, Building } from '../data/campusData.ts'
+import type { CampusFloor, CampusRoom } from '../data/pack-schema.ts'
 
 interface FloorLike { index: number; level?: number; name?: string; elevation?: number; height?: number; verticals?: { id: string; kind: string; at?: [number, number]; to: number }[] }
 interface ConnectorLike { id: string; kind: string; from: { building: string; level: number }; to: { building: string; level: number } }
+type RoomLike = { id: string; name: string; aliases?: string[]; kind?: string }
 type BuildingWithFloors = Building & { floors?: (FloorLike & { index?: number })[]; levels?: FloorLike[] }
 
 export type FloorRange = number[]
@@ -86,4 +88,26 @@ export function listBuildingConnectors(data: CampusData, building: Building | un
     }
   }
   return rows
+}
+
+export interface RoomRow {
+  id: string
+  name: string
+  aliases: string[]
+  kind?: CampusRoom['kind']
+}
+
+/** 当前楼层的房间列表：新 `floors[].rooms` 优先，老数据返回空数组（只读）。 */
+export function floorRoomsOf(building: Building | undefined, level: number): RoomRow[] {
+  const floors = (building as (Building & { floors?: (Partial<CampusFloor> & { rooms?: RoomLike[] })[] }) | undefined)?.floors
+  const floor = floors?.find((item) => item.level === level)
+  if (!Array.isArray(floor?.rooms)) return []
+  return floor.rooms
+    .filter((room) => Boolean(room) && typeof room.id === 'string' && typeof room.name === 'string')
+    .map((room) => ({
+      id: room.id,
+      name: room.name,
+      aliases: Array.isArray(room.aliases) ? room.aliases.filter((alias): alias is string => typeof alias === 'string') : [],
+      ...(room.kind ? { kind: room.kind as RoomRow['kind'] } : {}),
+    }))
 }

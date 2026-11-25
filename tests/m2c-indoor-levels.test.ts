@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseDeepLink } from '../src/deeplink/index'
-import { indoorLevelsOf, normalizeIndoorLevel, connectorTargetsOf, mountIndoorLevels } from '../src/ui/indoor-levels'
+import { indoorLevelsOf, indoorRoomsOf, normalizeIndoorLevel, connectorTargetsOf, mountIndoorLevels } from '../src/ui/indoor-levels'
 import type { CampusData, Building } from '../src/data/campusData'
 
 function building(overrides: Partial<Building> = {}): Building {
@@ -73,6 +73,22 @@ describe('M2-C 楼层状态纯逻辑', () => {
     expect(normalizeIndoorLevel(building(), 0)).toBeNull()
   })
 
+  it('有 rooms 才出店面列表；老 pack / 无 rooms 时为空', () => {
+    const canteen = building({
+      floors: [
+        { level: 0, name: '1F', rooms: [{ id: 'kfc', name: 'KFC', kind: 'service' }, { id: 'coffee', name: '咖啡' }] },
+        { level: 1, name: '2F' },
+      ],
+    } as Partial<Building>)
+    expect(indoorRoomsOf(canteen, 0)).toEqual([
+      { id: 'kfc', label: 'KFC' },
+      { id: 'coffee', label: '咖啡' },
+    ])
+    expect(indoorRoomsOf(canteen, 1)).toEqual([])
+    expect(indoorRoomsOf(withFloors, 0)).toEqual([])
+    expect(indoorRoomsOf(undefined, null)).toEqual([])
+  })
+
   it('connector 标记列出当前层可达的其它层', () => {
     const d = data([withFloors])
     Object.assign(d, {
@@ -110,6 +126,61 @@ describe('M2-C 楼层条 DOM', () => {
     bar.update(building(), null)
     expect(host.hidden).toBe(true)
     expect(host.innerHTML).toBe('')
+    bar.destroy()
+  })
+
+  it('楼层条下方渲染本层房间名，点击回调既有选中逻辑', () => {
+    const host = document.createElement('div')
+    let selectedRoom: string | null = null
+    const canteen = building({
+      floors: [
+        { level: 0, name: '1F', rooms: [{ id: 'kfc', name: 'KFC' }, { id: 'coffee', name: '咖啡' }] },
+        { level: 1, name: '2F' },
+      ],
+    } as Partial<Building>)
+    const bar = mountIndoorLevels(host, {
+      data: data([canteen]),
+      onSelect: () => {},
+      onSelectRoom: (id) => { selectedRoom = id },
+    })
+
+    bar.update(canteen, 0)
+    expect([...host.querySelectorAll<HTMLButtonElement>('.indoor-room-btn')].map((b) => b.textContent)).toEqual(['KFC', '咖啡'])
+    host.querySelector<HTMLButtonElement>('[data-room="coffee"]')?.click()
+    expect(selectedRoom).toBe('coffee')
+
+    bar.update(canteen, 1)
+    expect(host.querySelector('.indoor-room-list')).toBeNull()
+    bar.destroy()
+  })
+
+  it('房间按钮的点击路径可接到已有的 POI 选中入口（entityList 同款）', () => {
+    const host = document.createElement('div')
+    const entityList = document.createElement('div')
+    const canteen = building({
+      floors: [{ level: 0, name: '1F', rooms: [{ id: 'poi-m1-048', name: 'KFC' }] }],
+    } as Partial<Building>)
+    const poi = { id: 'poi-m1-048', name: 'KFC（二食堂店）', kind: 'service' }
+    const d = data([canteen])
+    d.pois.push(poi as never)
+    entityList.innerHTML = `<button type="button" data-kind="poi" data-id="${poi.id}">${poi.name}</button>`
+    let selected: { kind: 'poi'; id: string } | null = null
+    const selectFromEntityList = (id: string): void => { selected = { kind: 'poi', id } }
+    entityList.addEventListener('click', (event) => {
+      const item = (event.target as HTMLElement).closest<HTMLElement>('[data-kind]')
+      if (item?.dataset.kind === 'poi' && item.dataset.id) selectFromEntityList(item.dataset.id)
+    })
+
+    const bar = mountIndoorLevels(host, {
+      data: d,
+      onSelect: () => {},
+      onSelectRoom: (roomId) => {
+        if (d.pois.some((entry) => entry.id === roomId)) selectFromEntityList(roomId)
+      },
+    })
+    bar.update(canteen, 0)
+    host.querySelector<HTMLButtonElement>('[data-room="poi-m1-048"]')?.click()
+    expect(selected).toEqual({ kind: 'poi', id: 'poi-m1-048' })
     bar.destroy()
   })
 })

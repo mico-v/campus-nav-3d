@@ -108,6 +108,29 @@ export interface CampusLevel {
   verticals?: CampusVertical[]
 }
 
+/** M2 室内店面房间；可选字段，老 pack / 老 levels 不受影响。 */
+export interface CampusRoom {
+  id: string
+  name: string
+  aliases?: string[]
+  /** 平面多边形缺省时不画轮廓，只在列表里出现。 */
+  polygon?: Point[]
+  kind?: 'dining' | 'shop' | 'office' | 'service' | 'other'
+  /**
+   * 可选的跨层引用：店面挂在某层，但服务/入口落在另一层时填目标 level。
+   * 校验时会检查它是否指向本楼真实存在的楼层；样板数据不用填。
+   */
+  level?: number
+}
+
+export interface CampusFloor {
+  level: number
+  name: string
+  footprint?: Point[]
+  height?: number
+  rooms?: CampusRoom[]
+}
+
 export interface CampusBuilding {
   id: string
   name: string
@@ -123,6 +146,11 @@ export interface CampusBuilding {
   color?: string
   zoneId?: string
   levels?: CampusLevel[]
+  /**
+   * M2-A 楼层模型：一层一张平面，可带店面 `rooms`。
+   * 与 `levels` 两套概念并存，老 pack 不填即可。
+   */
+  floors?: Array<Partial<CampusFloor> & { level: number }>
   /** 坐标为相对方位推算，不可当精确坐标使用。 */
   approx?: boolean
 }
@@ -503,6 +531,90 @@ function checkLevels(collector: Collector, levels: unknown, buildingPath: string
   }
 }
 
+const ROOM_KINDS = new Set(['dining', 'shop', 'office', 'service', 'other'])
+
+/**
+ * M2 房间：老 pack 不带 `rooms` 时零影响。
+ * 报建筑名 + 楼层 + slug，方便在 pack 里定位。
+ */
+function checkRooms(
+  collector: Collector,
+  value: unknown,
+  path: string,
+  buildingName: string,
+  level: unknown,
+  knownLevels: Set<number>,
+): void {
+  if (value === undefined) return
+  if (!Array.isArray(value)) {
+    collector.add(path, 'room.rooms.invalid', 'rooms 必须是数组')
+    return
+  }
+  const ids = new Set<string>()
+  value.forEach((room, index) => {
+    const roomPath = `${path}[${index}]`
+    if (!isRecord(room)) {
+      collector.add(roomPath, 'room.invalid', '房间必须是对象')
+      return
+    }
+    const id = isNonEmptyString(room.id) ? room.id : null
+    if (!id) {
+      collector.add(`${roomPath}.id`, 'room.id', '房间 id 不能为空（建议小写连字符 slug）')
+    } else if (ids.has(id)) {
+      collector.add(`${roomPath}.id`, 'room.id.duplicate', `建筑「${buildingName}」楼层 ${level} 的房间 id 重复：${id}`)
+    } else {
+      ids.add(id)
+    }
+    if (!isNonEmptyString(room.name)) collector.add(`${roomPath}.name`, 'room.name', '房间 name 不能为空')
+    if (room.aliases !== undefined && (!Array.isArray(room.aliases) || !room.aliases.every(isNonEmptyString))) {
+      collector.add(`${roomPath}.aliases`, 'room.aliases', '房间 aliases 必须是非空字符串数组')
+    }
+    if (room.polygon !== undefined) collector.polygon(room.polygon, `${roomPath}.polygon`)
+    if (room.kind !== undefined && (typeof room.kind !== 'string' || !ROOM_KINDS.has(room.kind))) {
+      collector.add(`${roomPath}.kind`, 'room.kind', '房间 kind 只能是 dining / shop / office / service / other')
+    }
+    if (room.level !== undefined) {
+      const target = Number(room.level)
+      if (!Number.isInteger(target) || !knownLevels.has(target)) {
+        collector.add(`${roomPath}.level`, 'room.level.unknown', `建筑「${buildingName}」不存在目标楼层 ${room.level}`)
+      }
+    }
+  })
+}
+
+function checkFloors(collector: Collector, floors: unknown, buildingPath: string, buildingName: string): void {
+  if (!Array.isArray(floors)) {
+    collector.add(`${buildingPath}.floors`, 'floors.invalid', 'floors 必须是数组')
+    return
+  }
+  const levels = new Set<number>()
+  floors.forEach((floor, index) => {
+    const path = `${buildingPath}.floors[${index}]`
+    if (!isRecord(floor)) {
+      collector.add(path, 'floor.invalid', '楼层必须是对象')
+      return
+    }
+    if (!Number.isInteger(floor.level)) {
+      collector.add(`${path}.level`, 'floor.level', '楼层 level 必须是整数')
+    } else {
+      const level = floor.level as number
+      if (levels.has(level)) {
+        collector.add(`${path}.level`, 'floor.level.duplicate', `建筑「${buildingName}」楼层 ${level} 重复`)
+      }
+      levels.add(level)
+    }
+    if (!isNonEmptyString(floor.name)) collector.add(`${path}.name`, 'floor.name', '楼层 name 不能为空')
+    if (floor.footprint !== undefined) collector.polygon(floor.footprint, `${path}.footprint`)
+    if (floor.height !== undefined && (!isFiniteNumber(floor.height) || floor.height <= 0)) {
+      collector.add(`${path}.height`, 'floor.height', '楼层 height 必须大于 0')
+    }
+  })
+  floors.forEach((floor, index) => {
+    if (!isRecord(floor)) return
+    checkRooms(collector, floor.rooms, `${buildingPath}.floors[${index}].rooms`, buildingName, floor.level, levels)
+  })
+}
+
 function checkBuildings(collector: Collector, buildings: unknown): void {
   if (!Array.isArray(buildings)) {
     collector.add('buildings', 'buildings.invalid', 'buildings 必须是数组')
@@ -529,6 +641,9 @@ function checkBuildings(collector: Collector, buildings: unknown): void {
       collector.add(`${path}.zoneId`, 'building.zoneId', 'zoneId 必须是小写连字符 slug')
     }
     if (building.levels !== undefined) checkLevels(collector, building.levels, path)
+    if (building.floors !== undefined) {
+      checkFloors(collector, building.floors, path, isNonEmptyString(building.name) ? building.name : path)
+    }
   })
   checkIdsUnique(
     collector,

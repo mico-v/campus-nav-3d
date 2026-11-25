@@ -139,6 +139,44 @@ describe('M2-A floors / connectors 数据模型', () => {
     expect(validateFloorPack(reversible).issues).toEqual([])
   })
 
+  it('老 pack 不带 rooms 时校验通过，行为与之前一致', () => {
+    const pack = floorPack()
+    expect(pack.buildings![0]!.floors![0]!.rooms).toBeUndefined()
+    expect(validateFloorPack(pack).issues).toEqual([])
+  })
+
+  it('rooms.id 重复时报错，信息带建筑名与楼层', () => {
+    const pack = floorPack()
+    pack.buildings![0]!.floors![0]!.rooms = [
+      { id: 'kfc', name: 'KFC' },
+      { id: 'kfc', name: 'KFC 复制' },
+    ]
+    const issue = validateFloorPack(pack).issues.find((item) => item.code === 'room.id.duplicate')
+    expect(issue).toBeDefined()
+    expect(issue?.message).toContain('图书馆')
+    expect(issue?.message).toContain('-1')
+  })
+
+  it('rooms.level 引用不存在的楼层时报错', () => {
+    const pack = floorPack()
+    pack.buildings![0]!.floors![0]!.rooms = [
+      { id: 'ghost', name: '幽灵', level: 9 },
+    ]
+    const issue = validateFloorPack(pack).issues.find((item) => item.code === 'room.level.unknown')
+    expect(issue).toBeDefined()
+    expect(issue?.message).toContain('图书馆')
+    expect(issue?.message).toContain('9')
+  })
+
+  it('合法 rooms（仅 id/name/kind，无 polygon）通过校验', () => {
+    const pack = floorPack()
+    pack.buildings![0]!.floors![0]!.rooms = [
+      { id: 'kfc', name: 'KFC', kind: 'service' },
+      { id: 'coffee', name: '咖啡', aliases: ['咖啡店'] },
+    ]
+    expect(validateFloorPack(pack).issues).toEqual([])
+  })
+
   it('非法 floors 结构（数组/层名/足迹/层高）也能报出', () => {
     const pack = floorPack()
     pack.buildings![0]!.floors = 'not-array' as unknown as CampusFloor[]

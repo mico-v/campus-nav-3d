@@ -3,7 +3,7 @@
  * 只读数据，不改相机与 schema；没有 floors 的建筑返回空，行为与之前完全一致。
  */
 import type { CampusData, Building } from '../data/campusData'
-import { listBuildingConnectors } from '../editor/floors'
+import { floorRoomsOf, listBuildingConnectors } from '../editor/floors'
 import { escapeHtml } from './panel'
 
 export type IndoorLevelOption = {
@@ -37,6 +37,17 @@ export function connectorTargetsOf(data: CampusData, building: Building | undefi
   return [...targets].sort((a, b) => a - b)
 }
 
+export type IndoorRoomOption = {
+  id: string
+  label: string
+}
+
+/** 当前层的房间名列表；没有 rooms 时返回空数组，老 pack 行为不变。 */
+export function indoorRoomsOf(building: Building | undefined, level: number | null): IndoorRoomOption[] {
+  if (!building || level === null) return []
+  return floorRoomsOf(building, level).map((room) => ({ id: room.id, label: room.name }))
+}
+
 export type IndoorLevelsHandle = {
   update: (building: Building | undefined, level: number | null) => void
   destroy: () => void
@@ -49,6 +60,7 @@ export type IndoorLevelsHandle = {
 export function mountIndoorLevels(host: HTMLElement, opts: {
   data: CampusData
   onSelect: (level: number) => void
+  onSelectRoom?: (roomId: string) => void
 }): IndoorLevelsHandle {
   const render = (building: Building | undefined, level: number | null): void => {
     const options = indoorLevelsOf(building)
@@ -58,6 +70,7 @@ export function mountIndoorLevels(host: HTMLElement, opts: {
       return
     }
     const targets = new Set(connectorTargetsOf(opts.data, building, level))
+    const rooms = indoorRoomsOf(building, level)
     host.hidden = false
     host.innerHTML = `
       <div class="indoor-levels-inner" role="group" aria-label="室内楼层切换">
@@ -65,14 +78,19 @@ export function mountIndoorLevels(host: HTMLElement, opts: {
         <div class="indoor-level-buttons">
           ${options.map((option) => `<button type="button" class="indoor-level-btn${option.level === level ? ' is-active' : ''}${targets.has(option.level) ? ' has-connector' : ''}" data-level="${option.level}" aria-pressed="${option.level === level}" title="${escapeHtml(option.label)}${targets.has(option.level) ? ' · 竖向连接' : ''}">${escapeHtml(option.label)}</button>`).join('')}
         </div>
+        ${rooms.length ? `<div class="indoor-room-list" role="group" aria-label="本层店面"><span class="indoor-room-caption">店面</span>${rooms.map((room) => `<button type="button" class="indoor-room-btn" data-room="${escapeHtml(room.id)}" title="${escapeHtml(room.label)}">${escapeHtml(room.label)}</button>`).join('')}</div>` : ''}
       </div>`
   }
 
   const onClick = (event: MouseEvent): void => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.indoor-level-btn')
-    if (!button || button.disabled) return
-    const level = Number(button.dataset.level)
-    if (Number.isSafeInteger(level)) opts.onSelect(level)
+    const levelButton = (event.target as HTMLElement).closest<HTMLButtonElement>('.indoor-level-btn')
+    if (levelButton && !levelButton.disabled) {
+      const level = Number(levelButton.dataset.level)
+      if (Number.isSafeInteger(level)) opts.onSelect(level)
+      return
+    }
+    const roomButton = (event.target as HTMLElement).closest<HTMLButtonElement>('.indoor-room-btn')
+    if (roomButton && !roomButton.disabled && opts.onSelectRoom && roomButton.dataset.room) opts.onSelectRoom(roomButton.dataset.room)
   }
   host.addEventListener('click', onClick)
   render(undefined, null)
