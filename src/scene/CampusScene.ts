@@ -9,6 +9,14 @@ import { areaPolygon, buildingPolygon, waterPolygon } from './displayRules'
 import { buildRoadOutline } from './geo'
 import { RenderMetricsMonitor, evaluateRenderBudget, type RenderBudget, type RenderBudgetResult, type RenderMetrics } from '../performance/metrics'
 
+/**
+ * 手机端手势映射：单指平移、双指旋转+缩放。桌面端 mouseButtons 保持默认。
+ * 抽成纯函数便于不启动 WebGL/DOM 就能断言，构造 CampusScene 时统一调用。
+ */
+export function configureTouchGestures(controls: OrbitControls): void {
+  controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }
+}
+
 export interface SceneDisplayOptions extends RoadDisplayOptions {
   showBuildings?: boolean
   showPaths?: boolean
@@ -81,6 +89,7 @@ export class CampusScene {
     this.scene.background = new THREE.Color(COLORS.background)
     this.camera = new THREE.PerspectiveCamera(45, 1, 10, 5000)
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
+    configureTouchGestures(this.controls)
     this.controls.enableDamping = true
     this.controls.dampingFactor = 0.06
     this.controls.maxPolarAngle = Math.PI / 2.08
