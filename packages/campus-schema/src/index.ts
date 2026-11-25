@@ -135,7 +135,10 @@ export interface CampusBuilding {
   id: string
   name: string
   aliases?: string[]
-  /** 中文口径别名（与 aliases 等价，供数据侧直读）。 */
+  /**
+   * 中文口径别名，与 `aliases` 等价；读侧优先 `aliases ?? alias`。
+   * @deprecated 新数据只写 `aliases`；保留字段以继续接受老 pack。
+   */
   alias?: string[]
   category?: string
   footprint: Point[]
@@ -203,6 +206,12 @@ export interface CampusIndoorNetwork {
 export interface CampusPoi {
   id: string
   name: string
+  aliases?: string[]
+  /**
+   * 中文口径别名，与 `aliases` 等价；读侧优先 `aliases ?? alias`。
+   * @deprecated 新数据只写 `aliases`；保留字段以继续接受老 pack。
+   */
+  alias?: string[]
   at: Point
   level?: number
   building?: string | null

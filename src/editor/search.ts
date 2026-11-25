@@ -17,33 +17,41 @@ const kindLabels = {
   poi: 'POI',
 } as const
 
+/** 排序规则：精确名 > 名字前缀 > 名字包含 > 别名命中；同档保持原有排序。 */
+function nameMatchRank(result: EditorSearchResult, term: string): number {
+  const name = result.label.toLocaleLowerCase()
+  if (name === term) return 0
+  if (name.startsWith(term)) return 1
+  if (name.includes(term)) return 2
+  return 3
+}
+
 export function editorSearchResults(data: CampusData, query: string, limit = 12): EditorSearchResult[] {
   const results: EditorSearchResult[] = []
-  const add = (kind: keyof typeof kindLabels, index: number, id: string, name?: string): void => {
+  const add = (kind: keyof typeof kindLabels, index: number, id: string, name?: string, aliases?: string[]): void => {
     const label = name?.trim() || id
+    const aliasText = aliases?.filter((alias) => alias.trim()).join(' ') ?? ''
     results.push({
       selection: { kind, index },
       label,
       meta: `${kindLabels[kind]} · ${id}`,
-      searchText: `${label} ${id} ${kindLabels[kind]}`.toLocaleLowerCase(),
+      searchText: `${label} ${id} ${kindLabels[kind]} ${aliasText}`.toLocaleLowerCase(),
     })
   }
-  data.buildings.forEach((item, index) => add('building', index, item.id, item.name))
+  data.buildings.forEach((item, index) => add('building', index, item.id, item.name, item.aliases))
   data.roads.forEach((item, index) => add('road', index, item.id, item.name))
   data.zones.forEach((item, index) => add('zone', index, item.id, item.name))
   data.waters.forEach((item, index) => add('water', index, item.id, item.name))
   data.fields.forEach((item, index) => add('field', index, item.id, item.name))
-  data.pois.forEach((item, index) => add('poi', index, item.id, item.name))
+  data.pois.forEach((item, index) => add('poi', index, item.id, item.name, item.aliases))
 
   const term = query.trim().toLocaleLowerCase()
   if (!term) return []
   return results
-    .filter((result) => result.searchText.includes(term))
-    .sort((a, b) => {
-      const aStarts = a.label.toLocaleLowerCase().startsWith(term) || a.meta.toLocaleLowerCase().includes(`· ${term}`)
-      const bStarts = b.label.toLocaleLowerCase().startsWith(term) || b.meta.toLocaleLowerCase().includes(`· ${term}`)
-      return Number(bStarts) - Number(aStarts) || a.label.localeCompare(b.label, 'zh-CN')
-    })
+    .map((result, order) => ({ result, order, rank: nameMatchRank(result, term) }))
+    .filter((entry) => entry.result.searchText.includes(term))
+    .sort((a, b) => a.rank - b.rank || a.order - b.order)
+    .map((entry) => entry.result)
     .slice(0, limit)
 }
 

@@ -45,6 +45,8 @@ export interface BuildingEntrance {
 export interface Building {
   id: string
   name: string
+  /** 搜索别名；pack 里 `aliases` 与旧 `alias` 在适配层归一到这里。 */
+  aliases?: string[]
   category: BuildingCategory
   position: [number, number]
   size: [number, number]
@@ -105,6 +107,8 @@ export interface FieldArea {
 export interface PoiMarker {
   id: string
   name: string
+  /** 搜索别名；pack 里 `aliases` 与旧 `alias` 在适配层归一到这里。 */
+  aliases?: string[]
   kind: 'landmark' | 'service' | 'gate'
   position: [number, number, number]
   color?: string
@@ -146,6 +150,17 @@ function packToLegacyData(data: unknown, meta: unknown): CampusData {
       .filter((raw) => raw && typeof raw.id === 'string')
       .map((raw) => [raw.id as string, raw]),
   )
+  const rawPois = new Map(
+    ((data as { pois?: Array<Record<string, unknown>> })?.pois ?? [])
+      .filter((raw) => raw && typeof raw.id === 'string')
+      .map((raw) => [raw.id as string, raw]),
+  )
+  const normalizedAliases = (aliases: unknown, legacyAlias: unknown): string[] | undefined => {
+    const source = aliases ?? legacyAlias
+    if (!Array.isArray(source)) return undefined
+    const values = source.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    return values.length ? values : undefined
+  }
   const network = pack.roadNetwork!
   const zones: Zone[] = pack.zones!.map((zone) => ({
     id: zone.id,
@@ -164,6 +179,7 @@ function packToLegacyData(data: unknown, meta: unknown): CampusData {
     return {
       id: building.id,
       name: building.name,
+      aliases: normalizedAliases(raw.aliases, raw.alias),
       category: building.category as BuildingCategory,
       position: building.position!,
       size: building.size!,
@@ -214,7 +230,22 @@ function packToLegacyData(data: unknown, meta: unknown): CampusData {
     waters,
     fields,
     trees: pack.trees!.map((tree) => tree.at as [number, number]),
-    pois: [],
+    // pack 的 POI 带 at/level/tags 等字段；编辑器按位置与可选信息读取这里的一份即可，
+    // 不给渲染层凭空造新 POI。位置补上第三维高度，POI kind 由 tags 回落。
+    pois: pack.pois!.map((poi) => {
+      const raw = (rawPois.get(poi.id) ?? {}) as Record<string, unknown> & { kind?: string; tags?: string[]; elevation?: number }
+      const at = poi.at!
+      return {
+        id: poi.id,
+        name: poi.name,
+        aliases: normalizedAliases(raw.aliases, raw.alias),
+        kind: (typeof raw.kind === 'string' ? raw.kind : raw.tags?.includes('gate') ? 'gate' : 'landmark') as PoiMarker['kind'],
+        position: [at[0], at[1], typeof raw.elevation === 'number' ? raw.elevation : 0] as [number, number, number],
+        color: raw.color as string | undefined,
+        sourceBuildingId: typeof raw.building === 'string' ? raw.building : undefined,
+        info: typeof raw.info === 'string' ? raw.info : Array.isArray(raw.tags) ? raw.tags[0] : undefined,
+      }
+    }),
     roadNetwork: {
       nodes: network.nodes.map((node) => ({
         id: node.id,
