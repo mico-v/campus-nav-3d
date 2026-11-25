@@ -1210,6 +1210,43 @@ html[data-shell='1'] .wf-link {
   opacity: 0.7;
 }
 
+.indoor-room-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-left: 10px;
+  border-left: 1px solid var(--outline);
+}
+
+.indoor-room-caption {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.indoor-room-btn {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--outline);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.indoor-room-btn:hover {
+  border-color: var(--accent);
+}
+
 @media (max-width: 959px) {
   .indoor-levels {
     bottom: var(--indoor-bar-bottom);
@@ -1220,6 +1257,7 @@ html[data-shell='1'] .wf-link {
 
   .indoor-levels-inner {
     padding: 4px 8px;
+    flex-wrap: wrap;
   }
 
   .indoor-levels-caption {
@@ -1227,7 +1265,20 @@ html[data-shell='1'] .wf-link {
   }
 
   .indoor-level-buttons {
-    width: 100%;
+    width: auto;
+    max-width: 100%;
+  }
+
+  .indoor-room-list {
+    flex: 1 1 100%;
+    max-width: 100%;
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--outline);
+  }
+
+  .indoor-room-btn {
+    min-height: 44px;
   }
 }
 

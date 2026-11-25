@@ -86,16 +86,36 @@ const pack = await dataSource.load()
 const data = toCampusData(pack)
 
 /** M2-A 的 floors 在 packToLegacyData 里没带过来；这里只做内存补齐，不改 schema / packs。 */
-type RawFloor = { level: number; name?: string }
+type RawRoom = { id: string; name: string }
+type RawFloor = { level: number; name?: string; rooms?: RawRoom[] }
 type RawBuilding = { id: string; floors?: RawFloor[] }
 type RawConnector = { id: string; kind: string; from: { building: string; level: number }; to: { building: string; level: number } }
-const rawPack = packDataJson as unknown as { buildings?: RawBuilding[]; connectors?: RawConnector[] }
+type RawPoi = { id: string; name: string; at: [number, number]; kind?: string; note?: string; position?: [number, number, number] }
+const rawPack = packDataJson as unknown as { buildings?: RawBuilding[]; connectors?: RawConnector[]; pois?: RawPoi[] }
 const floorsById = new Map((rawPack.buildings ?? []).filter((b) => Array.isArray(b.floors) && b.floors.length).map((b) => [b.id, b.floors!]))
 for (const building of data.buildings) {
   const floors = floorsById.get(building.id)
   if (floors) Object.assign(building, { floors })
 }
 if (Array.isArray(rawPack.connectors)) Object.assign(data, { connectors: rawPack.connectors })
+// 静态数据源只生成了建筑派生的 POI，pack 里的 indoor 店面 POI 没带过来；
+// 与 floors 同样只在内存里补齐 room 对应的 POI，让店面点击能命中现有 POI 选中入口。
+const roomIds = new Set<string>()
+for (const building of rawPack.buildings ?? []) {
+  for (const floor of building.floors ?? []) {
+    for (const room of floor.rooms ?? []) roomIds.add(room.id)
+  }
+}
+for (const poi of rawPack.pois ?? []) {
+  if (!roomIds.has(poi.id) || data.pois.some((entry) => entry.id === poi.id)) continue
+  data.pois.push({
+    id: poi.id,
+    name: poi.name,
+    kind: (poi.kind ?? 'landmark') as (typeof data.pois)[number]['kind'],
+    position: [poi.at[0], poi.position?.[2] ?? 0, poi.at[1]],
+    info: poi.note,
+  })
+}
 
 /** M2-C + M4-A：?q= 与 ?building=&level= 走同一个解析器，互不覆盖。非法参数整条回落。 */
 function resolveDeepLink(href: string): DeepLinkState | null {
@@ -432,6 +452,11 @@ const indoorBar = mountIndoorLevels(indoorHost, {
     syncIndoorUrl()
     indoorBar.update(data.buildings[view.selected.index], indoorLevel)
     requestRender()
+  },
+  onSelectRoom: (roomId) => {
+    if (!data.pois.some((poi) => poi.id === roomId)) return
+    // select() 会触发 syncUi() 重建楼层条；下一拍再选，避免点击回调里递归渲染。
+    window.setTimeout(() => select({ kind: 'poi', id: roomId }), 0)
   },
 })
 
