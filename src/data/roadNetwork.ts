@@ -1,4 +1,4 @@
-import type { Road } from './campusData'
+import type { Road } from './campusData.ts'
 
 export type RoadNodeKind = 'junction' | 'entrance' | 'poi-anchor' | 'waypoint'
 export type RoadClass = 'main' | 'secondary' | 'walkway' | 'service' | 'cycleway'

@@ -1,5 +1,5 @@
-import type { CampusData, CanonicalCampusData, Road } from './campusData'
-import { buildRoadNetwork, type RoadNetwork, type RoadNode } from './roadNetwork'
+import type { CampusData, CanonicalCampusData, Road } from './campusData.ts'
+import { buildRoadNetwork, type RoadNetwork, type RoadNode } from './roadNetwork.ts'
 
 export type RoadSourceKind = 'graph' | 'road' | 'canal'
 

@@ -1,6 +1,6 @@
-import type { CampusData } from './campusData'
-import { validateRoadNetwork } from './roadNetwork'
-import { validateRoadTopologyConsistency } from './roadNormalization'
+import type { CampusData } from './campusData.ts'
+import { validateRoadNetwork } from './roadNetwork.ts'
+import { validateRoadTopologyConsistency } from './roadNormalization.ts'
 
 const BUILDING_CATEGORIES = new Set(['dorm', 'academic', 'landscape', 'sports', 'service', 'admin', 'library', 'gate', 'canteen', 'poi'])
 const ZONE_CATEGORIES = new Set(['dorm', 'academic', 'landscape', 'sports', 'service', 'admin'])
