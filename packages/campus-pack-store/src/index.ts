@@ -20,6 +20,7 @@ import { join } from 'node:path'
 import type { CampusData } from '../../../src/data/campusData.ts'
 import { assertValidCampusData } from '../../../src/data/campusValidation.ts'
 import { normalizeCampusData } from '../../../src/data/roadNormalization.ts'
+import { validateRooms } from '../../../src/editor/roomOps.ts'
 
 export interface PackSummary {
   id: string
@@ -347,11 +348,19 @@ export function splitPack(
   return { meta, geometry }
 }
 
+/**
+ * 保存前校验。`assertValidCampusData` 只查 zone/道路那套，**完全不看 rooms**
+ * （campusValidation.ts 里 `rooms` 出现 0 次），所以室内几何要在这里单独把关，
+ * 否则 2 个点的「多边形」能被原样写进 pack，页面读回来才发现是坏数据。
+ */
 function validateAndNormalize(data: unknown): CampusData {
   try {
     assertValidCampusData(data)
   } catch (error) {
     throw new PackValidationError((error as Error).message)
+  }
+  for (const issue of validateRooms(data as CampusData)) {
+    if (issue.level === 'error') throw new PackValidationError(`室内数据不合法：${issue.message}`)
   }
   return normalizeCampusData(data as CampusData)
 }
