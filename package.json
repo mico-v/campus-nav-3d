@@ -10,6 +10,7 @@
     "verify:sheet": "node scripts/verify-sheet.mjs",
     "verify:nav": "node scripts/verify-nav.mjs",
     "preview": "vite preview",
+    "start": "node --experimental-strip-types apps/server/src/main.ts",
     "test": "vitest run",
     "status": "node tools/project-status.mjs",
     "validate:pack": "node --experimental-strip-types packages/campus-cli/src/main.ts validate packs/usts-tianping"
