@@ -26,6 +26,10 @@ export interface ApiHandlerOptions {
   storage?: string
   version?: string
   now?: () => number
+  /** 只读接口是否公开（默认 true，与 Pages 静态一致）；false 时 GET /api/campus 也要令牌 */
+  publicRead?: boolean
+  /** 允许跨域的前端来源白名单（独立后端形态） */
+  corsOrigins?: string[]
 }
 
 export interface ApiResult {
@@ -97,7 +101,7 @@ export async function handleApiRequest(
   if (segments[0] !== 'api') return false
 
   const method = (req.method ?? 'GET').toUpperCase()
-  const headers = corsHeaders(req, [])
+  const headers = corsHeaders(req, options.corsOrigins ?? [])
   const send = (result: ApiResult): void => {
     const payload = JSON.stringify(result.body ?? null)
     res.writeHead(result.status, {
@@ -147,6 +151,16 @@ export async function handleApiRequest(
     const packId = segments[2]
 
     if (method === 'GET') {
+      if (options.publicRead === false) {
+        if (!options.token) {
+          send({ status: 503, body: { error: '只读接口已关闭：服务端未配置 API_TOKEN' } })
+          return true
+        }
+        if (tokenOf(req) !== options.token) {
+          send({ status: 401, body: { error: 'token 无效' } })
+          return true
+        }
+      }
       const id = packId ?? options.defaultPackId
       if (!id) {
         send({ status: 400, body: { error: '缺少 pack id' } })

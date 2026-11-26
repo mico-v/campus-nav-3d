@@ -30,6 +30,26 @@ export interface StaticHandlerOptions {
   spaFallback?: string
 }
 
+/**
+ * 路径 → dist 里的文件。
+ * 构建产物是 `editor.html`（不在 `editor/` 目录下），所以 `/editor` 与 `/editor/` 要映射到
+ * `editor.html`；其余多入口页（`/demo`、`/plan`）同理。带 `.html` 后缀的请求原样处理。
+ */
+const PAGE_ALIASES: Record<string, string> = {
+  '': 'index.html',
+  editor: 'editor.html',
+  demo: 'demo.html',
+  plan: 'plan.html',
+}
+
+/** 把请求路径映射成 dist 相对路径；映射不上返回 null（走 SPA 回落） */
+export function resolveAssetPath(requestPath: string, fallback = 'index.html'): string | null {
+  const trimmed = requestPath.replace(/^\/+|\/+$/g, '')
+  if (trimmed === '') return fallback
+  if (Object.hasOwn(PAGE_ALIASES, trimmed)) return PAGE_ALIASES[trimmed]
+  return trimmed
+}
+
 function sendFile(res: ServerResponse, path: string, size: number): void {
   const ext = extname(path).toLowerCase()
   res.writeHead(200, {
@@ -52,7 +72,8 @@ export function createStaticHandler(options: StaticHandlerOptions) {
     }
 
     const pathname = decodeURIComponent((req.url ?? '/').split('?')[0] ?? '/')
-    const relative = normalize(pathname).replace(/^([/\\])+/, '')
+    const mapped = resolveAssetPath(pathname, fallback)
+    const relative = mapped ? normalize(mapped).replace(/^([/\\])+/, '') : ''
     const candidates = relative ? [join(root, relative)] : [join(root, fallback)]
 
     const tryServe = (index: number): void => {

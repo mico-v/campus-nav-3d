@@ -5,10 +5,13 @@
  * 运行：`npm run start`（node --experimental-strip-types apps/server/src/main.ts）
  *
  * 环境变量：
- *  - PORT        默认 8080
- *  - DATA_DIR    默认 ./data       —— pack 落盘目录
- *  - API_TOKEN   未配置时写接口一律 503（不裸奔在公网）
- *  - SEED_DIR    种子包目录，默认 ./packs
+ *  - PORT          默认 8080
+ *  - HOST          默认 0.0.0.0
+ *  - DATA_DIR      默认 ./data       —— pack 落盘目录
+ *  - API_TOKEN     未配置时写接口一律 503（不裸奔在公网）
+ *  - SEED_DIR      种子包目录，默认 ./packs
+ *  - CORS_ORIGIN   独立后端形态时允许的前端来源，逗号分隔；不配则不放行跨域
+ *  - PUBLIC_READ   设为 0 时 `/api/campus` 也要令牌（默认公开只读，与 Pages 静态一致）
  */
 import { createServer } from 'node:http'
 import { resolve } from 'node:path'
@@ -33,6 +36,8 @@ export async function startServer(options: {
   seedDir?: string
   token?: string
   distDir?: string
+  publicRead?: boolean
+  corsOrigins?: string[]
 } = {}) {
   const dataDir = options.dataDir ?? resolve(repoRoot, process.env.DATA_DIR ?? 'data')
   const seedDir = options.seedDir ?? resolve(process.cwd(), process.env.SEED_DIR ?? 'packs')
@@ -51,6 +56,10 @@ export async function startServer(options: {
       storage: 'file',
       defaultPackId: 'usts-tianping',
       version: '0.1.0',
+      publicRead: options.publicRead ?? process.env.PUBLIC_READ !== '0',
+      corsOrigins:
+        options.corsOrigins ??
+        (process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((item) => item.trim()).filter(Boolean) : []),
     })
       .then((handled) => {
         if (!handled) staticHandler(req, res)
