@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { CampusData } from '../data/campusData'
-import type { Selection } from '../editor/types'
+import { selectionKey, type Selection } from '../editor/types'
 import { COLORS } from './theme'
 import { buildGround, buildZones, buildWaters, buildFields, buildTrees, buildRoads, buildRoadJunctions, buildBuilding, buildPois, buildingColor, type BuiltLabel } from './builders'
 import { deriveCampusBounds, poiDisplayLevel, resolvedPoi, type RoadDisplayOptions } from './displayRules'
@@ -155,8 +155,7 @@ export class CampusScene {
   }
 
   private selectionKey(selection: Selection): string {
-    if (!selection) return 'none'
-    return selection.kind === 'road-node' ? `${selection.kind}:${selection.id}` : `${selection.kind}:${selection.index}`
+    return selectionKey(selection)
   }
 
   /** Selection is transient UI state; update only materials/highlights so a
@@ -196,7 +195,7 @@ export class CampusScene {
 
   beginEditorPreview(selection: Selection): void {
     if (!selection) return
-    const key = selection.kind === 'road-node' ? `${selection.kind}:${selection.id}` : `${selection.kind}:${selection.index}`
+    const key = selectionKey(selection)
     if (this.editorPreviewBase?.key === key) return
     if (selection.kind === 'building') {
       const object = this.buildingObjects.get(selection.index)
@@ -216,7 +215,7 @@ export class CampusScene {
   previewEditorTranslation(selection: Selection, dx: number, dz: number): void {
     if (!selection) return
     this.beginEditorPreview(selection)
-    const key = selection.kind === 'road-node' ? `${selection.kind}:${selection.id}` : `${selection.kind}:${selection.index}`
+    const key = selectionKey(selection)
     if (!this.editorPreviewBase || this.editorPreviewBase.key !== key) return
     if (selection.kind === 'building') {
       const object = this.buildingObjects.get(selection.index)
@@ -487,6 +486,7 @@ export class CampusScene {
       const p = resolvedPoi(rawPoi, this.data.buildings)
       return p ? new THREE.Vector3(p.position[0], 0, p.position[2]) : null
     }
+    if (selection.kind === 'room') return null
     const list = selection.kind === 'zone' ? this.data.zones : selection.kind === 'water' ? this.data.waters : selection.kind === 'field' ? this.data.fields : null
     const item = list?.[selection.index]
     return item ? new THREE.Vector3(item.center[0], 0, item.center[1]) : null
@@ -516,6 +516,7 @@ export class CampusScene {
         const poi = this.data.pois[selection.index]
         return data.kind === 'poi' && poi?.id === data.id
       }
+      if (selection.kind === 'room') return false
       return data.kind === selection.kind && data.index === selection.index
     })
   }

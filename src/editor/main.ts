@@ -5,7 +5,7 @@ import { EditorStore } from './store.ts'
 import { Canvas2D, type MapBackdropConfig, type BackdropAlign } from './canvas2d.ts'
 import { FormPanel } from './form.ts'
 import { loadCampus, saveCampus, ApiUnavailableError } from './api.ts'
-import { defaultLayerFlags, type LayerFlags, DEFAULT_GRID_SETTINGS, type EditorMode, type Selection } from './types.ts'
+import { defaultLayerFlags, type LayerFlags, DEFAULT_GRID_SETTINGS, type EditorMode, type Selection, selectionKey } from './types.ts'
 import { CampusScene } from '../scene/CampusScene.ts'
 import { translatePoints } from './geometry.ts'
 import { moveRoadNode } from '../data/roadNetwork.ts'
@@ -358,10 +358,6 @@ async function boot(): Promise<void> {
   scene3d.onSelectionChange = (selection) => store.select(selection)
   scene3d.setEditorEditMode(false)
 
-  const selectionKey = (selection: Selection): string => {
-    if (!selection) return 'none'
-    return selection.kind === 'road-node' ? `${selection.kind}:${selection.id}` : `${selection.kind}:${selection.index}`
-  }
   const syncScene = (): void => {
     if (sceneHost.hidden) return
     if (threeDragBefore) return

@@ -23,7 +23,22 @@ export const DEFAULT_GRID_SETTINGS: GridSettings = {
 export type Selection =
   | { kind: 'building' | 'road' | 'zone' | 'water' | 'field' | 'poi'; index: number }
   | { kind: 'road-node'; id: string }
+  /** 室内房间：位置由 buildingId + floorLevel + roomId 三段确定，不能用下标（楼层增删会错位） */
+  | { kind: 'room'; buildingId: string; floorLevel: number; roomId: string }
   | null
+
+/** 选择的稳定标识：房间用三段 id 拼，其余用下标。改了这里，form/scene/store 一起受益。 */
+export function selectionKey(selection: Selection): string {
+  if (!selection) return 'none'
+  switch (selection.kind) {
+    case 'road-node':
+      return `${selection.kind}:${selection.id}`
+    case 'room':
+      return `${selection.kind}:${selection.buildingId}:${selection.floorLevel}:${selection.roomId}`
+    default:
+      return `${selection.kind}:${selection.index}`
+  }
+}
 
 /** Which layers are drawn / hit-testable in the canvas. */
 export interface LayerFlags {

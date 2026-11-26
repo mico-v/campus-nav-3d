@@ -185,6 +185,12 @@ export class EditorStore {
       if (!this._data.roadNetwork?.nodes.some((node) => node.id === sel.id)) this._selection = null
       return
     }
+    if (sel.kind === 'room') {
+      const building = this._data.buildings.find((item) => item.id === sel.buildingId)
+      const floor = building?.floors?.find((item) => item.level === sel.floorLevel)
+      if (!floor?.rooms?.some((room) => room.id === sel.roomId)) this._selection = null
+      return
+    }
     const collection = this._data[`${sel.kind}s` as 'buildings'] as unknown[] | undefined
     if (!collection || !collection[sel.index]) this._selection = null
   }

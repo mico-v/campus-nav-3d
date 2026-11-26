@@ -160,8 +160,12 @@ export function removeRoom(data: CampusData, ref: RoomRef): boolean {
   return true
 }
 
-/** 改房间字段（name / kind / level / aliases） */
-export function updateRoom(data: CampusData, ref: RoomRef, patch: Partial<Omit<CampusRoom, 'id'>>): boolean {
+/** 改房间字段（name / kind / level / aliases）。kind 收 string，方便表单直接把输入扔进来 */
+export function updateRoom(
+  data: CampusData,
+  ref: RoomRef,
+  patch: Partial<Omit<CampusRoom, 'id' | 'kind'>> & { kind?: string },
+): boolean {
   const room = findRoom(data, ref)
   if (!room) return false
   Object.assign(room, patch)
