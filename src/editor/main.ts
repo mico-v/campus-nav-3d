@@ -6,6 +6,7 @@ import { Canvas2D, type MapBackdropConfig, type BackdropAlign } from './canvas2d
 import { FormPanel } from './form.ts'
 import { loadCampus, saveCampus, ApiUnavailableError } from './api.ts'
 import { defaultLayerFlags, type LayerFlags, DEFAULT_GRID_SETTINGS, type EditorMode, type Selection, selectionKey } from './types.ts'
+import { IndoorPlanPanel } from './indoorPlanPanel.ts'
 import { CampusScene } from '../scene/CampusScene.ts'
 import { translatePoints } from './geometry.ts'
 import { moveRoadNode } from '../data/roadNetwork.ts'
@@ -467,6 +468,22 @@ async function boot(): Promise<void> {
     request3dRender()
     refreshToolbar()
   })
+
+  /**
+   * 室内平面面板：挂在右侧表单区，独立坐标系、独立小模式（选中/新描/拖点），
+   * 不接管主画布的绘制状态机。编辑后端不可用时进只读模式。
+   */
+  const indoorPlan = new IndoorPlanPanel({
+    store,
+    host: formHost,
+    toast: (message: string) => showToast(message, 'err'),
+    onSelect: (selection: Selection) => {
+      if (selection) store.select(selection)
+      else store.select(null)
+    },
+    readOnly,
+  })
+  indoorPlan.mount()
 
   // initial paint
   canvas.render()

@@ -94,6 +94,18 @@ export class EditorStore {
     this._activeFloor = clampFloor(this._activeFloor, this.currentFloorLevels())
   }
 
+  /**
+   * 连续交互（比如拖顶点）时不入撤销栈的写入：只改数据 + 通知订阅者。
+   * 拖点每移动一像素都入栈会把 undo 塞满，所以拖动过程用它，松手再调一次 mutate 收尾。
+   */
+  mutateSilently(_label: string, fn: (data: CampusData) => void): void {
+    fn(this._data)
+    syncRoadNetwork(this._data)
+    this._dirty = true
+    this._revision += 1
+    this.notify()
+  }
+
   /** Apply a mutation and record one undo step only when data actually changes. */
   mutate(_label: string, fn: (data: CampusData) => void): void {
     const before = deepClone(this._data)
