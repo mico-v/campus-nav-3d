@@ -59,6 +59,20 @@ npm run dev
 
 开发服务器根路径即项目首页，`/demo.html`、`/plan.html`、`/editor.html` 分别对应原型、报告和编辑器。
 
+## 自托管部署（要能改地图时用这个）
+
+GitHub Pages 是纯静态只读站，`/api/*` 不存在，建模页只能看不能存。要在页面上改图、保存落盘，
+把服务跑在自己机器上：
+
+```bash
+npm ci && npm run build
+DATA_DIR=/var/lib/campus-nav/data API_TOKEN=$(openssl rand -hex 24) PORT=8080 npm run start
+```
+
+一个进程同时托管 `/`（主站）、`/editor`（建模页）与 `/api/*`。完整步骤（systemd、Caddy/nginx 反代、
+备份、安全清单、排错表）见 **[docs/deploy-selfhost.md](docs/deploy-selfhost.md)**。
+方案与切片背景见 [docs/design-server-deploy.md](docs/design-server-deploy.md)。
+
 ## 生产构建
 
 ```bash

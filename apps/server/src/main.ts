@@ -96,6 +96,16 @@ export async function startServer(options: {
   }
 }
 
+/** Node 原生 TS 剥离在 22.18 起默认开启；更早的版本要 --experimental-strip-types，给一句人话而不是 SyntaxError */
+const nodeMajor = Number.parseInt(process.versions.node.split('.')[0] ?? '0', 10)
+const nodeMinor = Number.parseInt(process.versions.node.split('.')[1] ?? '0', 10)
+if (nodeMajor < 22 || (nodeMajor === 22 && nodeMinor < 18)) {
+  console.warn(
+    `[campus-server] 警告：当前 Node ${process.versions.node}，原生 TS 剥离在 22.18+ 才默认开启；` +
+      ' 如果启动失败请升级 Node，或改用 node --experimental-strip-types apps/server/src/main.ts',
+  )
+}
+
 const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename)
 
 if (isMain) {
