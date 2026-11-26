@@ -94,6 +94,18 @@ export class EditorStore {
     this._activeFloor = clampFloor(this._activeFloor, this.currentFloorLevels())
   }
 
+  /**
+   * 连续交互（比如拖顶点）时不入撤销栈的写入：只改数据 + 通知订阅者。
+   * 拖点每移动一像素都入栈会把 undo 塞满，所以拖动过程用它，松手再调一次 mutate 收尾。
+   */
+  mutateSilently(_label: string, fn: (data: CampusData) => void): void {
+    fn(this._data)
+    syncRoadNetwork(this._data)
+    this._dirty = true
+    this._revision += 1
+    this.notify()
+  }
+
   /** Apply a mutation and record one undo step only when data actually changes. */
   mutate(_label: string, fn: (data: CampusData) => void): void {
     const before = deepClone(this._data)
@@ -183,6 +195,12 @@ export class EditorStore {
     if (!sel) return
     if (sel.kind === 'road-node') {
       if (!this._data.roadNetwork?.nodes.some((node) => node.id === sel.id)) this._selection = null
+      return
+    }
+    if (sel.kind === 'room') {
+      const building = this._data.buildings.find((item) => item.id === sel.buildingId)
+      const floor = building?.floors?.find((item) => item.level === sel.floorLevel)
+      if (!floor?.rooms?.some((room) => room.id === sel.roomId)) this._selection = null
       return
     }
     const collection = this._data[`${sel.kind}s` as 'buildings'] as unknown[] | undefined

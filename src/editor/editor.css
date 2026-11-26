@@ -528,3 +528,197 @@ button.tool.small {
 .points-editor button.tool.small:last-child {
   margin-right: 0;
 }
+
+/* ── 室内平面面板 ───────────────────────────────────────────── */
+.indoor-plan {
+  border-top: 1px solid var(--line);
+  padding: 10px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.indoor-plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.indoor-plan-head h2 {
+  font-size: 13px;
+  margin: 0;
+  font-weight: 600;
+}
+.indoor-plan-mode {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-2, #1f2430);
+  color: var(--muted);
+}
+.indoor-plan-body {
+  display: grid;
+  grid-template-columns: minmax(120px, 34%) 1fr;
+  gap: 8px;
+  min-height: 220px;
+}
+.indoor-plan-tree {
+  overflow: auto;
+  max-height: 320px;
+  font-size: 12px;
+}
+.plan-tree-buildings,
+.plan-tree-floors,
+.plan-tree-rooms {
+  list-style: none;
+  margin: 0;
+  padding-left: 0;
+}
+.plan-tree-floors { padding-left: 10px; }
+.plan-tree-rooms { padding-left: 10px; }
+.plan-tree-buildings li.active > .plan-tree-building,
+.plan-tree-floors li.active > .plan-tree-floor,
+.plan-tree-rooms li.active > .plan-tree-room {
+  background: var(--accent-soft, #2b3550);
+  color: var(--fg, #e8ecf4);
+}
+.plan-tree-building,
+.plan-tree-floor,
+.plan-tree-room {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: var(--muted, #9aa4b8);
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font: inherit;
+}
+.plan-tree-building:hover,
+.plan-tree-floor:hover,
+.plan-tree-room:hover {
+  background: var(--surface-2, #1f2430);
+}
+.plan-tree-count {
+  font-size: 10px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+.plan-pill {
+  font-size: 9px;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px dashed var(--warn, #b8892f);
+  color: var(--warn, #b8892f);
+}
+.plan-empty {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 4px 6px;
+}
+.indoor-plan-stage {
+  position: relative;
+  background: var(--surface-1, #12161f);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+.plan-svg {
+  width: 100%;
+  height: 100%;
+  max-height: 320px;
+  touch-action: none;
+}
+.plan-outline {
+  fill: rgba(120, 150, 200, 0.08);
+  stroke: rgba(150, 175, 220, 0.7);
+  stroke-width: 0.4;
+}
+.plan-room {
+  fill: rgba(90, 130, 210, 0.18);
+  stroke: rgba(120, 165, 240, 0.85);
+  stroke-width: 0.3;
+  cursor: pointer;
+}
+.plan-room.placeholder {
+  fill: rgba(184, 137, 47, 0.16);
+  stroke: rgba(184, 137, 47, 0.85);
+  stroke-dasharray: 1.2 0.8;
+}
+.plan-room.selected {
+  fill: rgba(90, 200, 160, 0.28);
+  stroke: rgba(90, 220, 170, 0.95);
+  stroke-width: 0.5;
+}
+.plan-room-label {
+  font-size: 1.6px;
+  fill: rgba(230, 236, 248, 0.92);
+  pointer-events: none;
+}
+.plan-vertex {
+  fill: #6ee7b7;
+  stroke: #0b1220;
+  stroke-width: 0.2;
+  cursor: grab;
+}
+.plan-draft {
+  fill: rgba(110, 231, 183, 0.15);
+  stroke: #6ee7b7;
+  stroke-width: 0.4;
+  stroke-dasharray: 1 0.7;
+}
+.plan-draft-dot { fill: #6ee7b7; }
+.plan-hint-text {
+  font-size: 2px;
+  fill: var(--muted, #9aa4b8);
+}
+.indoor-plan-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.indoor-plan-toolbar .tool.mode.active {
+  background: var(--accent-soft, #2b3550);
+  color: var(--fg, #e8ecf4);
+}
+.indoor-plan-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 110px;
+  overflow: auto;
+  font-size: 11px;
+}
+.plan-issue-summary {
+  color: var(--muted);
+  font-size: 11px;
+}
+.plan-issue {
+  text-align: left;
+  background: none;
+  border: 0;
+  border-left: 2px solid transparent;
+  padding: 2px 6px;
+  color: var(--muted, #9aa4b8);
+  cursor: pointer;
+  font: inherit;
+}
+.plan-issue.error {
+  border-left-color: var(--danger, #e35d6a);
+  color: var(--danger, #e35d6a);
+}
+.plan-issue.warning {
+  border-left-color: var(--warn, #b8892f);
+  color: var(--warn, #b8892f);
+}
+.plan-issue.ok {
+  color: var(--ok, #4caf7d);
+  cursor: default;
+}

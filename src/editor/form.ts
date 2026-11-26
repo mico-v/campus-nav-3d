@@ -2,7 +2,20 @@ import type { EditorStore } from './store.ts'
 import type { CampusData, BuildingCategory, ZoneCategory } from '../data/campusData.ts'
 import { buildingCategoryOptions } from '../data/campusData.ts'
 import { translatePoints, polygonBounds, polygonCentroid, type Point } from './geometry.ts'
-import type { Selection } from './types.ts'
+import { selectionKey, type Selection } from './types.ts'
+import { findFloor, findRoom, isValidRing, updateRoom } from './roomOps.ts'
+
+/** 房间类型选项（与 pack schema 的 kind 取值对应，未知值原样显示） */
+const ROOM_KINDS = ['dining', 'service', 'shop', 'study', 'office', 'other'] as const
+const ROOM_KIND_LABELS: Record<string, string> = {
+  dining: '餐饮',
+  service: '服务',
+  shop: '商铺',
+  study: '学习',
+  office: '办公',
+  other: '其他',
+}
+
 import { floorRangeOf, listBuildingConnectors } from './floors.ts'
 
 type Option = { value: string; label: string }
@@ -76,7 +89,8 @@ export class FormPanel {
     else if (sel.kind === 'zone') shapeSize = data.zones[sel.index]?.footprint?.length ?? 0
     else if (sel.kind === 'water') shapeSize = data.waters[sel.index]?.footprint?.length ?? 0
     else if (sel.kind === 'field') shapeSize = data.fields[sel.index]?.footprint?.length ?? 0
-    return sel.kind === 'road-node' ? `${sel.kind}:${sel.id}:${shapeSize}` : `${sel.kind}:${sel.index}:${shapeSize}`
+    const base = selectionKey(sel)
+    return sel.kind === 'room' ? `${base}:${shapeSize}` : `${base}:${shapeSize}`
   }
 
   render(): void {
@@ -113,6 +127,14 @@ export class FormPanel {
         return { title: data.fields[sel.index]?.name || '操场', sub: '操场' }
       case 'poi':
         return { title: data.pois[sel.index]?.name || 'POI', sub: `POI · ${data.pois[sel.index]?.kind ?? ''}` }
+      case 'room': {
+        const room = findRoom(data, sel)
+        const floor = findFloor(data, sel.buildingId, sel.floorLevel)
+        return {
+          title: room?.name || '新房间',
+          sub: `室内 · ${floor?.name || `${sel.floorLevel}F`} · ${room ? (isValidRing(room.polygon) ? '已描轮廓' : '占位，未描轮廓') : '房间不存在'}`,
+        }
+      }
       default:
         return { title: '', sub: '' }
     }
@@ -512,6 +534,8 @@ export class FormPanel {
         return this.areaFields(sel.kind, sel.index)
       case 'poi':
         return this.poiFields(sel.index)
+      case 'room':
+        return this.roomFields(sel)
       default:
         void data
         return []
@@ -631,6 +655,63 @@ export class FormPanel {
       fields.push({ id: 'stripe', label: '条纹色 (hex，可空)', kind: 'text', get: () => this.store.data.fields[i].stripeColor ?? '', apply: (v) => { this.store.data.fields[i].stripeColor = v.trim() ? v.trim() : undefined } })
     }
     return fields
+  }
+
+  /**
+   * 房间字段。房间不走 `kind` 下标那套 —— 位置由 buildingId + floorLevel + roomId 确定，
+   * 楼层增删不会让选择错位。polygon 在平面上拖，这里只读展示顶点数与坐标。
+   */
+  private roomFields(sel: Extract<Selection, { kind: 'room' }>): FieldDesc[] {
+    const room = () => findRoom(this.store.data, sel)
+    if (!room()) return []
+    const ring = () => room()?.polygon
+    return [
+      { id: 'id', label: '房间 ID', kind: 'readonly', get: () => room()?.id ?? '' },
+      {
+        id: 'name',
+        label: '名称',
+        kind: 'text',
+        get: () => room()?.name ?? '',
+        apply: (value) =>
+          this.store.mutate('改房间名称', (data) => {
+            updateRoom(data, sel, { name: value })
+          }),
+      },
+      {
+        id: 'kind',
+        label: '类型',
+        kind: 'select',
+        options: ROOM_KINDS.map((item) => ({ value: item, label: ROOM_KIND_LABELS[item] ?? item })),
+        get: () => room()?.kind ?? 'other',
+        apply: (value) =>
+          this.store.mutate('改房间类型', (data) => {
+            updateRoom(data, sel, { kind: value })
+          }),
+      },
+      {
+        id: 'floor',
+        label: '所在楼层',
+        kind: 'readonly',
+        get: () => String(room()?.level ?? sel.floorLevel),
+      },
+      {
+        id: 'points',
+        label: '轮廓顶点',
+        kind: 'readonly',
+        get: () => (isValidRing(ring()) ? `${ring()!.length} 个` : '未描（占位）'),
+      },
+      {
+        id: 'coords',
+        label: '顶点坐标',
+        kind: 'readonly',
+        get: () =>
+          isValidRing(ring())
+            ? ring()!
+                .map(([x, z], index) => `${index}: ${round(x)},${round(z)}`)
+                .join('  ')
+            : '',
+      },
+    ]
   }
 
   private poiFields(i: number): FieldDesc[] {
