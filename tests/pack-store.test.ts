@@ -233,3 +233,95 @@ describe('handleApiRequest：dev 与部署共用的一份路由', () => {
     expect(handled).toBe(false)
   })
 })
+
+/** fixture 里的建筑是 position+size 风格，不一定有 footprint；用 position/size 合成一个 */
+function outlineOf(building: Record<string, unknown>): Array<[number, number]> {
+  if (Array.isArray(building.footprint)) return building.footprint as Array<[number, number]>
+  const [x, z] = (building.position as [number, number]) ?? [0, 0]
+  const [w, d] = (building.size as [number, number]) ?? [10, 10]
+  return [
+    [x, z],
+    [x + w, z],
+    [x + w, z + d],
+    [x, z + d],
+  ]
+}
+
+describe('保存闸门：室内几何不合法必须被拒（campusValidation 不查 rooms）', () => {
+  it('2 个点的「多边形」被拒，原文件不污染', async () => {
+    const dataDir = await seedDataDir()
+    const store = new FilePackStore({ dataDir })
+    const before = await readFile(join(dataDir, 'pack-a', 'campus.json'), 'utf8')
+    const data = await store.readCampus('pack-a')
+    const withBadRoom = {
+      ...data,
+      buildings: [
+        {
+          ...(data.buildings[0] as unknown as Record<string, unknown>),
+          floors: [{ level: 0, name: '1F', rooms: [{ id: 'r1', name: '坏房间', polygon: [[1, 1], [2, 2]] }] }],
+        },
+        ...data.buildings.slice(1),
+      ],
+    }
+    await expect(store.writeCampus('pack-a', withBadRoom)).rejects.toBeInstanceOf(PackValidationError)
+    expect(await readFile(join(dataDir, 'pack-a', 'campus.json'), 'utf8')).toBe(before)
+  })
+
+  it('顶点落在楼板外被拒', async () => {
+    const dataDir = await seedDataDir()
+    const store = new FilePackStore({ dataDir })
+    const data = await store.readCampus('pack-a')
+    const building = data.buildings[0] as unknown as Record<string, unknown>
+    const outline = outlineOf(building)
+    const xs = outline.map((p) => p[0])
+    const outside: Array<[number, number]> = [
+      [Math.max(...xs) + 5000, 0],
+      [Math.max(...xs) + 5010, 0],
+      [Math.max(...xs) + 5010, 10],
+    ]
+    const withOutside = {
+      ...data,
+      buildings: [
+        {
+          ...building,
+          floors: [{ level: 0, name: '1F', footprint: outline, rooms: [{ id: 'r1', name: '外面', polygon: outside }] }],
+        },
+        ...data.buildings.slice(1),
+      ],
+    }
+    await expect(store.writeCampus('pack-a', withOutside)).rejects.toThrow('室内数据不合法')
+  })
+
+  it('合法房间（3 点以上、在 outline 内）能存进去并读回', async () => {
+    const dataDir = await seedDataDir()
+    const store = new FilePackStore({ dataDir })
+    const data = await store.readCampus('pack-a')
+    const building = data.buildings[0] as unknown as Record<string, unknown>
+    const outline = outlineOf(building)
+    const xs = outline.map((p) => p[0])
+    const ys = outline.map((p) => p[1])
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2
+    const ring: Array<[number, number]> = [
+      [cx - 2, cy - 2],
+      [cx + 2, cy - 2],
+      [cx + 2, cy + 2],
+      [cx - 2, cy + 2],
+    ]
+    const withRoom = {
+      ...data,
+      buildings: [
+        {
+          ...building,
+          floors: [{ level: 0, name: '1F', footprint: outline, rooms: [{ id: 'r1', name: '好房间', polygon: ring }] }],
+        },
+        ...data.buildings.slice(1),
+      ],
+    }
+    await store.writeCampus('pack-a', withRoom)
+    const reopened = new FilePackStore({ dataDir })
+    const after = await reopened.readCampus('pack-a')
+    const floor = (after.buildings[0] as unknown as { floors?: Array<{ rooms?: Array<{ polygon?: unknown }> }> }).floors?.[0]
+    expect(floor?.rooms?.[0]?.polygon).toEqual(ring)
+  })
+})
